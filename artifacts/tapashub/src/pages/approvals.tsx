@@ -61,7 +61,7 @@ export default function Approvals() {
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2 text-xs text-muted-foreground">
                       <span className="flex items-center"><span className="font-medium text-foreground mr-1">Requester:</span> {approval.requestedBy}</span>
                       <span className="flex items-center"><span className="font-medium text-foreground mr-1">Company:</span> {approval.companyName}</span>
-                      {approval.amount && <span className="flex items-center"><span className="font-medium text-foreground mr-1">Amount:</span> ${approval.amount.toLocaleString()}</span>}
+                      {approval.amount && <span className="flex items-center"><span className="font-medium text-foreground mr-1">Amount:</span> ₹{approval.amount.toLocaleString('en-IN')}</span>}
                     </div>
                   </div>
                   

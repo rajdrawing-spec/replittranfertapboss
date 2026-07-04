@@ -118,7 +118,7 @@ export default function Orders() {
                       </Badge>
                     </TableCell>
                     <TableCell className="capitalize text-muted-foreground text-sm">{order.channel}</TableCell>
-                    <TableCell className="text-right font-medium">${order.totalAmount.toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-medium">₹{order.totalAmount.toLocaleString('en-IN')}</TableCell>
                   </TableRow>
                 ))
               )}

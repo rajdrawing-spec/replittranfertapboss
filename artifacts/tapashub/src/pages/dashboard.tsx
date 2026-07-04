@@ -27,10 +27,10 @@ export default function Dashboard() {
   }
 
   const kpis = [
-    { title: "Total Revenue", value: `$${summary?.totalRevenue?.toLocaleString()}`, icon: TrendingUp, trend: "+12.5%" },
+    { title: "Total Revenue", value: `₹${summary?.totalRevenue?.toLocaleString('en-IN')}`, icon: TrendingUp, trend: "+12.5%" },
     { title: "Active Orders", value: summary?.pendingOrders?.toString(), icon: ShoppingCart, trend: "+3.2%" },
     { title: "Total Employees", value: summary?.totalEmployees?.toString(), icon: Users, trend: "+0.0%" },
-    { title: "Pending Payables", value: `$${summary?.pendingPayables?.toLocaleString()}`, icon: AlertTriangle, trend: "-2.1%" },
+    { title: "Pending Payables", value: `₹${summary?.pendingPayables?.toLocaleString('en-IN')}`, icon: AlertTriangle, trend: "-2.1%" },
   ]
 
   return (
@@ -87,7 +87,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-semibold">${company.revenue.toLocaleString()}</div>
+                    <div className="font-semibold">₹{company.revenue.toLocaleString('en-IN')}</div>
                     <div className="text-xs text-success">+{company.growth}%</div>
                   </div>
                 </div>

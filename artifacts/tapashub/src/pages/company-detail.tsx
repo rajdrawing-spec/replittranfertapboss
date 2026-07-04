@@ -69,7 +69,7 @@ export default function CompanyDetail() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${summary?.revenue?.toLocaleString() || 0}</div>
+            <div className="text-2xl font-bold">₹{summary?.revenue?.toLocaleString('en-IN') || 0}</div>
             <p className="text-xs text-success mt-1">+{summary?.growth || 0}% from last period</p>
           </CardContent>
         </Card>
@@ -94,7 +94,7 @@ export default function CompanyDetail() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Net Profit</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${summary?.profit?.toLocaleString() || 0}</div>
+            <div className="text-2xl font-bold">₹{summary?.profit?.toLocaleString('en-IN') || 0}</div>
           </CardContent>
         </Card>
       </div>

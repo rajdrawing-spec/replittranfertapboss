@@ -95,7 +95,7 @@ export default function Inventory() {
                         <Badge variant="outline" className="font-normal bg-background">{product.companyName}</Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{product.category}</TableCell>
-                      <TableCell className="text-right font-medium">${product.price.toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-medium">₹{product.price.toLocaleString('en-IN')}</TableCell>
                       <TableCell className="text-right">
                         <span className={cn(
                           "font-bold",

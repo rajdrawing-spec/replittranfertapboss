@@ -58,7 +58,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         )}
       >
         <div className="h-16 flex items-center px-4 border-b">
-          <Building2 className="w-8 h-8 text-primary" />
+          <img src="/tapashub-logo.png" alt="TapasHub" className="w-9 h-9 object-contain shrink-0 invert dark:invert-0" />
           <span className={cn("ml-3 font-bold text-lg whitespace-nowrap overflow-hidden transition-all", !sidebarOpen && "md:w-0 opacity-0")}>
             TBOS
           </span>
@@ -111,7 +111,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)}>
               <Menu className="w-5 h-5" />
             </Button>
-            <div className="font-semibold text-lg hidden sm:block">TapasHub Operating System</div>
+            <div className="font-semibold text-lg hidden sm:block flex items-center gap-2">
+              <img src="/tapashub-logo.png" alt="TapasHub" className="w-7 h-7 object-contain invert dark:invert-0 sm:hidden md:block" />
+              TapasHub Operating System
+            </div>
           </div>
 
           <div className="flex items-center gap-4">

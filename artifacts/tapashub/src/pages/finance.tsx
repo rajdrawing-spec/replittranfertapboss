@@ -51,7 +51,7 @@ export default function Finance() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Revenue</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">${pnl?.revenue?.toLocaleString() || 0}</div>
+                <div className="text-2xl font-bold">₹{pnl?.revenue?.toLocaleString('en-IN') || 0}</div>
                 {pnl?.revenueGrowth && (
                   <p className="text-xs text-success flex items-center mt-1">
                     <ArrowUpRight className="w-3 h-3 mr-1" /> +{pnl.revenueGrowth}%
@@ -64,7 +64,7 @@ export default function Finance() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Gross Profit</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">${pnl?.grossProfit?.toLocaleString() || 0}</div>
+                <div className="text-2xl font-bold">₹{pnl?.grossProfit?.toLocaleString('en-IN') || 0}</div>
                 <p className="text-xs text-muted-foreground mt-1">Margin: {pnl?.grossMargin || 0}%</p>
               </CardContent>
             </Card>
@@ -73,7 +73,7 @@ export default function Finance() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Operating Expenses</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">${pnl?.operatingExpenses?.toLocaleString() || 0}</div>
+                <div className="text-2xl font-bold">₹{pnl?.operatingExpenses?.toLocaleString('en-IN') || 0}</div>
               </CardContent>
             </Card>
             <Card className="bg-card/50 border-primary/20 bg-primary/5">
@@ -81,7 +81,7 @@ export default function Finance() {
                 <CardTitle className="text-sm font-medium text-primary">Net Profit</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-primary">${pnl?.netProfit?.toLocaleString() || 0}</div>
+                <div className="text-2xl font-bold text-primary">₹{pnl?.netProfit?.toLocaleString('en-IN') || 0}</div>
                 <p className="text-xs text-primary/80 mt-1">Margin: {pnl?.netMargin || 0}%</p>
               </CardContent>
             </Card>
@@ -145,7 +145,7 @@ export default function Finance() {
                       tx.type === 'income' ? "text-success" : tx.type === 'expense' ? "text-destructive" : ""
                     )}>
                       {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}
-                      ${Math.abs(tx.amount).toLocaleString()}
+                      ₹{Math.abs(tx.amount).toLocaleString('en-IN')}
                     </TableCell>
                   </TableRow>
                 ))

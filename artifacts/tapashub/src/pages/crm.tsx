@@ -75,7 +75,7 @@ export default function CRM() {
                         </TableCell>
                         <TableCell><Badge variant="outline" className="font-normal">{customer.companyName}</Badge></TableCell>
                         <TableCell className="text-right font-medium">{customer.totalOrders}</TableCell>
-                        <TableCell className="text-right font-medium text-success">${customer.totalSpend.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-medium text-success">₹{customer.totalSpend.toLocaleString('en-IN')}</TableCell>
                         <TableCell>
                            <Badge variant={customer.status === 'active' ? 'success' : customer.status === 'vip' ? 'default' : 'secondary'} className="capitalize text-[10px]">
                             {customer.status}
@@ -129,7 +129,7 @@ export default function CRM() {
                       </TableCell>
                       <TableCell className="capitalize text-sm text-muted-foreground">{lead.source.replace('_', ' ')}</TableCell>
                       <TableCell><Badge variant="outline">{lead.companyName}</Badge></TableCell>
-                      <TableCell className="text-right font-medium">${lead.value.toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-medium">₹{lead.value.toLocaleString('en-IN')}</TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="capitalize">
                           {lead.stage}

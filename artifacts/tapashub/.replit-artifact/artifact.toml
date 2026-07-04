@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "TapasHub Business OS"
+version = "1.0.0"
+id = "artifacts/tapashub"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21792
+
+[services.development]
+run = "pnpm --filter @workspace/tapashub run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/tapashub", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/tapashub/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21792"
+BASE_PATH = "/"

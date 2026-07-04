@@ -1,0 +1,475 @@
+# Build TapasHub Business Operating System (ERP + CRM + AI)
+
+Build a production-ready SaaS web application called **TapasHub Business Operating System (TBOS)**.
+
+## Vision
+
+TapasHub is the parent company that owns a 30% share in multiple businesses. The platform should become the single operating system for managing all companies from one login.
+
+Companies include:
+
+* TapasHub (Parent Company)
+* HugFAB
+* TikkaTails
+* Throttledaires
+* Sanchikart
+* Pepalworks
+
+Each company should operate independently while sharing a centralized management system.
+
+---
+
+## Core Requirements
+
+Create a modern, secure, cloud-ready web application.
+
+The application should support:
+
+* Multi-company management
+* Multi-tenant architecture
+* Role-based access control
+* Single Sign-On (SSO)
+* Responsive mobile-first design
+* Dark and Light themes
+* Real-time dashboards
+* AI-powered insights
+* Production-ready architecture
+* REST API + GraphQL support
+* Audit logging
+* Automatic backups
+
+---
+
+# User Roles
+
+Create separate dashboards for:
+
+* Super Admin
+* Founder
+* Director
+* Finance
+* Operations
+* HR
+* Marketing
+* Customer Support
+* Warehouse
+* Vendor
+* CA (Chartered Accountant)
+* Employee
+* Read-only Investor
+
+Each role should only access authorized modules.
+
+---
+
+# Company Dashboard
+
+Every company should have its own workspace.
+
+Example:
+
+* hub.tapashub.com
+* hugfab.tapashub.com
+* tikkatails.tapashub.com
+* throttledaires.tapashub.com
+* sanchikart.tapashub.com
+* pepalworks.tapashub.com
+
+The parent dashboard should display live data from every company.
+
+---
+
+# Executive Dashboard
+
+Display live business KPIs:
+
+* Total Revenue
+* Daily Sales
+* Monthly Sales
+* Net Profit
+* Gross Profit
+* Cash Flow
+* Orders
+* Returns
+* Refunds
+* Inventory Value
+* Pending Payments
+* Vendor Dues
+* GST Status
+* MCA Compliance
+* Employee Attendance
+* Marketing ROI
+* Customer Satisfaction
+* Open Support Tickets
+* Company Valuation
+* Director Share Value
+
+Use interactive charts and drill-down reports.
+
+---
+
+# Order Management
+
+Synchronize orders from:
+
+* Shopify
+* Shopdeck
+* Baapstore
+* Company Websites
+* WhatsApp Orders
+* Future marketplaces
+
+Automatically:
+
+* Import Orders
+* Generate Invoice
+* Update Inventory
+* Assign Courier
+* Notify Customer
+* Track Delivery
+* Process Returns
+
+---
+
+# Inventory Management
+
+Support:
+
+* Multiple Warehouses
+* Barcode
+* QR Code
+* Batch Tracking
+* Stock Alerts
+* Purchase Orders
+* Vendor Orders
+* Inventory Transfers
+* Low Stock Prediction
+
+---
+
+# Finance
+
+Create complete finance management.
+
+Features:
+
+* Bank Accounts
+* UPI
+* NEFT
+* RTGS
+* Online Payments
+* Vendor Payments
+* Customer Payments
+* Refunds
+* Expense Tracking
+* Profit & Loss
+* Balance Sheet
+* Cash Flow
+* Budget Planning
+
+---
+
+# Director Share Module
+
+Store:
+
+* Director Names
+* Ownership %
+* Investment Amount
+* Share Value
+* Profit Distribution
+* Dividend History
+* Voting Rights
+* Board Decisions
+* Digital Approvals
+
+Automatically calculate ownership reports.
+
+---
+
+# GST & MCA
+
+Create compliance dashboard.
+
+Track:
+
+* GST
+* GSTR-1
+* GSTR-3B
+* TDS
+* MCA Filings
+* ROC Returns
+* Annual Returns
+* Due Dates
+* Penalties
+
+Generate reminders automatically.
+
+---
+
+# HR
+
+Include:
+
+* Employee Profiles
+* Attendance
+* Leave
+* Payroll
+* Salary
+* Performance
+* Documents
+* Recruitment
+* Training
+* Appraisals
+
+---
+
+# CRM
+
+Store:
+
+* Customers
+* Vendors
+* Leads
+* Partners
+
+Track:
+
+* Purchase History
+* Calls
+* Emails
+* WhatsApp
+* Tickets
+* Payments
+
+---
+
+# Call Center
+
+Integrate business phone systems.
+
+Features:
+
+* Incoming Calls
+* Outgoing Calls
+* AI Call Transcription
+* Call Recording
+* Missed Calls
+* Customer History Popup
+* Call Analytics
+
+---
+
+# Email Center
+
+Connect:
+
+* Gmail
+* Outlook
+* Company Email
+
+Include:
+
+* AI Reply Suggestions
+* Ticket Assignment
+* Auto Labels
+* Customer History
+
+---
+
+# WhatsApp Integration
+
+Support:
+
+* Shared Team Inbox
+* AI Auto Replies
+* Order Updates
+* Customer Support
+* Broadcast Messages
+
+---
+
+# Marketing
+
+Integrate:
+
+* Facebook Ads
+* Instagram Ads
+* Google Ads
+
+Display:
+
+* Ad Spend
+* Revenue
+* ROAS
+* CPC
+* CPM
+* Conversion Rate
+
+---
+
+# AI Business Assistant
+
+Create an AI assistant capable of:
+
+* Answering business questions.
+* Summarizing daily operations.
+* Predicting low inventory.
+* Forecasting sales.
+* Identifying slow-moving products.
+* Suggesting pricing changes.
+* Detecting unusual expenses.
+* Highlighting overdue GST or MCA tasks.
+* Generating executive reports.
+
+Example prompts:
+
+"Show today's sales."
+
+"Which company earned the highest profit?"
+
+"What payments are overdue?"
+
+"Which products need restocking?"
+
+---
+
+# Approval Workflow
+
+Support approval chains.
+
+Employee → Manager → Director → Completed
+
+For:
+
+* Payments
+* Purchases
+* Refunds
+* Hiring
+* Salary
+* Vendor Approval
+
+---
+
+# Notification Center
+
+Real-time alerts for:
+
+* Orders
+* Inventory
+* Payments
+* GST
+* MCA
+* Customer Complaints
+* Marketing
+* Calls
+* Emails
+
+---
+
+# Document Management
+
+Store:
+
+* GST Certificates
+* MCA Documents
+* Agreements
+* Director Documents
+* Bank Documents
+* Trademarks
+* Copyrights
+* Vendor Contracts
+
+Enable OCR and full-text search.
+
+---
+
+# Analytics
+
+Generate:
+
+* Daily Reports
+* Weekly Reports
+* Monthly Reports
+* Quarterly Reports
+* Annual Reports
+
+Allow export to Excel and PDF.
+
+---
+
+# Security
+
+Implement:
+
+* Single Sign-On
+* Multi-Factor Authentication
+* Role Permissions
+* Audit Logs
+* Encryption
+* Automatic Backups
+* Session Management
+* Device Management
+
+---
+
+# Technology Stack
+
+Frontend:
+
+* Next.js
+* React
+* TypeScript
+* Tailwind CSS
+* ShadCN UI
+
+Backend:
+
+* Node.js
+* NestJS
+
+Database:
+
+* PostgreSQL
+
+Cache:
+
+* Redis
+
+Storage:
+
+* AWS S3
+
+Authentication:
+
+* AWS Cognito or Auth0
+
+Real-Time:
+
+* WebSockets
+
+Deployment:
+
+* Docker
+* Kubernetes
+* AWS
+
+---
+
+# UI/UX
+
+Create a premium interface similar to Linear, Notion, Stripe Dashboard, and Vercel.
+
+Requirements:
+
+* Beautiful dashboards
+* Glassmorphism where appropriate
+* Smooth animations
+* Mobile responsive
+* Fast loading
+* Accessible
+* Easy navigation
+
+---
+
+Build this application with a modular architecture so that new companies, integrations, and features can be added without changing the existing system. The platform should be scalable enough to support hundreds of companies, thousands of employees, and millions of transactions.

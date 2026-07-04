@@ -3,20 +3,46 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: TapasHub Business Operating System API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: companies
+    description: Company management
+  - name: dashboard
+    description: Executive dashboard and KPIs
+  - name: orders
+    description: Order management
+  - name: inventory
+    description: Inventory and product management
+  - name: finance
+    description: Finance and accounting
+  - name: employees
+    description: HR and employee management
+  - name: customers
+    description: CRM - customers and contacts
+  - name: leads
+    description: Sales leads pipeline
+  - name: vendors
+    description: Vendor management
+  - name: notifications
+    description: Notification center
+  - name: approvals
+    description: Approval workflow
+  - name: ai
+    description: AI business assistant
+  - name: users
+    description: User management
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +50,2312 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── Companies ───────────────────────────────────────────────────
+  /companies:
+    get:
+      operationId: listCompanies
+      tags: [companies]
+      summary: List all companies
+      responses:
+        "200":
+          description: List of companies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Company"
+    post:
+      operationId: createCompany
+      tags: [companies]
+      summary: Create a company
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+
+  /companies/{companyId}:
+    get:
+      operationId: getCompany
+      tags: [companies]
+      summary: Get a company
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Company
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+    patch:
+      operationId: updateCompany
+      tags: [companies]
+      summary: Update a company
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+
+  # ─── Dashboard ───────────────────────────────────────────────────
+  /dashboard/executive-summary:
+    get:
+      operationId: getExecutiveSummary
+      tags: [dashboard]
+      summary: Executive KPI summary across all companies
+      responses:
+        "200":
+          description: Executive summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutiveSummary"
+
+  /dashboard/company-summary/{companyId}:
+    get:
+      operationId: getCompanySummary
+      tags: [dashboard]
+      summary: KPI summary for a specific company
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Company KPI summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanySummary"
+
+  /dashboard/revenue-chart:
+    get:
+      operationId: getRevenueChart
+      tags: [dashboard]
+      summary: Revenue chart data (last 12 months)
+      parameters:
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Revenue series
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChartDataPoint"
+
+  /dashboard/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Recent activity feed across all companies
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Activity feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  # ─── Orders ──────────────────────────────────────────────────────
+  /orders:
+    get:
+      operationId: listOrders
+      tags: [orders]
+      summary: List orders
+      parameters:
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: status
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: search
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated orders
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderList"
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Create an order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /orders/{orderId}:
+    get:
+      operationId: getOrder
+      tags: [orders]
+      summary: Get an order
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+    patch:
+      operationId: updateOrder
+      tags: [orders]
+      summary: Update order status
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /orders/stats:
+    get:
+      operationId: getOrderStats
+      tags: [orders]
+      summary: Order statistics (counts by status, today vs yesterday)
+      parameters:
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Order statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderStats"
+
+  # ─── Inventory ───────────────────────────────────────────────────
+  /products:
+    get:
+      operationId: listProducts
+      tags: [inventory]
+      summary: List products
+      parameters:
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: search
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated products
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductList"
+    post:
+      operationId: createProduct
+      tags: [inventory]
+      summary: Create a product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /products/{productId}:
+    get:
+      operationId: getProduct
+      tags: [inventory]
+      summary: Get a product
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+    patch:
+      operationId: updateProduct
+      tags: [inventory]
+      summary: Update a product
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /inventory/low-stock:
+    get:
+      operationId: getLowStockItems
+      tags: [inventory]
+      summary: Products below reorder threshold
+      parameters:
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Low stock items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+
+  /inventory/warehouse-summary:
+    get:
+      operationId: getWarehouseSummary
+      tags: [inventory]
+      summary: Stock value and counts by warehouse/company
+      responses:
+        "200":
+          description: Warehouse summary
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WarehouseSummary"
+
+  # ─── Finance ─────────────────────────────────────────────────────
+  /finance/transactions:
+    get:
+      operationId: listTransactions
+      tags: [finance]
+      summary: List financial transactions
+      parameters:
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: type
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated transactions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionList"
+    post:
+      operationId: createTransaction
+      tags: [finance]
+      summary: Record a transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  /finance/pnl-summary:
+    get:
+      operationId: getPnlSummary
+      tags: [finance]
+      summary: Profit & Loss summary
+      parameters:
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [month, quarter, year]
+            default: month
+      responses:
+        "200":
+          description: P&L summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PnlSummary"
+
+  /finance/cash-flow:
+    get:
+      operationId: getCashFlow
+      tags: [finance]
+      summary: Cash flow chart data (last 6 months)
+      parameters:
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Cash flow data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CashFlowPoint"
+
+  # ─── Employees ───────────────────────────────────────────────────
+  /employees:
+    get:
+      operationId: listEmployees
+      tags: [employees]
+      summary: List employees
+      parameters:
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: search
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated employees
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeList"
+    post:
+      operationId: createEmployee
+      tags: [employees]
+      summary: Create an employee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+
+  /employees/{employeeId}:
+    get:
+      operationId: getEmployee
+      tags: [employees]
+      summary: Get an employee
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+    patch:
+      operationId: updateEmployee
+      tags: [employees]
+      summary: Update an employee
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+
+  /employees/attendance-summary:
+    get:
+      operationId: getAttendanceSummary
+      tags: [employees]
+      summary: Attendance summary (present/absent/leave today)
+      parameters:
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Attendance summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceSummary"
+
+  # ─── Customers ───────────────────────────────────────────────────
+  /customers:
+    get:
+      operationId: listCustomers
+      tags: [customers]
+      summary: List customers
+      parameters:
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: search
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated customers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerList"
+    post:
+      operationId: createCustomer
+      tags: [customers]
+      summary: Create a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+
+  /customers/{customerId}:
+    get:
+      operationId: getCustomer
+      tags: [customers]
+      summary: Get a customer
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+    patch:
+      operationId: updateCustomer
+      tags: [customers]
+      summary: Update a customer
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+
+  # ─── Leads ───────────────────────────────────────────────────────
+  /leads:
+    get:
+      operationId: listLeads
+      tags: [leads]
+      summary: List leads
+      parameters:
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: stage
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated leads
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeadList"
+    post:
+      operationId: createLead
+      tags: [leads]
+      summary: Create a lead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+
+  /leads/{leadId}:
+    get:
+      operationId: getLead
+      tags: [leads]
+      summary: Get a lead
+      parameters:
+        - name: leadId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lead
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+    patch:
+      operationId: updateLead
+      tags: [leads]
+      summary: Update a lead
+      parameters:
+        - name: leadId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+
+  /leads/pipeline-stats:
+    get:
+      operationId: getLeadPipelineStats
+      tags: [leads]
+      summary: Lead pipeline counts and values by stage
+      parameters:
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Pipeline stats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PipelineStage"
+
+  # ─── Vendors ─────────────────────────────────────────────────────
+  /vendors:
+    get:
+      operationId: listVendors
+      tags: [vendors]
+      summary: List vendors
+      parameters:
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: search
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated vendors
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VendorList"
+    post:
+      operationId: createVendor
+      tags: [vendors]
+      summary: Create a vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vendor"
+
+  /vendors/{vendorId}:
+    get:
+      operationId: getVendor
+      tags: [vendors]
+      summary: Get a vendor
+      parameters:
+        - name: vendorId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Vendor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vendor"
+    patch:
+      operationId: updateVendor
+      tags: [vendors]
+      summary: Update a vendor
+      parameters:
+        - name: vendorId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vendor"
+
+  # ─── Notifications ───────────────────────────────────────────────
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List notifications
+      parameters:
+        - name: unreadOnly
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/{notificationId}/read:
+    patch:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark notification as read
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+
+  /notifications/mark-all-read:
+    patch:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarkAllReadInput"
+      responses:
+        "200":
+          description: All marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkActionResult"
+
+  # ─── Approvals ───────────────────────────────────────────────────
+  /approvals:
+    get:
+      operationId: listApprovals
+      tags: [approvals]
+      summary: List approval requests
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated approvals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovalList"
+    post:
+      operationId: createApproval
+      tags: [approvals]
+      summary: Submit an approval request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Approval"
+
+  /approvals/{approvalId}/action:
+    patch:
+      operationId: processApproval
+      tags: [approvals]
+      summary: Approve or reject an approval request
+      parameters:
+        - name: approvalId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalAction"
+      responses:
+        "200":
+          description: Processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Approval"
+
+  # ─── AI Assistant ────────────────────────────────────────────────
+  /ai/chat:
+    post:
+      operationId: aiChat
+      tags: [ai]
+      summary: AI business assistant chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiChatInput"
+      responses:
+        "200":
+          description: AI response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiChatResult"
+
+  /ai/insights:
+    get:
+      operationId: getAiInsights
+      tags: [ai]
+      summary: AI-generated business insights and alerts
+      parameters:
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Insights
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AiInsight"
+
+  # ─── Users ───────────────────────────────────────────────────────
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users
+      parameters:
+        - name: companyId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: role
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/me:
+    get:
+      operationId: getMe
+      tags: [users]
+      summary: Get current user profile
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    # ─── Companies ─────────────────────────────────────────────────
+    Company:
+      type: object
+      required: [id, name, slug, type, ownershipPercent, status, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        type:
+          type: string
+          enum: [parent, subsidiary]
+        industry:
+          type: ["string", "null"]
+        ownershipPercent:
+          type: number
+        gstNumber:
+          type: ["string", "null"]
+        panNumber:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        city:
+          type: ["string", "null"]
+        state:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, inactive]
+        logoUrl:
+          type: ["string", "null"]
+        employeeCount:
+          type: integer
+        totalRevenue:
+          type: number
+        createdAt:
+          type: string
+
+    CompanyInput:
+      type: object
+      required: [name, slug, type, ownershipPercent]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        type:
+          type: string
+          enum: [parent, subsidiary]
+        industry:
+          type: string
+        ownershipPercent:
+          type: number
+        gstNumber:
+          type: string
+        panNumber:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+
+    CompanyUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        industry:
+          type: string
+        ownershipPercent:
+          type: number
+        gstNumber:
+          type: string
+        panNumber:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+
+    # ─── Dashboard ─────────────────────────────────────────────────
+    ExecutiveSummary:
+      type: object
+      required: [totalRevenue, dailySales, monthlySales, netProfit, grossProfit, cashBalance, totalOrders, pendingOrders, openTickets, totalEmployees, inventoryValue, pendingPayables, totalLeads, conversionRate, companySummaries]
+      properties:
+        totalRevenue:
+          type: number
+        dailySales:
+          type: number
+        monthlySales:
+          type: number
+        netProfit:
+          type: number
+        grossProfit:
+          type: number
+        cashBalance:
+          type: number
+        totalOrders:
+          type: integer
+        pendingOrders:
+          type: integer
+        openTickets:
+          type: integer
+        totalEmployees:
+          type: integer
+        inventoryValue:
+          type: number
+        pendingPayables:
+          type: number
+        totalLeads:
+          type: integer
+        conversionRate:
+          type: number
+        revenueGrowth:
+          type: number
+        companySummaries:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompanySummary"
+
+    CompanySummary:
+      type: object
+      required: [companyId, companyName, revenue, orders, employees, profit, growth]
+      properties:
+        companyId:
+          type: integer
+        companyName:
+          type: string
+        companySlug:
+          type: string
+        revenue:
+          type: number
+        orders:
+          type: integer
+        employees:
+          type: integer
+        profit:
+          type: number
+        growth:
+          type: number
+        inventoryValue:
+          type: number
+        openLeads:
+          type: integer
+
+    ChartDataPoint:
+      type: object
+      required: [label, value]
+      properties:
+        label:
+          type: string
+        value:
+          type: number
+        secondary:
+          type: ["number", "null"]
+
+    ActivityItem:
+      type: object
+      required: [id, type, title, description, companyName, timestamp]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [order, payment, lead, employee, inventory, approval, customer]
+        title:
+          type: string
+        description:
+          type: string
+        companyName:
+          type: string
+        timestamp:
+          type: string
+        amount:
+          type: ["number", "null"]
+        status:
+          type: ["string", "null"]
+
+    # ─── Orders ────────────────────────────────────────────────────
+    Order:
+      type: object
+      required: [id, orderNumber, companyId, companyName, customerId, customerName, status, totalAmount, itemCount, channel, createdAt]
+      properties:
+        id:
+          type: integer
+        orderNumber:
+          type: string
+        companyId:
+          type: integer
+        companyName:
+          type: string
+        customerId:
+          type: ["integer", "null"]
+        customerName:
+          type: string
+        customerEmail:
+          type: ["string", "null"]
+        customerPhone:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, confirmed, processing, shipped, delivered, cancelled, returned, refunded]
+        totalAmount:
+          type: number
+        itemCount:
+          type: integer
+        channel:
+          type: string
+          enum: [shopify, shopdeck, baapstore, website, whatsapp, direct]
+        shippingAddress:
+          type: ["string", "null"]
+        trackingNumber:
+          type: ["string", "null"]
+        courierName:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    OrderInput:
+      type: object
+      required: [companyId, customerName, totalAmount, channel]
+      properties:
+        companyId:
+          type: integer
+        customerName:
+          type: string
+        customerEmail:
+          type: string
+        customerPhone:
+          type: string
+        customerId:
+          type: integer
+        totalAmount:
+          type: number
+        channel:
+          type: string
+          enum: [shopify, shopdeck, baapstore, website, whatsapp, direct]
+        shippingAddress:
+          type: string
+        notes:
+          type: string
+
+    OrderUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, confirmed, processing, shipped, delivered, cancelled, returned, refunded]
+        trackingNumber:
+          type: string
+        courierName:
+          type: string
+        notes:
+          type: string
+
+    OrderList:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Order"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    OrderStats:
+      type: object
+      required: [total, pending, processing, shipped, delivered, cancelled, todayRevenue, yesterdayRevenue]
+      properties:
+        total:
+          type: integer
+        pending:
+          type: integer
+        processing:
+          type: integer
+        shipped:
+          type: integer
+        delivered:
+          type: integer
+        cancelled:
+          type: integer
+        returned:
+          type: integer
+        todayRevenue:
+          type: number
+        yesterdayRevenue:
+          type: number
+
+    # ─── Inventory / Products ──────────────────────────────────────
+    Product:
+      type: object
+      required: [id, companyId, companyName, name, sku, category, price, costPrice, stockQuantity, reorderLevel, status, createdAt]
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: integer
+        companyName:
+          type: string
+        name:
+          type: string
+        sku:
+          type: string
+        barcode:
+          type: ["string", "null"]
+        category:
+          type: string
+        description:
+          type: ["string", "null"]
+        price:
+          type: number
+        costPrice:
+          type: number
+        stockQuantity:
+          type: integer
+        reorderLevel:
+          type: integer
+        warehouseLocation:
+          type: ["string", "null"]
+        imageUrl:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, discontinued, draft]
+        createdAt:
+          type: string
+
+    ProductInput:
+      type: object
+      required: [companyId, name, sku, category, price, costPrice, stockQuantity, reorderLevel]
+      properties:
+        companyId:
+          type: integer
+        name:
+          type: string
+        sku:
+          type: string
+        barcode:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        costPrice:
+          type: number
+        stockQuantity:
+          type: integer
+        reorderLevel:
+          type: integer
+        warehouseLocation:
+          type: string
+
+    ProductUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        costPrice:
+          type: number
+        stockQuantity:
+          type: integer
+        reorderLevel:
+          type: integer
+        warehouseLocation:
+          type: string
+        status:
+          type: string
+          enum: [active, discontinued, draft]
+
+    ProductList:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    WarehouseSummary:
+      type: object
+      required: [companyId, companyName, totalProducts, totalStockValue, lowStockCount, outOfStockCount]
+      properties:
+        companyId:
+          type: integer
+        companyName:
+          type: string
+        totalProducts:
+          type: integer
+        totalStockValue:
+          type: number
+        lowStockCount:
+          type: integer
+        outOfStockCount:
+          type: integer
+
+    # ─── Finance ───────────────────────────────────────────────────
+    Transaction:
+      type: object
+      required: [id, companyId, companyName, type, category, amount, description, status, date, createdAt]
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: integer
+        companyName:
+          type: string
+        type:
+          type: string
+          enum: [income, expense, transfer]
+        category:
+          type: string
+        amount:
+          type: number
+        description:
+          type: string
+        referenceNumber:
+          type: ["string", "null"]
+        paymentMethod:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, completed, failed, cancelled]
+        date:
+          type: string
+        createdAt:
+          type: string
+
+    TransactionInput:
+      type: object
+      required: [companyId, type, category, amount, description, date]
+      properties:
+        companyId:
+          type: integer
+        type:
+          type: string
+          enum: [income, expense, transfer]
+        category:
+          type: string
+        amount:
+          type: number
+        description:
+          type: string
+        referenceNumber:
+          type: string
+        paymentMethod:
+          type: string
+        date:
+          type: string
+
+    TransactionList:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    PnlSummary:
+      type: object
+      required: [revenue, cogs, grossProfit, grossMargin, operatingExpenses, operatingProfit, netProfit, netMargin, period]
+      properties:
+        revenue:
+          type: number
+        cogs:
+          type: number
+        grossProfit:
+          type: number
+        grossMargin:
+          type: number
+        operatingExpenses:
+          type: number
+        operatingProfit:
+          type: number
+        netProfit:
+          type: number
+        netMargin:
+          type: number
+        period:
+          type: string
+        revenueGrowth:
+          type: number
+        profitGrowth:
+          type: number
+
+    CashFlowPoint:
+      type: object
+      required: [label, inflow, outflow, net]
+      properties:
+        label:
+          type: string
+        inflow:
+          type: number
+        outflow:
+          type: number
+        net:
+          type: number
+
+    # ─── Employees ─────────────────────────────────────────────────
+    Employee:
+      type: object
+      required: [id, companyId, companyName, firstName, lastName, email, department, designation, employeeCode, status, joinDate, salary, createdAt]
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: integer
+        companyName:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+        department:
+          type: string
+        designation:
+          type: string
+        employeeCode:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, terminated, on_leave]
+        joinDate:
+          type: string
+        salary:
+          type: number
+        managerId:
+          type: ["integer", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    EmployeeInput:
+      type: object
+      required: [companyId, firstName, lastName, email, department, designation, salary, joinDate]
+      properties:
+        companyId:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        department:
+          type: string
+        designation:
+          type: string
+        salary:
+          type: number
+        joinDate:
+          type: string
+        managerId:
+          type: integer
+
+    EmployeeUpdate:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        department:
+          type: string
+        designation:
+          type: string
+        salary:
+          type: number
+        status:
+          type: string
+          enum: [active, inactive, terminated, on_leave]
+        managerId:
+          type: integer
+
+    EmployeeList:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Employee"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    AttendanceSummary:
+      type: object
+      required: [date, totalEmployees, present, absent, onLeave, late]
+      properties:
+        date:
+          type: string
+        totalEmployees:
+          type: integer
+        present:
+          type: integer
+        absent:
+          type: integer
+        onLeave:
+          type: integer
+        late:
+          type: integer
+
+    # ─── Customers ─────────────────────────────────────────────────
+    Customer:
+      type: object
+      required: [id, companyId, companyName, name, email, status, totalOrders, totalSpend, createdAt]
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: integer
+        companyName:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+        city:
+          type: ["string", "null"]
+        state:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, inactive, vip, blocked]
+        totalOrders:
+          type: integer
+        totalSpend:
+          type: number
+        lastOrderDate:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    CustomerInput:
+      type: object
+      required: [companyId, name, email]
+      properties:
+        companyId:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        notes:
+          type: string
+
+    CustomerUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, vip, blocked]
+        notes:
+          type: string
+
+    CustomerList:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Customer"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    # ─── Leads ─────────────────────────────────────────────────────
+    Lead:
+      type: object
+      required: [id, companyId, companyName, name, email, stage, source, value, createdAt]
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: integer
+        companyName:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+        company:
+          type: ["string", "null"]
+        stage:
+          type: string
+          enum: [new, contacted, qualified, proposal, negotiation, won, lost]
+        source:
+          type: string
+          enum: [website, whatsapp, referral, ads, cold_call, email, social, other]
+        value:
+          type: number
+        assignedTo:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        expectedCloseDate:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    LeadInput:
+      type: object
+      required: [companyId, name, email, stage, source, value]
+      properties:
+        companyId:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        company:
+          type: string
+        stage:
+          type: string
+          enum: [new, contacted, qualified, proposal, negotiation, won, lost]
+        source:
+          type: string
+          enum: [website, whatsapp, referral, ads, cold_call, email, social, other]
+        value:
+          type: number
+        assignedTo:
+          type: string
+        notes:
+          type: string
+        expectedCloseDate:
+          type: string
+
+    LeadUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        stage:
+          type: string
+          enum: [new, contacted, qualified, proposal, negotiation, won, lost]
+        source:
+          type: string
+          enum: [website, whatsapp, referral, ads, cold_call, email, social, other]
+        value:
+          type: number
+        assignedTo:
+          type: string
+        notes:
+          type: string
+        expectedCloseDate:
+          type: string
+
+    LeadList:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Lead"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    PipelineStage:
+      type: object
+      required: [stage, count, value]
+      properties:
+        stage:
+          type: string
+        count:
+          type: integer
+        value:
+          type: number
+
+    # ─── Vendors ───────────────────────────────────────────────────
+    Vendor:
+      type: object
+      required: [id, companyId, companyName, name, email, category, status, totalDue, createdAt]
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: integer
+        companyName:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+        gstNumber:
+          type: ["string", "null"]
+        category:
+          type: string
+        city:
+          type: ["string", "null"]
+        state:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, inactive, blacklisted]
+        totalDue:
+          type: number
+        rating:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+
+    VendorInput:
+      type: object
+      required: [companyId, name, email, category]
+      properties:
+        companyId:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        gstNumber:
+          type: string
+        category:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+
+    VendorUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        gstNumber:
+          type: string
+        category:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, blacklisted]
+        rating:
+          type: number
+
+    VendorList:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Vendor"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    # ─── Notifications ─────────────────────────────────────────────
+    Notification:
+      type: object
+      required: [id, type, title, message, isRead, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [order, payment, inventory, gst, compliance, hr, marketing, approval, system]
+        title:
+          type: string
+        message:
+          type: string
+        isRead:
+          type: boolean
+        companyName:
+          type: ["string", "null"]
+        actionUrl:
+          type: ["string", "null"]
+        severity:
+          type: string
+          enum: [info, warning, error, success]
+        createdAt:
+          type: string
+
+    MarkAllReadInput:
+      type: object
+      properties:
+        companyId:
+          type: ["integer", "null"]
+
+    BulkActionResult:
+      type: object
+      required: [affected]
+      properties:
+        affected:
+          type: integer
+
+    # ─── Approvals ─────────────────────────────────────────────────
+    Approval:
+      type: object
+      required: [id, companyId, companyName, type, title, description, requestedBy, currentStep, totalSteps, status, amount, createdAt]
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: integer
+        companyName:
+          type: string
+        type:
+          type: string
+          enum: [payment, purchase, refund, hiring, salary, vendor, leave, expense]
+        title:
+          type: string
+        description:
+          type: string
+        requestedBy:
+          type: string
+        currentStep:
+          type: integer
+        totalSteps:
+          type: integer
+        status:
+          type: string
+          enum: [pending, approved, rejected, cancelled]
+        amount:
+          type: ["number", "null"]
+        approverNote:
+          type: ["string", "null"]
+        dueDate:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    ApprovalInput:
+      type: object
+      required: [companyId, type, title, description, requestedBy]
+      properties:
+        companyId:
+          type: integer
+        type:
+          type: string
+          enum: [payment, purchase, refund, hiring, salary, vendor, leave, expense]
+        title:
+          type: string
+        description:
+          type: string
+        requestedBy:
+          type: string
+        amount:
+          type: number
+        dueDate:
+          type: string
+
+    ApprovalAction:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [approve, reject]
+        note:
+          type: string
+
+    ApprovalList:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Approval"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    # ─── AI ────────────────────────────────────────────────────────
+    AiChatInput:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        companyId:
+          type: ["integer", "null"]
+        context:
+          type: ["string", "null"]
+
+    AiChatResult:
+      type: object
+      required: [response, timestamp]
+      properties:
+        response:
+          type: string
+        timestamp:
+          type: string
+        dataPoints:
+          type: array
+          items:
+            type: object
+            required: [label, value]
+            properties:
+              label:
+                type: string
+              value:
+                type: string
+
+    AiInsight:
+      type: object
+      required: [id, type, title, description, severity, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [low_inventory, overdue_payment, revenue_opportunity, compliance, expense_anomaly, sales_trend]
+        title:
+          type: string
+        description:
+          type: string
+        severity:
+          type: string
+          enum: [info, warning, critical]
+        companyName:
+          type: ["string", "null"]
+        actionLabel:
+          type: ["string", "null"]
+        actionUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    # ─── Users ─────────────────────────────────────────────────────
+    User:
+      type: object
+      required: [id, name, email, role, companyIds, status, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, founder, director, finance, operations, hr, marketing, customer_support, warehouse, vendor, ca, employee, investor]
+        companyIds:
+          type: array
+          items:
+            type: integer
+        avatarUrl:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, inactive]
+        lastLoginAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    UserInput:
+      type: object
+      required: [name, email, role]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, founder, director, finance, operations, hr, marketing, customer_support, warehouse, vendor, ca, employee, investor]
+        companyIds:
+          type: array
+          items:
+            type: integer

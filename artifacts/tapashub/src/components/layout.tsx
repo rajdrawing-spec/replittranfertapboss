@@ -11,6 +11,7 @@ import {
   CheckSquare,
   Bell,
   Bot,
+  Globe2,
   Settings,
   Menu,
   Moon,
@@ -34,6 +35,7 @@ const navigation = [
   { name: "CRM", href: "/crm", icon: UsersRound },
   { name: "Approvals", href: "/approvals", icon: CheckSquare },
   { name: "AI Assistant", href: "/ai-assistant", icon: Bot },
+  { name: "Integrations", href: "/integrations", icon: Globe2 },
 ]
 
 export function Layout({ children }: { children: React.ReactNode }) {

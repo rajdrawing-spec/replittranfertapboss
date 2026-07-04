@@ -2,7 +2,8 @@ import { useGetExecutiveSummary, getGetExecutiveSummaryQueryKey, useGetRecentAct
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Building2, TrendingUp, Users, ShoppingCart, AlertTriangle, ArrowUpRight, ArrowDownRight, Activity } from "lucide-react"
+import { Building2, TrendingUp, Users, ShoppingCart, AlertTriangle, ArrowUpRight, ArrowDownRight, Activity, ExternalLink } from "lucide-react"
+import { Link } from "wouter"
 
 export default function Dashboard() {
   const { data: summary, isLoading: loadingSummary } = useGetExecutiveSummary({
@@ -40,6 +41,29 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Executive Dashboard</h1>
           <p className="text-muted-foreground mt-1">Cross-portfolio performance and insights</p>
         </div>
+      </div>
+
+      {/* Quick platform access */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider mr-1">Quick Open:</span>
+        {[
+          { label: "Shopdeck", url: "https://app.shopdeck.com/dashboard", bg: "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30 text-orange-400" },
+          { label: "Shopify", url: "https://admin.shopify.com", bg: "bg-green-500/10 hover:bg-green-500/20 border-green-500/30 text-green-400" },
+          { label: "Facebook", url: "https://business.facebook.com", bg: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-400" },
+          { label: "Instagram", url: "https://www.instagram.com", bg: "bg-pink-500/10 hover:bg-pink-500/20 border-pink-500/30 text-pink-400" },
+          { label: "MCA Portal", url: "https://efiling.mca.gov.in", bg: "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-400" },
+        ].map(p => (
+          <a key={p.label} href={p.url} target="_blank" rel="noopener noreferrer"
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all hover:scale-105 active:scale-95 ${p.bg}`}>
+            {p.label}
+            <ExternalLink className="w-3 h-3 opacity-70" />
+          </a>
+        ))}
+        <Link href="/integrations">
+          <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-dashed border-muted-foreground/30 text-xs text-muted-foreground hover:text-foreground hover:border-muted-foreground/60 transition-colors cursor-pointer">
+            All platforms →
+          </span>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -18,6 +18,7 @@ import Approvals from '@/pages/approvals';
 import Notifications from '@/pages/notifications';
 import AiAssistant from '@/pages/ai-assistant';
 import Settings from '@/pages/settings';
+import Integrations from '@/pages/integrations';
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ function Router() {
         <Route path="/approvals" component={Approvals} />
         <Route path="/notifications" component={Notifications} />
         <Route path="/ai-assistant" component={AiAssistant} />
+        <Route path="/integrations" component={Integrations} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>

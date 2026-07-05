@@ -5,6 +5,7 @@ import NotFound from '@/pages/not-found';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Layout } from '@/components/layout';
+import { CompanyProvider } from '@/contexts/company-context';
 
 import Dashboard from '@/pages/dashboard';
 import Companies from '@/pages/companies';
@@ -39,6 +40,16 @@ function Router() {
         <Route path="/ai-assistant" component={AiAssistant} />
         <Route path="/integrations" component={Integrations} />
         <Route path="/settings" component={Settings} />
+        {/* Subsidiary-specific stubs – rendered by the same pages with company context */}
+        <Route path="/marketing" component={CRM} />
+        <Route path="/reports" component={Finance} />
+        <Route path="/analytics" component={Dashboard} />
+        <Route path="/veterinary" component={HR} />
+        <Route path="/community" component={CRM} />
+        <Route path="/collections" component={Inventory} />
+        <Route path="/lookbook" component={Inventory} />
+        <Route path="/catalog" component={Inventory} />
+        <Route path="/services" component={Orders} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
@@ -51,7 +62,9 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-            <Router />
+            <CompanyProvider>
+              <Router />
+            </CompanyProvider>
           </WouterRouter>
           <Toaster />
         </TooltipProvider>

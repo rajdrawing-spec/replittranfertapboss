@@ -1,0 +1,413 @@
+Here's a professional prompt you can give to Replit AI to redesign your **TapasHub Operating Business System (TBOS)**.
+
+---
+
+# Replit Prompt – TBOS Architecture Redesign
+
+The current architecture is not scalable. Please redesign the entire application using a **parent-child company structure**.
+
+## 1. TapasHub is the Parent Company
+
+TapasHub is the Holding Company.
+
+Inside TapasHub dashboard display:
+
+* Directors
+* Shareholding
+* Company profile
+* Investments
+* Portfolio value
+* Overall revenue
+* Combined analytics
+* Employee summary
+* Cross-company reports
+
+Only the TapasHub page should display Directors.
+
+Do NOT duplicate directors inside subsidiary companies.
+
+---
+
+## 2. Every Brand Must Have Its Own Workspace
+
+Create completely separate workspaces for:
+
+* TapasHub
+* HugFAB
+* TikkaTails
+* Throttledaires
+* Sanchikart
+* Pepalworks
+
+Each company should have its own:
+
+* Dashboard
+* Orders
+* Inventory
+* Products
+* Finance
+* CRM
+* HR
+* Marketing
+* Analytics
+* Reports
+* Settings
+
+Data must never mix between companies.
+
+When I open TikkaTails I should only see TikkaTails data.
+
+When I open HugFAB I should only see HugFAB data.
+
+Only TapasHub can see combined reports.
+
+---
+
+## 3. Platform Integrations Per Company
+
+Each company should have its own integrations page.
+
+Example:
+
+TikkaTails
+
+* Shopify
+* Shopdeck
+* Amazon
+* Flipkart
+* Facebook
+* Instagram
+* WhatsApp Business
+* Google Business
+* Razorpay
+* Shiprocket
+* Zoho Books
+* Tally
+* Gmail
+* Outlook
+
+Each integration should have:
+
+* Login button
+* Connect Account
+* Disconnect
+* Sync Status
+* Last Sync
+* Auto Sync Toggle
+
+Example:
+
+Shopify
+
+Status
+
+Connected
+
+Store Name
+
+Last Sync
+
+Sync Products
+
+Sync Orders
+
+Sync Inventory
+
+Sync Customers
+
+Sync Finance
+
+---
+
+## 4. Login Only Once
+
+User should never login separately to every platform.
+
+Inside TBOS there should be one secure connection system.
+
+Example
+
+Connect Shopify once.
+
+Save OAuth Token securely.
+
+Automatically sync every few minutes.
+
+Never ask login again unless token expires.
+
+Same for:
+
+* Shopdeck
+* Facebook
+* Instagram
+* Amazon
+* Flipkart
+* Razorpay
+* Gmail
+* WhatsApp Business
+
+---
+
+## 5. Automatic Data Synchronization
+
+Once connected:
+
+Automatically import
+
+Orders
+
+Products
+
+Inventory
+
+Customers
+
+Payments
+
+Shipping
+
+Returns
+
+Invoices
+
+Refunds
+
+Analytics
+
+Every platform should sync automatically.
+
+No manual importing.
+
+---
+
+## 6. Central Portfolio Dashboard
+
+TapasHub dashboard should display:
+
+Total Revenue
+
+Revenue by Company
+
+Orders
+
+Inventory
+
+Employees
+
+Profit
+
+Expenses
+
+Pending Payments
+
+Growth
+
+AI Insights
+
+Every number should come from subsidiary companies.
+
+---
+
+## 7. Company Switching
+
+Add a Company Switcher on top.
+
+Example
+
+TapasHub ▼
+
+TapasHub
+
+HugFAB
+
+TikkaTails
+
+Throttledaires
+
+Sanchikart
+
+Pepalworks
+
+Switching company changes the entire workspace.
+
+---
+
+## 8. User Permissions
+
+TapasHub Super Admin
+
+Can access every company.
+
+Company Admin
+
+Can only access assigned company.
+
+Manager
+
+Limited access.
+
+Employee
+
+Department only.
+
+---
+
+## 9. Remove Current Company Cards
+
+Instead of showing all companies on one page,
+
+make each company open as an independent ERP workspace.
+
+No shared dashboard.
+
+Every company behaves like its own business.
+
+---
+
+## 10. Better Navigation
+
+Sidebar should change based on selected company.
+
+Example
+
+TikkaTails
+
+Dashboard
+
+Products
+
+Orders
+
+Inventory
+
+Customers
+
+Veterinary
+
+Pet Community
+
+Marketing
+
+Finance
+
+CRM
+
+Reports
+
+Settings
+
+HugFAB should have fashion-related modules.
+
+Pepalworks should have stationery modules.
+
+Each brand should have industry-specific modules.
+
+---
+
+## 11. TapasHub Theme
+
+Create a premium corporate design.
+
+Primary Color
+
+#0F172A (Dark Navy)
+
+Secondary
+
+#2563EB (Royal Blue)
+
+Accent
+
+#14B8A6 (Teal)
+
+Success
+
+#22C55E
+
+Warning
+
+#F59E0B
+
+Danger
+
+#EF4444
+
+Background
+
+#09090B
+
+Cards
+
+#111827
+
+Text
+
+#FFFFFF
+
+Secondary Text
+
+#94A3B8
+
+Border
+
+#1E293B
+
+Buttons should have smooth animations.
+
+Professional shadows.
+
+Rounded corners 12px.
+
+Glass effects where appropriate.
+
+---
+
+## 12. Real Editable Data
+
+The current dashboard uses static/demo values.
+
+Replace everything with a real database.
+
+All pages should support:
+
+Create
+
+Edit
+
+Delete
+
+Search
+
+Filter
+
+Export
+
+Import
+
+Audit Logs
+
+Everything must persist in the database after refresh.
+
+---
+
+## 13. Future Ready Architecture
+
+Build using a modular ERP architecture.
+
+Every company should support:
+
+Plugins
+
+Integrations
+
+API connections
+
+Microservices
+
+Future mobile app support
+
+Scalable to 100+ companies.
+
+---
+
+**Goal:** Build TBOS as a true enterprise operating system, where **TapasHub is the parent holding company** managing multiple independent businesses. Each subsidiary should operate independently with its own ERP modules, while TapasHub provides consolidated oversight, reporting, and management. This should function like professional enterprise software (similar to Odoo, SAP Business One, or Zoho One), not as a simple dashboard with company cards.

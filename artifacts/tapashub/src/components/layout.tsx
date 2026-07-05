@@ -1,12 +1,11 @@
 import * as React from "react"
 import { Link, useLocation } from "wouter"
-import { 
-  BarChart3, 
-  Building2, 
-  PackageSearch, 
-  ShoppingCart, 
-  Wallet, 
-  Users, 
+import {
+  Building2,
+  PackageSearch,
+  ShoppingCart,
+  Wallet,
+  Users,
   UsersRound,
   CheckSquare,
   Bell,
@@ -15,7 +14,18 @@ import {
   Settings,
   Menu,
   Moon,
-  Sun
+  Sun,
+  ChevronDown,
+  TrendingUp,
+  FileText,
+  Megaphone,
+  Heart,
+  PawPrint,
+  Shirt,
+  BookOpen,
+  Wrench,
+  LayoutDashboard,
+  Layers,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -23,103 +33,363 @@ import { Button } from "@/components/ui/button"
 import { useTheme } from "@/components/theme-provider"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useGetMe, useListNotifications } from "@workspace/api-client-react"
-import { Badge } from "@/components/ui/badge"
+import { useCompany } from "@/contexts/company-context"
+import type { ActiveCompany } from "@/contexts/company-context"
 
-const navigation = [
-  { name: "Dashboard", href: "/", icon: BarChart3 },
+interface NavItem {
+  name: string
+  href: string
+  icon: React.ElementType
+}
+
+/* ─────────────────────────────────────────────────────
+   Nav definitions
+───────────────────────────────────────────────────── */
+
+const parentNav: NavItem[] = [
+  { name: "Portfolio Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Companies", href: "/companies", icon: Building2 },
-  { name: "Orders", href: "/orders", icon: ShoppingCart },
-  { name: "Inventory", href: "/inventory", icon: PackageSearch },
   { name: "Finance", href: "/finance", icon: Wallet },
-  { name: "HR", href: "/hr", icon: Users },
-  { name: "CRM", href: "/crm", icon: UsersRound },
+  { name: "HR & People", href: "/hr", icon: Users },
   { name: "Approvals", href: "/approvals", icon: CheckSquare },
-  { name: "AI Assistant", href: "/ai-assistant", icon: Bot },
+  { name: "AI Insights", href: "/ai-assistant", icon: Bot },
+  { name: "Reports", href: "/reports", icon: FileText },
+]
+
+const baseSubsidiaryNav: NavItem[] = [
+  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Orders", href: "/orders", icon: ShoppingCart },
+  { name: "Products", href: "/inventory", icon: PackageSearch },
+  { name: "Finance", href: "/finance", icon: Wallet },
+  { name: "HR / Team", href: "/hr", icon: Users },
+  { name: "CRM", href: "/crm", icon: UsersRound },
+  { name: "Marketing", href: "/marketing", icon: Megaphone },
   { name: "Integrations", href: "/integrations", icon: Globe2 },
 ]
+
+const industryExtras: Record<string, NavItem[]> = {
+  tikkatails: [
+    { name: "Veterinary", href: "/veterinary", icon: PawPrint },
+    { name: "Pet Community", href: "/community", icon: Heart },
+  ],
+  hugfab: [
+    { name: "Collections", href: "/collections", icon: Shirt },
+    { name: "Lookbook", href: "/lookbook", icon: Layers },
+  ],
+  pepalworks: [
+    { name: "Catalog", href: "/catalog", icon: BookOpen },
+  ],
+  throttledaires: [
+    { name: "Services", href: "/services", icon: Wrench },
+  ],
+  sanchikart: [
+    { name: "Analytics", href: "/analytics", icon: TrendingUp },
+  ],
+}
+
+function getNavItems(company: ActiveCompany | null) {
+  if (!company || company.mode === "parent") return parentNav
+  const extras = industryExtras[company.slug.toLowerCase()] ?? []
+  // Insert industry extras before Integrations
+  const base = [...baseSubsidiaryNav]
+  const intIdx = base.findIndex((n) => n.href === "/integrations")
+  base.splice(intIdx, 0, ...extras)
+  return base
+}
+
+/* ─────────────────────────────────────────────────────
+   Company Switcher
+───────────────────────────────────────────────────── */
+
+function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
+  const { activeCompany, companies, setActiveCompanyId } = useCompany()
+  const [open, setOpen] = React.useState(false)
+  const ref = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [])
+
+  const label = activeCompany?.name ?? "TapasHub"
+  const initials = label.substring(0, 2).toUpperCase()
+  const color = activeCompany?.color ?? "#2563EB"
+
+  // Sort: parent first, then subsidiaries
+  const sorted = [...companies].sort((a, b) => {
+    if (a.mode === "parent" && b.mode !== "parent") return -1
+    if (b.mode === "parent" && a.mode !== "parent") return 1
+    return a.name.localeCompare(b.name)
+  })
+
+  if (collapsed) {
+    return (
+      <div className="relative" ref={ref}>
+        <button
+          onClick={() => setOpen(!open)}
+          className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-md transition-transform hover:scale-105"
+          style={{ background: color }}
+          title={label}
+        >
+          {initials}
+        </button>
+        {open && (
+          <div className="absolute left-12 top-0 z-50 w-52 bg-card border rounded-xl shadow-2xl py-1 overflow-hidden">
+            <CompanyList sorted={sorted} activeCompany={activeCompany} setActiveCompanyId={setActiveCompanyId} setOpen={setOpen} />
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative mx-3 mb-4" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border bg-muted/40 hover:bg-muted/70 transition-all group"
+      >
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-md"
+          style={{ background: color }}
+        >
+          {initials}
+        </div>
+        <div className="flex-1 text-left min-w-0">
+          <div className="text-sm font-semibold truncate leading-tight">{label}</div>
+          <div className="text-xs text-muted-foreground leading-tight">
+            {activeCompany == null || activeCompany.mode === "parent"
+              ? "Holding Company · Portfolio View"
+              : activeCompany.industry ?? "Subsidiary"}
+          </div>
+        </div>
+        <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 bg-card border rounded-xl shadow-2xl py-1 overflow-hidden">
+          <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+            Switch Workspace
+          </div>
+          <CompanyList sorted={sorted} activeCompany={activeCompany} setActiveCompanyId={setActiveCompanyId} setOpen={setOpen} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CompanyList({
+  sorted,
+  activeCompany,
+  setActiveCompanyId,
+  setOpen,
+}: {
+  sorted: ActiveCompany[]
+  activeCompany: ActiveCompany | null
+  setActiveCompanyId: (id: number | null) => void
+  setOpen: (v: boolean) => void
+}) {
+  return (
+    <>
+      {/* TapasHub parent option */}
+      <button
+        className={cn(
+          "w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted/60 transition-colors",
+          activeCompany == null && "bg-primary/10 text-primary"
+        )}
+        onClick={() => { setActiveCompanyId(null); setOpen(false) }}
+      >
+        <div className="w-7 h-7 rounded-md flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: "#2563EB" }}>
+          TH
+        </div>
+        <div className="text-left">
+          <div className="font-medium leading-tight">TapasHub</div>
+          <div className="text-[11px] text-muted-foreground">Parent · Portfolio View</div>
+        </div>
+        {activeCompany == null && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+      </button>
+
+      <div className="my-1 border-t" />
+
+      {sorted.filter((c) => c.mode !== "parent").map((c) => (
+        <button
+          key={c.id}
+          className={cn(
+            "w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted/60 transition-colors",
+            activeCompany?.id === c.id && "bg-primary/10 text-primary"
+          )}
+          onClick={() => { setActiveCompanyId(c.id); setOpen(false) }}
+        >
+          <div
+            className="w-7 h-7 rounded-md flex items-center justify-center text-white text-xs font-bold shrink-0"
+            style={{ background: c.color }}
+          >
+            {c.name.substring(0, 2).toUpperCase()}
+          </div>
+          <div className="text-left">
+            <div className="font-medium leading-tight">{c.name}</div>
+            <div className="text-[11px] text-muted-foreground">{c.industry ?? "Subsidiary"}</div>
+          </div>
+          {activeCompany?.id === c.id && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+        </button>
+      ))}
+    </>
+  )
+}
+
+/* ─────────────────────────────────────────────────────
+   Layout
+───────────────────────────────────────────────────── */
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation()
   const { theme, setTheme } = useTheme()
   const [sidebarOpen, setSidebarOpen] = React.useState(true)
+  const [mobileOpen, setMobileOpen] = React.useState(false)
+  const { activeCompany, isParentView } = useCompany()
 
   const { data: me } = useGetMe({ query: { enabled: true, queryKey: ["/api/users/me"] } })
   const { data: notificationsData } = useListNotifications({ unreadOnly: true }, {
     query: { enabled: true, queryKey: ["/api/notifications", { unreadOnly: true }] }
   })
-
   const unreadCount = notificationsData?.length || 0
+
+  const navItems = getNavItems(activeCompany)
+  const collapsed = !sidebarOpen
+
+  const workspaceLabel = activeCompany?.name ?? "TapasHub"
+  const workspaceColor = activeCompany?.color ?? "#2563EB"
+
+  const SidebarContent = () => (
+    <>
+      {/* Logo */}
+      <div className={cn("h-16 flex items-center border-b shrink-0", collapsed ? "px-3 justify-center" : "px-4 gap-3")}>
+        <div className="bg-white rounded-lg p-0.5 shrink-0 shadow-sm">
+          <img src="/tapashub-logo.png" alt="TapasHub" className="w-8 h-8 object-contain" />
+        </div>
+        {!collapsed && (
+          <div className="min-w-0">
+            <div className="font-bold text-sm leading-tight truncate">TBOS</div>
+            <div className="text-[10px] text-muted-foreground leading-tight truncate">Business Operating System</div>
+          </div>
+        )}
+      </div>
+
+      {/* Company Switcher */}
+      <div className={cn("py-3", collapsed ? "flex justify-center px-2" : "")}>
+        <CompanySwitcher collapsed={collapsed} />
+      </div>
+
+      {/* Nav label */}
+      {!collapsed && (
+        <div className="px-6 pb-1">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
+            {isParentView ? "Group Management" : `${workspaceLabel} Workspace`}
+          </span>
+        </div>
+      )}
+
+      {/* Nav Items */}
+      <nav className="flex-1 overflow-y-auto py-1 px-3 space-y-0.5">
+        {navItems.map((item) => {
+          const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href))
+          return (
+            <Link key={item.name} href={item.href} className="block">
+              <span
+                className={cn(
+                  "flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all group",
+                  isActive
+                    ? "text-white shadow-sm"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+                style={isActive ? { background: workspaceColor } : undefined}
+                title={collapsed ? item.name : undefined}
+              >
+                <item.icon className={cn("w-[18px] h-[18px] shrink-0")} />
+                {!collapsed && <span className="ml-3 truncate">{item.name}</span>}
+              </span>
+            </Link>
+          )
+        })}
+      </nav>
+
+      {/* Bottom: Settings */}
+      <div className="p-3 border-t shrink-0">
+        <Link href="/settings" className="block">
+          <span className={cn(
+            "flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all",
+            location.startsWith("/settings")
+              ? "text-white shadow-sm"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+            style={location.startsWith("/settings") ? { background: workspaceColor } : undefined}
+            title={collapsed ? "Settings" : undefined}
+          >
+            <Settings className="w-[18px] h-[18px] shrink-0" />
+            {!collapsed && <span className="ml-3">Settings</span>}
+          </span>
+        </Link>
+      </div>
+    </>
+  )
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row overflow-hidden font-sans">
-      {/* Sidebar */}
-      <aside 
-        className={cn(
-          "bg-card border-r flex-shrink-0 flex-col transition-all duration-300 md:flex",
-          sidebarOpen ? "w-64" : "w-0 md:w-20 overflow-hidden"
-        )}
-      >
-        <div className="h-16 flex items-center px-4 border-b">
-          <img src="/tapashub-logo.png" alt="TapasHub" className="w-9 h-9 object-contain shrink-0 invert dark:invert-0" />
-          <span className={cn("ml-3 font-bold text-lg whitespace-nowrap overflow-hidden transition-all", !sidebarOpen && "md:w-0 opacity-0")}>
-            TBOS
-          </span>
-        </div>
-
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-          {navigation.map((item) => {
-            const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href))
-            return (
-              <Link key={item.name} href={item.href} className="block">
-                <span
-                  className={cn(
-                    "flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group",
-                    isActive 
-                      ? "bg-primary/10 text-primary" 
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                  title={!sidebarOpen ? item.name : undefined}
-                >
-                  <item.icon className={cn("w-5 h-5 shrink-0", isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
-                  <span className={cn("ml-3 whitespace-nowrap overflow-hidden transition-all", !sidebarOpen && "md:w-0 opacity-0")}>
-                    {item.name}
-                  </span>
-                </span>
-              </Link>
-            )
-          })}
-        </nav>
-
-        <div className="p-4 border-t space-y-2">
-          <Link href="/settings" className="block">
-            <span className={cn(
-              "flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors group",
-              location.startsWith("/settings") ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            )}>
-              <Settings className="w-5 h-5 shrink-0" />
-              <span className={cn("ml-3 whitespace-nowrap overflow-hidden transition-all", !sidebarOpen && "md:w-0 opacity-0")}>
-                Settings
-              </span>
-            </span>
-          </Link>
-        </div>
+      {/* Desktop Sidebar */}
+      <aside className={cn(
+        "hidden md:flex flex-col bg-card border-r shrink-0 transition-all duration-300",
+        collapsed ? "w-[68px]" : "w-64"
+      )}>
+        <SidebarContent />
       </aside>
+
+      {/* Mobile Sidebar overlay */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <aside className="absolute left-0 top-0 bottom-0 w-72 flex flex-col bg-card border-r shadow-2xl">
+            <SidebarContent />
+          </aside>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Topbar */}
         <header className="h-16 flex items-center justify-between px-4 border-b bg-card/80 backdrop-blur-sm z-10 shrink-0">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)}>
+          <div className="flex items-center gap-3">
+            {/* Desktop collapse toggle */}
+            <Button variant="ghost" size="icon" className="hidden md:flex" onClick={() => setSidebarOpen(!sidebarOpen)}>
               <Menu className="w-5 h-5" />
             </Button>
-            <div className="font-semibold text-lg hidden sm:block flex items-center gap-2">
-              <img src="/tapashub-logo.png" alt="TapasHub" className="w-7 h-7 object-contain invert dark:invert-0 sm:hidden md:block" />
-              TapasHub Operating System
+            {/* Mobile open toggle */}
+            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileOpen(true)}>
+              <Menu className="w-5 h-5" />
+            </Button>
+
+            {/* Workspace breadcrumb */}
+            <div className="hidden sm:flex items-center gap-2">
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ background: workspaceColor }}
+              />
+              <span className="text-sm font-medium text-muted-foreground">
+                {isParentView ? "TapasHub Group" : "TapasHub"}
+              </span>
+              {!isParentView && (
+                <>
+                  <span className="text-muted-foreground/40">/</span>
+                  <span className="text-sm font-semibold" style={{ color: workspaceColor }}>
+                    {workspaceLabel}
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
@@ -127,23 +397,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
             >
               {theme === "light" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
             </Button>
-            
+
             <Link href="/notifications" className="block">
               <Button variant="ghost" size="icon" className="relative">
                 <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-card" />
                 )}
               </Button>
             </Link>
 
-            <div className="flex items-center gap-2 border-l pl-4 ml-2">
-              <Avatar className="w-8 h-8">
-                <AvatarFallback>{me?.name?.substring(0, 2) || "U"}</AvatarFallback>
+            <div className="flex items-center gap-2 border-l pl-3 ml-1">
+              <Avatar className="w-8 h-8 ring-2" style={{ "--ring-color": workspaceColor } as React.CSSProperties}>
+                <AvatarFallback className="text-xs font-bold">{me?.name?.substring(0, 2) || "U"}</AvatarFallback>
               </Avatar>
-              <div className="hidden sm:block text-sm">
-                <div className="font-medium leading-none">{me?.name || "User"}</div>
-                <div className="text-xs text-muted-foreground">{me?.role || "Loading..."}</div>
+              <div className="hidden sm:block">
+                <div className="text-sm font-semibold leading-tight">{me?.name || "User"}</div>
+                <div className="text-[11px] text-muted-foreground leading-tight capitalize">{me?.role?.replace(/_/g, " ") || "Loading…"}</div>
               </div>
             </div>
           </div>

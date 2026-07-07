@@ -1,0 +1,481 @@
+# TAPBOSS - Production Upgrade (Replace Demo Data)
+
+## IMPORTANT
+
+This application is **NOT a demo anymore**.
+
+Remove all placeholder companies, fake revenue, fake team counts, dummy passwords, demo cards, and sample data.
+
+Do **NOT** display any hardcoded company information such as revenue, employees, or ownership unless it comes from the real database.
+
+The application must behave like a production SaaS product.
+
+---
+
+# 1. Company Management
+
+Replace the current "Companies" page with a dynamic database-driven system.
+
+Admin should be able to:
+
+* Add Company
+* Edit Company
+* Archive Company
+* Delete Company
+* Activate/Deactivate Company
+* Upload Company Logo
+* Company Website
+* Company Description
+* Business Category
+* Country
+* Currency
+* Time Zone
+
+No hardcoded companies.
+
+Companies must be loaded from the database.
+
+Example companies:
+
+* TapasHub
+* HugFAB
+* TikkaTails
+* Throttledaires
+* Sanchikart
+* Pepalworks
+* Tottotoy
+* Undertree Games
+
+Admin can create unlimited new companies.
+
+---
+
+# 2. Remove Password Vault
+
+Completely remove the Password Vault feature.
+
+We do NOT want to store passwords inside TAPBOSS.
+
+Instead create an **Account Directory**.
+
+Store only:
+
+* Platform
+* Company
+* Login Email
+* Recovery Email
+* Phone Number
+* Recovery Phone
+* Google Account Linked
+* Microsoft Account Linked
+* Platform URL
+* Account Owner
+* Department
+* Notes
+* Last Login Date
+* Active / Inactive
+
+Global search should work using:
+
+* Email
+* Mobile Number
+* Platform
+* Company
+
+Example:
+
+Search:
+
+9866369148
+
+Result:
+
+HugFAB Shopify
+
+Google Account
+
+Meta Business
+
+Shiprocket
+
+---
+
+# 3. Authentication
+
+No default passwords.
+
+Remove:
+
+Admin@123
+
+123456
+
+Demo Login
+
+Test User
+
+Everything.
+
+Instead implement:
+
+Google Authentication
+
+Firebase Authentication
+
+Every employee logs in using their own Google account.
+
+Example:
+
+[employee@company.com](mailto:employee@company.com)
+
+Only authenticated users can access the system.
+
+---
+
+# 4. Super Administrator
+
+Only ONE Super Admin exists.
+
+Example:
+
+[tapashub@gmail.com](mailto:tapashub@gmail.com)
+
+The Super Admin can:
+
+Create Companies
+
+Delete Companies
+
+Invite Users
+
+Remove Users
+
+Assign Roles
+
+Enable/Disable Users
+
+Manage Platform Integrations
+
+Manage APIs
+
+Manage Billing
+
+View Audit Logs
+
+No one else has these permissions.
+
+---
+
+# 5. User Invitation System
+
+Instead of creating passwords,
+
+Admin simply invites users.
+
+Flow:
+
+Invite User
+
+↓
+
+Enter Email
+
+↓
+
+Choose Company
+
+↓
+
+Choose Department
+
+↓
+
+Choose Role
+
+↓
+
+Send Invitation
+
+↓
+
+User logs in with Google
+
+↓
+
+Account activated
+
+No passwords are managed inside TAPBOSS.
+
+---
+
+# 6. Roles
+
+Super Admin
+
+Company Admin
+
+Marketing Manager
+
+Operations Manager
+
+Sales Manager
+
+Inventory Manager
+
+Shipping Manager
+
+Finance
+
+Customer Support
+
+Investor
+
+Custom Roles
+
+Each role has configurable permissions.
+
+---
+
+# 7. Platform Integrations
+
+Platform cards should connect to real services.
+
+Examples:
+
+Shopify
+
+Shopdeck
+
+Amazon
+
+Flipkart
+
+Myntra
+
+Meta Business
+
+Instagram
+
+Facebook
+
+Google Ads
+
+Google Analytics
+
+Google Business
+
+Shiprocket
+
+Delhivery
+
+Razorpay
+
+Zoho
+
+Gmail
+
+WhatsApp Business
+
+Instead of demo cards,
+
+every platform should support:
+
+Connect Account
+
+OAuth Login (where available)
+
+API Key
+
+Webhook
+
+Sync Status
+
+Last Sync
+
+Connected User
+
+Health Status
+
+Disconnect
+
+Sync Now
+
+Background Auto Sync
+
+---
+
+# 8. Real Data Only
+
+Never generate fake revenue.
+
+Never generate fake orders.
+
+Never generate fake team members.
+
+Never generate fake inventory.
+
+If data is unavailable,
+
+display:
+
+"No data connected."
+
+Never fabricate business information.
+
+---
+
+# 9. Marketing Module
+
+Targetgum should become a real Marketing Workspace.
+
+Support:
+
+Meta Ads
+
+Google Ads
+
+Campaigns
+
+Creative Library
+
+Marketing Calendar
+
+Lead Tracking
+
+Performance Dashboard
+
+Campaign Analytics
+
+ROI
+
+Future API integrations.
+
+---
+
+# 10. Shipping
+
+Connect with real shipping APIs.
+
+Support:
+
+Shiprocket
+
+Delhivery
+
+Blue Dart
+
+DTDC
+
+India Post
+
+Auto-sync tracking.
+
+Shipment updates.
+
+Returns.
+
+---
+
+# 11. Notifications
+
+Real notifications.
+
+Examples:
+
+Order Received
+
+Inventory Low
+
+API Disconnected
+
+New User Joined
+
+Campaign Finished
+
+Shipment Delivered
+
+Invoice Generated
+
+Login From New Device
+
+---
+
+# 12. Dashboard
+
+Dashboard widgets should display only live data.
+
+Sales
+
+Orders
+
+Inventory
+
+Marketing
+
+Shipping
+
+Tasks
+
+Notifications
+
+Companies
+
+Users
+
+Everything should come from the database.
+
+---
+
+# 13. API Architecture
+
+Design a modular integration system.
+
+Every platform should have:
+
+Authentication
+
+Webhook Support
+
+Scheduled Sync
+
+Manual Sync
+
+Error Logs
+
+Sync History
+
+Reconnect
+
+Future APIs can be added without changing the UI.
+
+---
+
+# 14. Production Ready
+
+Build this application as if it will be used daily by real companies.
+
+Requirements:
+
+Responsive
+
+Fast
+
+Secure
+
+Scalable
+
+Professional
+
+Enterprise Ready
+
+No demo pages.
+
+No sample data.
+
+No fake statistics.
+
+No placeholder passwords.
+
+Everything should be database-driven and ready for real users.
+
+The final product should feel like a professional SaaS platform comparable to Google Workspace, Notion, or Monday.com, but customized specifically for the TapasHub ecosystem and branded as **TAPBOSS**.

@@ -1,0 +1,429 @@
+# TAPBOSS - Required Changes
+
+The current implementation is **not aligned** with how TapasHub operates. Please make the following architectural changes without breaking existing functionality or losing data.
+
+---
+
+# 1. Remove Demo Companies
+
+Remove all hardcoded/demo information including:
+
+* Team Count
+* Revenue
+* Ownership %
+* Demo URLs
+* Sample Statistics
+
+Example to remove:
+
+* Team 45
+* Revenue ₹1,25,00,000
+* Ownership 30%
+* Default sample companies
+
+Everything should come from real data entered by the administrator.
+
+---
+
+# 2. Company Management
+
+Create a **Company Management** module.
+
+Only the Super Admin can:
+
+* Add Company
+* Edit Company
+* Remove Company
+* Archive Company
+* Restore Company
+
+Example:
+
+TapasHub
+├── HugFAB
+├── TikkaTails
+├── Pepalworks
+├── Sanchikart
+├── Throttledaires
+├── Tottotoy
+├── Undertree Games
+
+Companies must **not be hardcoded**.
+
+The system should support unlimited companies.
+
+---
+
+# 3. Super Admin
+
+There must be only **ONE permanent Super Admin**.
+
+Primary Admin Email:
+
+**[tapashub@gmail.com](mailto:tapashub@gmail.com)**
+
+Only this account can:
+
+* Create users
+* Delete users
+* Assign companies
+* Assign roles
+* Change permissions
+* Add platforms
+* Remove platforms
+* Manage API connections
+* View system logs
+
+No other account can become Super Admin.
+
+---
+
+# 4. Remove Default Passwords
+
+Remove:
+
+Admin@123
+
+Do NOT create any default passwords.
+
+Every user must receive an invitation.
+
+When invited:
+
+* Receive email invitation
+* Login using Google Sign-In
+* Complete profile
+* Create their own password if email/password login is enabled
+* Enable 2FA later
+
+Never store default passwords.
+
+---
+
+# 5. User Invitation System
+
+Instead of creating passwords manually:
+
+Super Admin clicks:
+
+Invite User
+
+Fill:
+
+* Name
+* Email
+* Mobile
+* Company
+* Department
+* Role
+
+System sends invitation.
+
+User logs in with Google.
+
+Admin approves access.
+
+---
+
+# 6. Google Authentication
+
+Use Google OAuth as the primary login.
+
+After first login:
+
+Create user profile.
+
+Store:
+
+* Google ID
+* Name
+* Email
+* Profile Photo
+
+Do not ask users to remember another password unless optional email/password authentication is enabled.
+
+---
+
+# 7. Replace Password Vault
+
+Remove the Password Vault completely.
+
+Instead create an **Account Directory**.
+
+Purpose:
+
+Track which email, phone number, or account is connected to each platform.
+
+Example:
+
+HugFAB
+
+Website
+
+Email:
+[admin@hugfab.com](mailto:admin@hugfab.com)
+
+Phone:
++91 XXXXX XXXXX
+
+Owner:
+Marketing Team
+
+Platform:
+Shopify
+
+Linked Google Account
+
+Linked Meta Account
+
+Last Sync
+
+Notes
+
+No passwords should ever be displayed or stored in the application.
+
+---
+
+# 8. Platform Connections
+
+Each platform should connect using the official API or OAuth.
+
+Examples:
+
+Shopify
+
+Shopdeck
+
+Amazon
+
+Flipkart
+
+Myntra
+
+Meta
+
+Google
+
+Shiprocket
+
+Razorpay
+
+Zoho
+
+WhatsApp Business
+
+Each card should show:
+
+Connected
+
+Disconnected
+
+Last Sync
+
+Account Email
+
+Connected By
+
+Sync Status
+
+Open Dashboard
+
+Reconnect
+
+No manual password storage.
+
+---
+
+# 9. Real API Connections
+
+Do not create fake dashboards.
+
+When a platform is connected:
+
+Fetch real data using official APIs.
+
+Examples:
+
+Shopify Orders
+
+Amazon Orders
+
+Shiprocket Tracking
+
+Meta Ads
+
+Google Analytics
+
+Google Business
+
+Razorpay Payments
+
+If API credentials are missing, clearly show:
+
+"Platform not connected."
+
+---
+
+# 10. Marketing Module
+
+Targetgum should become a separate department.
+
+It manages:
+
+Meta Ads
+
+Google Ads
+
+Campaigns
+
+Creatives
+
+Content Calendar
+
+Budgets
+
+Analytics
+
+Marketing Team
+
+This module should support multiple brands.
+
+---
+
+# 11. Shipping Module
+
+Shipping should support:
+
+Shiprocket
+
+Delhivery
+
+Blue Dart
+
+DTDC
+
+India Post
+
+Each company can connect different shipping providers.
+
+---
+
+# 12. Permissions
+
+Super Admin
+
+Everything
+
+Admin
+
+Assigned companies only
+
+Marketing
+
+Marketing only
+
+Operations
+
+Orders
+
+Inventory
+
+Shipping
+
+Finance
+
+Finance
+
+Investor
+
+Dashboard
+
+Reports
+
+Analytics
+
+No settings
+
+No APIs
+
+No account management
+
+---
+
+# 13. Dynamic Sidebar
+
+Sidebar should automatically display only the modules the logged-in user has permission to access.
+
+Do not show unavailable modules.
+
+---
+
+# 14. Clean UI
+
+Remove unnecessary statistics.
+
+Replace large cards with clean business cards.
+
+Show:
+
+Company Logo
+
+Company Name
+
+Status
+
+Connected Platforms
+
+Team Members
+
+Quick Actions
+
+No fake revenue.
+
+No fake employee counts.
+
+No demo numbers.
+
+---
+
+# 15. Future Integrations
+
+Design the system so it can easily connect to:
+
+* Shopify API
+* Shopdeck API
+* Amazon SP-API
+* Flipkart Seller API
+* Meta Graph API
+* Google Analytics API
+* Google Business Profile API
+* Shiprocket API
+* Razorpay API
+* Zoho API
+* Firebase Authentication
+* Firebase Cloud Messaging
+
+The architecture must be modular so new integrations can be added without redesigning the application.
+
+---
+
+# Final Goal
+
+TAPBOSS should become the single operating system for the entire TapasHub ecosystem.
+
+There should be:
+
+* One secure Google login
+* One Super Admin ([tapashub@gmail.com](mailto:tapashub@gmail.com))
+* Unlimited companies
+* Unlimited users
+* Role-based access
+* Real API integrations
+* No demo data
+* No default passwords
+* No password vault
+* Secure account directory
+* Enterprise-grade UI/UX
+* Fast, responsive, and scalable architecture
+
+Build this as a production-ready platform suitable for long-term growth, not as a demo application.

@@ -368,3 +368,73 @@ for (const c of CASES) {
     });
   });
 }
+
+// A creative/lead may reference a campaign, but only one that belongs to the
+// same (accessible) company. Cross-linking to another tenant's campaign — even
+// while tagging the record with your own company — must be rejected.
+describe("marketing campaign-link isolation", () => {
+  const LINKABLE = [
+    { name: "creative", table: "campaign_creatives", createPath: "/marketing/creatives", editPath: (id: number) => `/marketing/creatives/${id}`, body: { name: "Hero Banner", format: "image", status: "active" }, seedExtra: { name: "Existing Creative", format: "image", status: "active" } },
+    { name: "lead", table: "campaign_leads", createPath: "/marketing/leads", editPath: (id: number) => `/marketing/leads/${id}`, body: { name: "Jane Prospect", status: "new" }, seedExtra: { name: "Existing Lead", status: "new" } },
+  ] as const;
+
+  for (const c of LINKABLE) {
+    it(`allows linking a ${c.name} to a same-company campaign`, async () => {
+      const campId = seed("campaigns", ALPHA, { name: "Alpha Camp" });
+      const res = await request(app).post(c.createPath).send({ companyId: ALPHA, campaignId: campId, ...c.body });
+      expect(res.status).toBe(201);
+      expect(res.body.campaignId).toBe(campId);
+    });
+
+    it(`rejects linking a ${c.name} to another company's campaign (403)`, async () => {
+      const campId = seed("campaigns", BETA, { name: "Beta Camp" });
+      const res = await request(app).post(c.createPath).send({ companyId: ALPHA, campaignId: campId, ...c.body });
+      expect(res.status).toBe(403);
+      expect(H.store[c.table].length).toBe(0);
+    });
+
+    it(`rejects linking a ${c.name} to a non-existent campaign (400)`, async () => {
+      const res = await request(app).post(c.createPath).send({ companyId: ALPHA, campaignId: 9999, ...c.body });
+      expect(res.status).toBe(400);
+      expect(H.store[c.table].length).toBe(0);
+    });
+
+    it(`rejects a super admin linking a ${c.name} to a campaign from a different company than the record (400)`, async () => {
+      currentUser = SUPER_ADMIN;
+      const campId = seed("campaigns", BETA, { name: "Beta Camp" });
+      const res = await request(app).post(c.createPath).send({ companyId: ALPHA, campaignId: campId, ...c.body });
+      expect(res.status).toBe(400);
+      expect(H.store[c.table].length).toBe(0);
+    });
+
+    it(`rejects editing a ${c.name} to link another company's campaign (403)`, async () => {
+      const recordId = seed(c.table, ALPHA, c.seedExtra);
+      const campId = seed("campaigns", BETA, { name: "Beta Camp" });
+      const res = await request(app).patch(c.editPath(recordId)).send({ campaignId: campId });
+      expect(res.status).toBe(403);
+      expect(H.store[c.table].find((r) => r.id === recordId)!.campaignId).not.toBe(campId);
+    });
+
+    it(`allows editing a ${c.name} to link a same-company campaign`, async () => {
+      const recordId = seed(c.table, ALPHA, c.seedExtra);
+      const campId = seed("campaigns", ALPHA, { name: "Alpha Camp" });
+      const res = await request(app).patch(c.editPath(recordId)).send({ campaignId: campId });
+      expect(res.status).toBe(200);
+      expect(res.body.campaignId).toBe(campId);
+    });
+
+    it(`rejects editing a ${c.name} with a malformed campaignId (400)`, async () => {
+      const recordId = seed(c.table, ALPHA, c.seedExtra);
+      const res = await request(app).patch(c.editPath(recordId)).send({ campaignId: "not-a-number" });
+      expect(res.status).toBe(400);
+    });
+
+    it(`allows unlinking a ${c.name} campaign on edit`, async () => {
+      const campId = seed("campaigns", ALPHA, { name: "Alpha Camp" });
+      const recordId = seed(c.table, ALPHA, { ...c.seedExtra, campaignId: campId });
+      const res = await request(app).patch(c.editPath(recordId)).send({ campaignId: null });
+      expect(res.status).toBe(200);
+      expect(res.body.campaignId).toBe(null);
+    });
+  }
+});

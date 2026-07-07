@@ -198,6 +198,29 @@ router.get("/marketing/performance", async (req, res) => {
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to load performance" }); }
 });
 
+/**
+ * When a creative/lead is linked to a campaign, that campaign must exist, be
+ * accessible to the caller, and belong to the SAME company as the record it is
+ * attached to — otherwise a caller could cross-link records across tenants.
+ * Returns an error descriptor to send, or null when the link is valid (or absent).
+ */
+async function validateCampaignLink(
+  req: import("express").Request,
+  campaignId: number | null | undefined,
+  recordCompanyId: number,
+): Promise<{ status: number; error: string } | null> {
+  if (campaignId === null || campaignId === undefined) return null;
+  // A value was supplied but is not a usable id — reject rather than silently skip.
+  if (!Number.isInteger(campaignId)) return { status: 400, error: "Invalid campaignId" };
+  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+  if (!campaign) return { status: 400, error: "Campaign not found" };
+  if (!canAccessCompany(req, campaign.companyId)) return { status: 403, error: "Forbidden" };
+  if (campaign.companyId !== recordCompanyId) {
+    return { status: 400, error: "Campaign belongs to a different company" };
+  }
+  return null;
+}
+
 /* ----------------------------- Creatives ----------------------------- */
 
 router.get("/marketing/creatives", async (req, res) => {
@@ -221,6 +244,8 @@ router.post("/marketing/creatives", async (req, res) => {
       res.status(400).json({ error: "Unsafe URL: only http(s) links or uploaded files are allowed" }); return;
     }
     if (!canAccessCompany(req, parsed.data.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    const linkErr = await validateCampaignLink(req, parsed.data.campaignId, parsed.data.companyId);
+    if (linkErr) { res.status(linkErr.status).json({ error: linkErr.error }); return; }
     const [row] = await db.insert(campaignCreativesTable).values(parsed.data).returning();
     res.status(201).json(row);
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to create creative" }); }
@@ -237,6 +262,8 @@ router.patch("/marketing/creatives/:id", async (req, res) => {
     const [existing] = await db.select().from(campaignCreativesTable).where(eq(campaignCreativesTable.id, id));
     if (!existing) { res.status(404).json({ error: "Not found" }); return; }
     if (!canAccessCompany(req, existing.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    const linkErr = await validateCampaignLink(req, body.campaignId as number | null, existing.companyId);
+    if (linkErr) { res.status(linkErr.status).json({ error: linkErr.error }); return; }
     const [row] = await db.update(campaignCreativesTable).set({ ...body, updatedAt: new Date() }).where(eq(campaignCreativesTable.id, id)).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);
@@ -286,6 +313,8 @@ router.post("/marketing/leads", async (req, res) => {
     const parsed = insertCampaignLeadSchema.safeParse(normalizeLeadBody(req.body));
     if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
     if (!canAccessCompany(req, parsed.data.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    const linkErr = await validateCampaignLink(req, parsed.data.campaignId, parsed.data.companyId);
+    if (linkErr) { res.status(linkErr.status).json({ error: linkErr.error }); return; }
     const [row] = await db.insert(campaignLeadsTable).values(parsed.data).returning();
     res.status(201).json(row);
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to create lead" }); }
@@ -299,6 +328,8 @@ router.patch("/marketing/leads/:id", async (req, res) => {
     const [existing] = await db.select().from(campaignLeadsTable).where(eq(campaignLeadsTable.id, id));
     if (!existing) { res.status(404).json({ error: "Not found" }); return; }
     if (!canAccessCompany(req, existing.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    const linkErr = await validateCampaignLink(req, body.campaignId as number | null, existing.companyId);
+    if (linkErr) { res.status(linkErr.status).json({ error: linkErr.error }); return; }
     const [row] = await db.update(campaignLeadsTable).set({ ...body, updatedAt: new Date() }).where(eq(campaignLeadsTable.id, id)).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);

@@ -83,7 +83,11 @@ const H = vi.hoisted(() => {
     order: any = null;
     _limit: number | null = null;
     _offset = 0;
+    _setVals: Row | null = null;
     select(cols?: Record<string, any>) { this.type = "select"; this.cols = cols ?? null; return this; }
+    update(t: any) { this.type = "update"; this.table = t.__table; return this; }
+    set(vals: Row) { this._setVals = vals; return this; }
+    returning() { return this; }
     from(t: any) { this.table = t.__table; return this; }
     where(c: any) { this.cond = c; return this; }
     orderBy(o: any) { this.order = o; return this; }
@@ -94,6 +98,13 @@ const H = vi.hoisted(() => {
     }
     _exec() {
       const arr = store[this.table!];
+      // UPDATE ... SET ... WHERE ... RETURNING: mutate matching rows in place,
+      // return the affected rows (what drizzle .returning() yields).
+      if (this.type === "update") {
+        const matched = arr.filter((r) => match(r, this.cond));
+        for (const r of matched) Object.assign(r, this._setVals);
+        return matched.map((r) => ({ ...r }));
+      }
       let rows = arr.filter((r) => match(r, this.cond));
       // Aggregate count: db.select({ count: sql`count(*)` })
       if (this.cols && "count" in this.cols) {
@@ -118,6 +129,7 @@ const H = vi.hoisted(() => {
 
   const db = {
     select: (cols?: Record<string, any>) => new QB().select(cols),
+    update: (t: any) => new QB().update(t),
   };
 
   return { store, reset, db, fundAllocationsTable, notificationsTable, companiesTable, approvalsTable };
@@ -287,5 +299,67 @@ describe("GET /notifications tenant isolation", () => {
     const res = await request(app).get("/notifications").query({ limit: "50" });
     expect(res.status).toBe(200);
     expect(res.body.map((n: any) => n.id).sort()).toEqual([1, 2, 3, 4]);
+  });
+});
+
+// ---- PATCH /notifications write scoping --------------------------------------
+describe("PATCH /notifications write tenant isolation", () => {
+  // #1 Alpha, #2 Beta, #3 Gamma, #4 global(null) — all start unread.
+  beforeEach(() => {
+    seedNotification(ALPHA); // #1
+    seedNotification(BETA);  // #2 another company's alert
+    seedNotification(GAMMA); // #3 another company's alert
+    seedNotification(null);  // #4 global alert
+  });
+
+  const read = (id: number) => H.store.notifications.find((n) => n.id === id)!.isRead;
+
+  it("lets scoped staff mark their own company's alert read", async () => {
+    currentUser = SCOPED_STAFF;
+    const res = await request(app).patch("/notifications/1/read");
+    expect(res.status).toBe(200);
+    expect(read(1)).toBe(true);
+  });
+
+  it("lets scoped staff mark a global alert read", async () => {
+    currentUser = SCOPED_STAFF;
+    const res = await request(app).patch("/notifications/4/read");
+    expect(res.status).toBe(200);
+    expect(read(4)).toBe(true);
+  });
+
+  it("does NOT let scoped staff mark another company's alert read", async () => {
+    currentUser = SCOPED_STAFF;
+    const res = await request(app).patch("/notifications/2/read"); // Beta's alert
+    expect(res.status).toBe(404);
+    // The other company's notification must remain untouched.
+    expect(read(2)).toBe(false);
+  });
+
+  it("lets a super admin mark any company's alert read", async () => {
+    currentUser = SUPER_ADMIN;
+    const res = await request(app).patch("/notifications/3/read"); // Gamma's alert
+    expect(res.status).toBe(200);
+    expect(read(3)).toBe(true);
+  });
+
+  it("mark-all-read only clears the scoped staff's own + global alerts", async () => {
+    currentUser = SCOPED_STAFF;
+    const res = await request(app).patch("/notifications/mark-all-read");
+    expect(res.status).toBe(200);
+    expect(res.body.affected).toBe(2); // Alpha (#1) + global (#4) only
+    expect(read(1)).toBe(true);
+    expect(read(4)).toBe(true);
+    // Other companies' alerts stay unread.
+    expect(read(2)).toBe(false);
+    expect(read(3)).toBe(false);
+  });
+
+  it("mark-all-read clears every company's alerts for a super admin", async () => {
+    currentUser = SUPER_ADMIN;
+    const res = await request(app).patch("/notifications/mark-all-read");
+    expect(res.status).toBe(200);
+    expect(res.body.affected).toBe(4);
+    expect([read(1), read(2), read(3), read(4)]).toEqual([true, true, true, true]);
   });
 });

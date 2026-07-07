@@ -42,13 +42,28 @@ router.get("/notifications", async (req, res) => {
   }
 });
 
+/**
+ * The set of notifications the caller is allowed to touch: their own companies'
+ * alerts plus global (companyId IS NULL) system alerts. Super Admin (scope null)
+ * gets `undefined` — no restriction. Mirrors the GET scoping exactly so a caller
+ * can only ever mutate what they can see.
+ */
+function visibleScopeCondition(req: Parameters<typeof companyScope>[0]) {
+  const scope = companyScope(req);
+  if (scope === null) return undefined; // super admin: no restriction
+  if (scope.length === 0) return isNull(notificationsTable.companyId);
+  return or(inArray(notificationsTable.companyId, scope), isNull(notificationsTable.companyId));
+}
+
 router.patch("/notifications/:notificationId/read", async (req, res) => {
   try {
     const id = parseInt(req.params.notificationId);
+    // Scope the UPDATE itself: another company's alert never matches, so it is
+    // never flipped and the caller gets a 404 (indistinguishable from missing).
     const [n] = await db
       .update(notificationsTable)
       .set({ isRead: true })
-      .where(eq(notificationsTable.id, id))
+      .where(and(eq(notificationsTable.id, id), visibleScopeCondition(req)))
       .returning();
     if (!n) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ ...n, createdAt: n.createdAt.toISOString() });
@@ -60,10 +75,12 @@ router.patch("/notifications/:notificationId/read", async (req, res) => {
 
 router.patch("/notifications/mark-all-read", async (req, res) => {
   try {
+    // Only clear unread alerts the caller is allowed to see — never every
+    // company's unread notifications at once.
     const result = await db
       .update(notificationsTable)
       .set({ isRead: true })
-      .where(eq(notificationsTable.isRead, false))
+      .where(and(eq(notificationsTable.isRead, false), visibleScopeCondition(req)))
       .returning();
     res.json({ affected: result.length });
   } catch (e) {

@@ -1,17 +1,24 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { documentsTable, insertDocumentSchema } from "@workspace/db";
-import { eq, and, desc, or, ilike } from "drizzle-orm";
+import { eq, and, desc, or, ilike, inArray } from "drizzle-orm";
 import { isSafeAttachmentUrl } from "../lib/url-safety";
-import { canAccessCompany } from "../lib/company-scope";
+import { canAccessCompany, companyScope } from "../lib/company-scope";
 
 const router = Router();
 
 router.get("/documents", async (req, res) => {
   try {
+    const scope = companyScope(req);
+    if (scope !== null && scope.length === 0) { res.json([]); return; }
     const { companyId, category, q } = req.query as Record<string, string>;
     const conds = [];
-    if (companyId) conds.push(eq(documentsTable.companyId, parseInt(companyId)));
+    if (companyId) {
+      const cid = parseInt(companyId);
+      if (scope !== null && !scope.includes(cid)) { res.status(403).json({ error: "Forbidden" }); return; }
+      conds.push(eq(documentsTable.companyId, cid));
+    }
+    if (scope !== null) conds.push(inArray(documentsTable.companyId, scope));
     if (category && category !== "all") conds.push(eq(documentsTable.category, category));
     if (q) {
       const like = `%${q}%`;

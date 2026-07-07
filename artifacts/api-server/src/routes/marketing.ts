@@ -8,18 +8,25 @@ import {
   campaignLeadsTable,
   insertCampaignLeadSchema,
 } from "@workspace/db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { emitNotification } from "../lib/notify";
 import { isSafeAttachmentUrl } from "../lib/url-safety";
-import { canAccessCompany } from "../lib/company-scope";
+import { canAccessCompany, companyScope } from "../lib/company-scope";
 
 const router = Router();
 
 router.get("/campaigns", async (req, res) => {
   try {
+    const scope = companyScope(req);
+    if (scope !== null && scope.length === 0) { res.json([]); return; }
     const { companyId, status } = req.query as Record<string, string>;
     const conds = [];
-    if (companyId) conds.push(eq(campaignsTable.companyId, parseInt(companyId)));
+    if (companyId) {
+      const cid = parseInt(companyId);
+      if (scope !== null && !scope.includes(cid)) { res.status(403).json({ error: "Forbidden" }); return; }
+      conds.push(eq(campaignsTable.companyId, cid));
+    }
+    if (scope !== null) conds.push(inArray(campaignsTable.companyId, scope));
     if (status && status !== "all") conds.push(eq(campaignsTable.status, status));
     const where = conds.length ? and(...conds) : undefined;
     const rows = await db.select().from(campaignsTable).where(where).orderBy(desc(campaignsTable.createdAt));
@@ -29,8 +36,23 @@ router.get("/campaigns", async (req, res) => {
 
 router.get("/campaigns/summary", async (req, res) => {
   try {
+    const scope = companyScope(req);
+    if (scope !== null && scope.length === 0) {
+      res.json({
+        totalBudget: 0, totalSpent: 0, totalRevenue: 0, totalLeads: 0, totalConversions: 0,
+        totalClicks: 0, totalImpressions: 0, activeCount: 0, roas: 0,
+      });
+      return;
+    }
     const { companyId } = req.query as Record<string, string>;
-    const where = companyId ? eq(campaignsTable.companyId, parseInt(companyId)) : undefined;
+    const summaryConds = [];
+    if (companyId) {
+      const cid = parseInt(companyId);
+      if (scope !== null && !scope.includes(cid)) { res.status(403).json({ error: "Forbidden" }); return; }
+      summaryConds.push(eq(campaignsTable.companyId, cid));
+    }
+    if (scope !== null) summaryConds.push(inArray(campaignsTable.companyId, scope));
+    const where = summaryConds.length ? and(...summaryConds) : undefined;
     const [row] = await db.select({
       totalBudget: sql<number>`coalesce(sum(budget),0)`,
       totalSpent: sql<number>`coalesce(sum(spent),0)`,
@@ -111,8 +133,23 @@ function normalizeCampaignBody(body: Record<string, unknown>): Record<string, un
 
 router.get("/marketing/performance", async (req, res) => {
   try {
+    const scope = companyScope(req);
+    if (scope !== null && scope.length === 0) {
+      res.json({
+        totals: { budget: 0, spent: 0, revenue: 0, conversions: 0, leads: 0, campaignCount: 0, roi: null },
+        channels: [], campaigns: [],
+      });
+      return;
+    }
     const { companyId } = req.query as Record<string, string>;
-    const where = companyId ? eq(campaignsTable.companyId, parseInt(companyId)) : undefined;
+    const perfConds = [];
+    if (companyId) {
+      const cid = parseInt(companyId);
+      if (scope !== null && !scope.includes(cid)) { res.status(403).json({ error: "Forbidden" }); return; }
+      perfConds.push(eq(campaignsTable.companyId, cid));
+    }
+    if (scope !== null) perfConds.push(inArray(campaignsTable.companyId, scope));
+    const where = perfConds.length ? and(...perfConds) : undefined;
     const rows = await db.select().from(campaignsTable).where(where);
 
     let totalBudget = 0, totalSpent = 0, totalRevenue = 0, totalConversions = 0, totalLeads = 0;

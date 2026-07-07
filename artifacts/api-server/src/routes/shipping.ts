@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { shipmentsTable, insertShipmentSchema, integrationConnectionsTable } from "@workspace/db";
-import { eq, and, desc, or, ilike, isNotNull } from "drizzle-orm";
+import { eq, and, desc, or, ilike, isNotNull, inArray } from "drizzle-orm";
 import { getAdapter, type AdapterContext } from "../lib/integration-adapters";
 import { getCatalogPlatform } from "../lib/integration-catalog";
 import { emitNotification } from "../lib/notify";
-import { canAccessCompany } from "../lib/company-scope";
+import { canAccessCompany, companyScope } from "../lib/company-scope";
 
 const router = Router();
 
@@ -27,9 +27,16 @@ function resolveSecrets(refs: string[]): Record<string, string | undefined> {
 
 router.get("/shipments", async (req, res) => {
   try {
+    const scope = companyScope(req);
+    if (scope !== null && scope.length === 0) { res.json([]); return; }
     const { companyId, status, q, view } = req.query as Record<string, string>;
     const conds = [];
-    if (companyId) conds.push(eq(shipmentsTable.companyId, parseInt(companyId)));
+    if (companyId) {
+      const cid = parseInt(companyId);
+      if (scope !== null && !scope.includes(cid)) { res.status(403).json({ error: "Forbidden" }); return; }
+      conds.push(eq(shipmentsTable.companyId, cid));
+    }
+    if (scope !== null) conds.push(inArray(shipmentsTable.companyId, scope));
     if (status && status !== "all") conds.push(eq(shipmentsTable.status, status));
     if (view === "returns") {
       conds.push(or(isNotNull(shipmentsTable.returnedAt), eq(shipmentsTable.status, "returned"), eq(shipmentsTable.status, "rto"))!);

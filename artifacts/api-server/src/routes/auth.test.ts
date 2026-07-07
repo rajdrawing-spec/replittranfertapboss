@@ -282,4 +282,54 @@ describe("getOrProvisionLocalUser", () => {
     expect(user?.role).toBe("super_admin");
     expect(user?.status).toBe("active");
   });
+
+  it("rejects an email whose only invitation is 'revoked' (403 not_invited)", async () => {
+    H.store.invitations.push({
+      id: 1, email: "revoked@example.com", name: "Revoked Person",
+      role: "finance_manager", department: null, companyIds: [], status: "revoked",
+    });
+    clerk.getUser.mockResolvedValue(clerkIdentity("revoked@example.com"));
+    const { error, user } = await getOrProvisionLocalUser("c_revoked");
+    expect(error).toBe("not_invited");
+    expect(user).toBeUndefined();
+    // A revoked invite must never be consumed/flipped to accepted.
+    expect(H.store.invitations[0].status).toBe("revoked");
+    // No user row may be created for a revoked invite.
+    expect(H.store.users).toHaveLength(0);
+  });
+
+  it("rejects an email whose only invitation is already 'accepted' with no active user row (403 not_invited)", async () => {
+    H.store.invitations.push({
+      id: 1, email: "used@example.com", name: "Used Person",
+      role: "finance_manager", department: null, companyIds: [], status: "accepted",
+    });
+    clerk.getUser.mockResolvedValue(clerkIdentity("used@example.com"));
+    const { error, user } = await getOrProvisionLocalUser("c_used");
+    expect(error).toBe("not_invited");
+    expect(user).toBeUndefined();
+    expect(H.store.users).toHaveLength(0);
+  });
+
+  it("uses the newer pending invitation when a stale non-pending invite also exists", async () => {
+    // Older, non-pending (revoked) invite with a different role...
+    H.store.invitations.push({
+      id: 1, email: "reinvited@example.com", name: "Reinvited Person",
+      role: "operations_manager", department: null, companyIds: [1], status: "revoked",
+    });
+    // ...and a newer pending invite that should win.
+    H.store.invitations.push({
+      id: 2, email: "reinvited@example.com", name: "Reinvited Person",
+      role: "finance_manager", department: null, companyIds: [2], status: "pending",
+    });
+    clerk.getUser.mockResolvedValue(clerkIdentity("reinvited@example.com"));
+    const { error, user } = await getOrProvisionLocalUser("c_reinvited");
+    expect(error).toBeUndefined();
+    expect(user?.status).toBe("active");
+    // Provisioned from the pending invite (role/companyIds come from id:2).
+    expect(user?.role).toBe("finance_manager");
+    expect(user?.companyIds).toEqual([2]);
+    // Only the pending invite is consumed; the stale revoked row is untouched.
+    expect(H.store.invitations.find((i) => i.id === 2)?.status).toBe("accepted");
+    expect(H.store.invitations.find((i) => i.id === 1)?.status).toBe("revoked");
+  });
 });

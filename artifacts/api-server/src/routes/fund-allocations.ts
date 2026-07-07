@@ -128,6 +128,80 @@ router.post("/fund-allocations", requireSuperAdmin, async (req, res) => {
   }
 });
 
+// PATCH /fund-allocations/:id — edit a pending allocation (super admin only).
+// Only pending_approval records may be changed; executed/rejected/cancelled are immutable.
+// Allowed fields: amount, purpose, note, equityChangePercent.
+// The linked approval record (if any) is kept in sync.
+router.patch("/fund-allocations/:id", requireSuperAdmin, async (req, res) => {
+  try {
+    const id = parseInt(String(req.params.id));
+    const u = (req as any).localUser as User;
+    const { amount, purpose, note, equityChangePercent } = req.body ?? {};
+
+    const [existing] = await db.select().from(fundAllocationsTable).where(eq(fundAllocationsTable.id, id)).limit(1);
+    if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+    if (existing.status !== "pending_approval") {
+      res.status(400).json({ error: "Only pending allocations can be edited" }); return;
+    }
+
+    const updates: Partial<typeof fundAllocationsTable.$inferInsert & { updatedAt: Date }> = { updatedAt: new Date() };
+
+    if (amount !== undefined) {
+      const amt = Number(amount);
+      if (!Number.isFinite(amt) || amt <= 0) { res.status(400).json({ error: "Amount must be greater than zero" }); return; }
+      updates.amount = amt;
+    }
+    if (purpose !== undefined) updates.purpose = (purpose?.toString().trim()) || "Working capital";
+    if (note !== undefined) updates.note = (note?.toString().trim()) || null;
+    if (equityChangePercent !== undefined) {
+      const pct = equityChangePercent === null || equityChangePercent === "" ? null : Number(equityChangePercent);
+      if (pct !== null && (!Number.isFinite(pct) || pct < 0 || pct > 100)) {
+        res.status(400).json({ error: "Equity change must be between 0 and 100" }); return;
+      }
+      updates.equityChangePercent = pct;
+    }
+
+    const [updated] = await db.update(fundAllocationsTable).set(updates).where(eq(fundAllocationsTable.id, id)).returning();
+
+    // Keep the linked approval record in sync — best-effort: a sync failure must
+    // not roll back the already-committed allocation update or return 500 to the client.
+    if (existing.approvalId) {
+      try {
+        const coRows = await db.select({ id: companiesTable.id, name: companiesTable.name }).from(companiesTable)
+          .where(inArray(companiesTable.id, [updated.fromCompanyId, updated.toCompanyId]));
+        const cm = Object.fromEntries(coRows.map(c => [c.id, c.name]));
+        const fromName = cm[updated.fromCompanyId] ?? "Unknown";
+        const toName = cm[updated.toCompanyId] ?? "Unknown";
+        const pct = updated.equityChangePercent;
+        await db.update(approvalsTable)
+          .set({
+            title: `Fund allocation: ₹${Math.round(updated.amount).toLocaleString("en-IN")} to ${toName}`,
+            description: `${fromName} → ${toName}. Purpose: ${updated.purpose}.${pct ? ` Equity change: +${pct}% stake for ${fromName}.` : ""}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(approvalsTable.id, existing.approvalId));
+      } catch (syncErr) {
+        req.log.warn({ err: syncErr, approvalId: existing.approvalId }, "Fund allocation updated but approval record sync failed");
+      }
+    }
+
+    const companies = await db.select({ id: companiesTable.id, name: companiesTable.name }).from(companiesTable);
+    const m = Object.fromEntries(companies.map(c => [c.id, c.name]));
+
+    void writeAudit({
+      userId: u.id, userEmail: u.email,
+      action: "fund_allocation.updated", targetType: "fund_allocation", targetId: String(id),
+      description: `Updated pending allocation #${id}`,
+      metadata: updates as Record<string, unknown>,
+    });
+
+    res.json(fmt(updated, m));
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to update fund allocation" });
+  }
+});
+
 function fmt(a: typeof fundAllocationsTable.$inferSelect, m: Record<number, string>) {
   return {
     id: a.id,

@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { ArrowRight, Landmark, ShieldCheck, Wallet } from "lucide-react"
+import { ArrowRight, Landmark, Pencil, ShieldCheck, Wallet } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 
@@ -41,8 +41,30 @@ const STATUS_LABELS: Record<string, string> = {
 }
 const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`
 
-interface Form { fromCompanyId: string; toCompanyId: string; amount: string; purpose: string; note: string; equityChangePercent: string }
-const emptyForm = (): Form => ({ fromCompanyId: "", toCompanyId: "", amount: "", purpose: "Working capital", note: "", equityChangePercent: "" })
+interface Form {
+  /** Set when editing an existing allocation; null when creating a new one. */
+  id: number | null
+  fromCompanyId: string; fromCompanyName: string
+  toCompanyId: string; toCompanyName: string
+  amount: string; purpose: string; note: string; equityChangePercent: string
+}
+
+const emptyForm = (parentId = ""): Form => ({
+  id: null,
+  fromCompanyId: parentId, fromCompanyName: "",
+  toCompanyId: "", toCompanyName: "",
+  amount: "", purpose: "Working capital", note: "", equityChangePercent: "",
+})
+
+const allocToForm = (a: Allocation): Form => ({
+  id: a.id,
+  fromCompanyId: String(a.fromCompanyId), fromCompanyName: a.fromCompanyName,
+  toCompanyId: String(a.toCompanyId), toCompanyName: a.toCompanyName,
+  amount: String(a.amount),
+  purpose: a.purpose,
+  note: a.note ?? "",
+  equityChangePercent: a.equityChangePercent !== null ? String(a.equityChangePercent) : "",
+})
 
 export default function FundAllocations() {
   const { toast } = useToast()
@@ -51,6 +73,8 @@ export default function FundAllocations() {
   const [statusFilter, setStatusFilter] = React.useState("all")
   const [showDialog, setShowDialog] = React.useState(false)
   const [form, setForm] = React.useState<Form>(emptyForm())
+
+  const isEditing = form.id !== null
 
   const { data: companies } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
@@ -73,17 +97,37 @@ export default function FundAllocations() {
   const subsidiaries = (companies ?? []).filter((c) => c.type !== "parent")
 
   React.useEffect(() => {
-    // Default the source to the parent company once companies load.
-    if (parent && !form.fromCompanyId) setForm((f) => ({ ...f, fromCompanyId: String(parent.id) }))
-  }, [parent, form.fromCompanyId])
+    // Default the source to the parent company when opening the create dialog.
+    if (parent && !form.fromCompanyId && !isEditing) {
+      setForm((f) => ({ ...f, fromCompanyId: String(parent.id), fromCompanyName: parent.name }))
+    }
+  }, [parent, form.fromCompanyId, isEditing])
+
+  function openCreate() {
+    setForm(emptyForm(parent ? String(parent.id) : ""))
+    setShowDialog(true)
+  }
+
+  function openEdit(a: Allocation) {
+    setForm(allocToForm(a))
+    setShowDialog(true)
+  }
+
+  function closeDialog() {
+    setShowDialog(false)
+    setForm(emptyForm(parent ? String(parent.id) : ""))
+  }
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["/api/fund-allocations"] })
+    qc.invalidateQueries({ queryKey: ["/api/companies"] })
+  }
 
   const create = useMutation({
     mutationFn: (body: Record<string, unknown>) => adminApi.post("/fund-allocations", body),
     onSuccess: (res: Allocation) => {
-      qc.invalidateQueries({ queryKey: ["/api/fund-allocations"] })
-      qc.invalidateQueries({ queryKey: ["/api/companies"] })
-      setShowDialog(false)
-      setForm(emptyForm())
+      invalidate()
+      closeDialog()
       toast({
         title: res.status === "executed" ? "Funds allocated" : "Sent for approval",
         description: res.status === "executed"
@@ -94,11 +138,38 @@ export default function FundAllocations() {
     onError: (e: Error) => toast({ title: "Couldn't allocate funds", description: e.message, variant: "destructive" }),
   })
 
+  const update = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+      adminApi.patch(`/fund-allocations/${id}`, body),
+    onSuccess: () => {
+      invalidate()
+      closeDialog()
+      toast({ title: "Allocation updated" })
+    },
+    onError: (e: Error) => toast({ title: "Couldn't update allocation", description: e.message, variant: "destructive" }),
+  })
+
+  const isPending = create.isPending || update.isPending
+
   function submit() {
     const amt = Number(form.amount)
+    if (!Number.isFinite(amt) || amt <= 0) { toast({ title: "Enter a valid amount", variant: "destructive" }); return }
+
+    if (isEditing) {
+      update.mutate({
+        id: form.id!,
+        body: {
+          amount: amt,
+          purpose: form.purpose,
+          note: form.note,
+          equityChangePercent: form.equityChangePercent === "" ? null : Number(form.equityChangePercent),
+        },
+      })
+      return
+    }
+
     if (!form.fromCompanyId || !form.toCompanyId) { toast({ title: "Pick both companies", variant: "destructive" }); return }
     if (form.fromCompanyId === form.toCompanyId) { toast({ title: "Source and recipient must differ", variant: "destructive" }); return }
-    if (!Number.isFinite(amt) || amt <= 0) { toast({ title: "Enter a valid amount", variant: "destructive" }); return }
     create.mutate({
       fromCompanyId: Number(form.fromCompanyId),
       toCompanyId: Number(form.toCompanyId),
@@ -123,7 +194,7 @@ export default function FundAllocations() {
           <p className="text-muted-foreground">Move capital from Tapas Hub into a sub-brand. Each allocation is recorded in finance on both sides.</p>
         </div>
         {isSuperAdmin && (
-          <Button onClick={() => setShowDialog(true)}>
+          <Button onClick={openCreate}>
             <Wallet className="mr-2 h-4 w-4" /> Allocate Funds
           </Button>
         )}
@@ -165,16 +236,17 @@ export default function FundAllocations() {
                 <TableHead>Status</TableHead>
                 <TableHead>Requested by</TableHead>
                 <TableHead>Date</TableHead>
+                {isSuperAdmin && <TableHead className="w-12" />}
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-6 w-full" /></TableCell></TableRow>
+                  <TableRow key={i}><TableCell colSpan={isSuperAdmin ? 8 : 7}><Skeleton className="h-6 w-full" /></TableCell></TableRow>
                 ))
               ) : items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
+                  <TableCell colSpan={isSuperAdmin ? 8 : 7} className="py-12 text-center text-muted-foreground">
                     <Landmark className="mx-auto mb-2 h-8 w-8 opacity-40" />
                     No fund allocations yet.
                   </TableCell>
@@ -195,6 +267,20 @@ export default function FundAllocations() {
                     <TableCell><Badge variant="outline" className={STATUS_STYLES[a.status] ?? ""}>{STATUS_LABELS[a.status] ?? a.status}</Badge></TableCell>
                     <TableCell className="text-muted-foreground">{a.requestedByName}</TableCell>
                     <TableCell className="text-muted-foreground">{new Date(a.createdAt).toLocaleDateString("en-IN")}</TableCell>
+                    {isSuperAdmin && (
+                      <TableCell>
+                        {a.status === "pending_approval" && (
+                          <Button
+                            size="icon" variant="ghost"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            title="Edit allocation"
+                            onClick={() => openEdit(a)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
@@ -203,31 +289,48 @@ export default function FundAllocations() {
         </CardContent>
       </Card>
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+      <Dialog open={showDialog} onOpenChange={(open) => { if (!open) closeDialog() }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Allocate funds</DialogTitle>
-            <DialogDescription>Records a transfer out of the source company and matching capital into the recipient.</DialogDescription>
+            <DialogTitle>{isEditing ? "Edit allocation" : "Allocate funds"}</DialogTitle>
+            <DialogDescription>
+              {isEditing
+                ? "Update the amount, purpose, or note. The source and recipient companies cannot be changed — cancel and create a new allocation if you need different companies."
+                : "Records a transfer out of the source company and matching capital into the recipient."}
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
+            {/* Company selectors (create) or read-only display (edit) */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>From (source)</Label>
-                <Select value={form.fromCompanyId} onValueChange={(v) => setForm({ ...form, fromCompanyId: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    {(companies ?? []).map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                {isEditing ? (
+                  <div className="flex h-9 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground">
+                    {form.fromCompanyName}
+                  </div>
+                ) : (
+                  <Select value={form.fromCompanyId} onValueChange={(v) => setForm({ ...form, fromCompanyId: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectContent>
+                      {(companies ?? []).map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>To (sub-brand)</Label>
-                <Select value={form.toCompanyId} onValueChange={(v) => setForm({ ...form, toCompanyId: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    {subsidiaries.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                {isEditing ? (
+                  <div className="flex h-9 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground">
+                    {form.toCompanyName}
+                  </div>
+                ) : (
+                  <Select value={form.toCompanyId} onValueChange={(v) => setForm({ ...form, toCompanyId: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectContent>
+                      {subsidiaries.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
             <div className="space-y-1.5">
@@ -254,8 +357,10 @@ export default function FundAllocations() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
-            <Button onClick={submit} disabled={create.isPending}>{create.isPending ? "Submitting…" : "Allocate"}</Button>
+            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
+            <Button onClick={submit} disabled={isPending}>
+              {isPending ? (isEditing ? "Saving…" : "Submitting…") : (isEditing ? "Save changes" : "Allocate")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

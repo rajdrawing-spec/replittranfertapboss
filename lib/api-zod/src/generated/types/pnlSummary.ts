@@ -8,14 +8,21 @@
 
 export interface PnlSummary {
   revenue: number;
-  cogs: number;
-  grossProfit: number;
-  grossMargin: number;
+  /** @nullable */
+  cogs: number | null;
+  /** @nullable */
+  grossProfit: number | null;
+  /** @nullable */
+  grossMargin: number | null;
   operatingExpenses: number;
-  operatingProfit: number;
+  /** @nullable */
+  operatingProfit: number | null;
   netProfit: number;
-  netMargin: number;
+  /** @nullable */
+  netMargin: number | null;
   period: string;
-  revenueGrowth?: number;
-  profitGrowth?: number;
+  /** @nullable */
+  revenueGrowth?: number | null;
+  /** @nullable */
+  profitGrowth?: number | null;
 }

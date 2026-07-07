@@ -80,17 +80,16 @@ router.get("/employees/attendance-summary", async (req, res) => {
 
     const total = Number(stats?.total ?? 0);
     const onLeave = Number(stats?.onLeave ?? 0);
-    const present = Math.round(Number(stats?.active ?? 0) * 0.85);
-    const late = Math.round(present * 0.08);
-    const absent = total - present - onLeave;
 
     res.json({
       date: new Date().toISOString().slice(0, 10),
       totalEmployees: total,
-      present,
-      absent: Math.max(0, absent),
+      // We do not track daily check-in/attendance, so present/absent/late are
+      // reported as unavailable instead of being derived from fixed ratios.
+      present: null,
+      absent: null,
       onLeave,
-      late,
+      late: null,
     });
   } catch (e) {
     req.log.error(e);

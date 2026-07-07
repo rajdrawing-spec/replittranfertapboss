@@ -12,16 +12,21 @@ export interface ExecutiveSummary {
   dailySales: number;
   monthlySales: number;
   netProfit: number;
-  grossProfit: number;
-  cashBalance: number;
+  /** @nullable */
+  grossProfit: number | null;
+  /** @nullable */
+  cashBalance: number | null;
   totalOrders: number;
   pendingOrders: number;
-  openTickets: number;
+  /** @nullable */
+  openTickets: number | null;
   totalEmployees: number;
   inventoryValue: number;
   pendingPayables: number;
   totalLeads: number;
-  conversionRate: number;
-  revenueGrowth?: number;
+  /** @nullable */
+  conversionRate: number | null;
+  /** @nullable */
+  revenueGrowth?: number | null;
   companySummaries: CompanySummary[];
 }

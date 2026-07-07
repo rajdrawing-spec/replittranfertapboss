@@ -2,7 +2,8 @@ import { useGetExecutiveSummary, getGetExecutiveSummaryQueryKey, useGetRecentAct
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Building2, TrendingUp, Users, ShoppingCart, AlertTriangle, ArrowUpRight, ArrowDownRight, Activity, ExternalLink } from "lucide-react"
+import { EmptyState, NoData } from "@/components/empty-state"
+import { TrendingUp, Users, ShoppingCart, AlertTriangle, Activity, ExternalLink } from "lucide-react"
 import { Link } from "wouter"
 import { useCompany } from "@/contexts/company-context"
 import { getPlatformsForCompany, getIntegrationState } from "@/lib/platforms"
@@ -37,10 +38,10 @@ export default function Dashboard() {
   }
 
   const kpis = [
-    { title: "Total Revenue", value: `₹${summary?.totalRevenue?.toLocaleString('en-IN')}`, icon: TrendingUp, trend: "+12.5%" },
-    { title: "Active Orders", value: summary?.pendingOrders?.toString(), icon: ShoppingCart, trend: "+3.2%" },
-    { title: "Total Employees", value: summary?.totalEmployees?.toString(), icon: Users, trend: "+0.0%" },
-    { title: "Pending Payables", value: `₹${summary?.pendingPayables?.toLocaleString('en-IN')}`, icon: AlertTriangle, trend: "-2.1%" },
+    { title: "Total Revenue", value: summary?.totalRevenue, icon: TrendingUp, money: true },
+    { title: "Active Orders", value: summary?.pendingOrders, icon: ShoppingCart },
+    { title: "Total Employees", value: summary?.totalEmployees, icon: Users },
+    { title: "Pending Payables", value: summary?.pendingPayables, icon: AlertTriangle, money: true },
   ]
 
   return (
@@ -81,17 +82,9 @@ export default function Dashboard() {
               <kpi.icon className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{kpi.value || "0"}</div>
-              <p className="text-xs text-muted-foreground flex items-center mt-1">
-                {kpi.trend.startsWith('+') ? 
-                  <ArrowUpRight className="h-3 w-3 text-success mr-1" /> : 
-                  <ArrowDownRight className="h-3 w-3 text-destructive mr-1" />
-                }
-                <span className={kpi.trend.startsWith('+') ? "text-success" : "text-destructive"}>
-                  {kpi.trend}
-                </span>
-                <span className="ml-1 opacity-70">vs last month</span>
-              </p>
+              <div className="text-2xl font-bold">
+                {kpi.value ? (kpi.money ? `₹${kpi.value.toLocaleString('en-IN')}` : kpi.value.toLocaleString('en-IN')) : <NoData />}
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -106,7 +99,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {summary?.companySummaries?.map(company => (
+              {summary?.companySummaries?.length ? summary.companySummaries.map(company => (
                 <div key={company.companyId} className="flex items-center justify-between p-3 rounded-lg border bg-card/50 hover:bg-accent/50 transition-colors cursor-pointer group">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded bg-primary/10 text-primary flex items-center justify-center font-bold">
@@ -114,15 +107,16 @@ export default function Dashboard() {
                     </div>
                     <div>
                       <div className="font-medium group-hover:text-primary transition-colors">{company.companyName}</div>
-                      <div className="text-xs text-muted-foreground">{company.employees} Employees</div>
+                      <div className="text-xs text-muted-foreground">{company.employees > 0 ? `${company.employees} Employees` : "No team data"}</div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-semibold">₹{company.revenue.toLocaleString('en-IN')}</div>
-                    <div className="text-xs text-success">+{company.growth}%</div>
+                    {company.revenue > 0
+                      ? <div className="font-semibold">₹{company.revenue.toLocaleString('en-IN')}</div>
+                      : <NoData className="text-xs" />}
                   </div>
                 </div>
-              ))}
+              )) : <EmptyState />}
             </div>
           </CardContent>
         </Card>
@@ -138,6 +132,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
+                {!insights?.length && <EmptyState />}
                 {insights?.slice(0,3).map(insight => (
                   <div key={insight.id} className="p-3 rounded-md bg-background border border-primary/10">
                     <div className="flex justify-between items-start mb-1">
@@ -158,8 +153,9 @@ export default function Dashboard() {
               <CardTitle>Recent Activity</CardTitle>
             </CardHeader>
             <CardContent>
+              {!activities?.length && <EmptyState />}
               <div className="space-y-4 relative before:absolute before:inset-0 before:ml-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
-                {activities?.map((activity, i) => (
+                {activities?.map((activity) => (
                   <div key={activity.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                     <div className="flex items-center justify-center w-5 h-5 rounded-full border border-background bg-primary/20 text-primary group-[.is-active]:bg-primary group-[.is-active]:text-primary-foreground shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                       <div className="w-1.5 h-1.5 rounded-full bg-current"></div>

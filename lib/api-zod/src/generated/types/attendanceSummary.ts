@@ -9,8 +9,11 @@
 export interface AttendanceSummary {
   date: string;
   totalEmployees: number;
-  present: number;
-  absent: number;
+  /** @nullable */
+  present: number | null;
+  /** @nullable */
+  absent: number | null;
   onLeave: number;
-  late: number;
+  /** @nullable */
+  late: number | null;
 }

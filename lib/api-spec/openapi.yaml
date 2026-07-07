@@ -1395,15 +1395,15 @@ components:
         netProfit:
           type: number
         grossProfit:
-          type: number
+          type: ["number", "null"]
         cashBalance:
-          type: number
+          type: ["number", "null"]
         totalOrders:
           type: integer
         pendingOrders:
           type: integer
         openTickets:
-          type: integer
+          type: ["integer", "null"]
         totalEmployees:
           type: integer
         inventoryValue:
@@ -1413,9 +1413,9 @@ components:
         totalLeads:
           type: integer
         conversionRate:
-          type: number
+          type: ["number", "null"]
         revenueGrowth:
-          type: number
+          type: ["number", "null"]
         companySummaries:
           type: array
           items:
@@ -1438,9 +1438,9 @@ components:
         employees:
           type: integer
         profit:
-          type: number
+          type: ["number", "null"]
         growth:
-          type: number
+          type: ["number", "null"]
         inventoryValue:
           type: number
         openLeads:
@@ -1795,25 +1795,25 @@ components:
         revenue:
           type: number
         cogs:
-          type: number
+          type: ["number", "null"]
         grossProfit:
-          type: number
+          type: ["number", "null"]
         grossMargin:
-          type: number
+          type: ["number", "null"]
         operatingExpenses:
           type: number
         operatingProfit:
-          type: number
+          type: ["number", "null"]
         netProfit:
           type: number
         netMargin:
-          type: number
+          type: ["number", "null"]
         period:
           type: string
         revenueGrowth:
-          type: number
+          type: ["number", "null"]
         profitGrowth:
-          type: number
+          type: ["number", "null"]
 
     CashFlowPoint:
       type: object
@@ -1937,13 +1937,13 @@ components:
         totalEmployees:
           type: integer
         present:
-          type: integer
+          type: ["integer", "null"]
         absent:
-          type: integer
+          type: ["integer", "null"]
         onLeave:
           type: integer
         late:
-          type: integer
+          type: ["integer", "null"]
 
     # ─── Customers ─────────────────────────────────────────────────
     Customer:

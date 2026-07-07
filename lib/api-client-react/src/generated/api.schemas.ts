@@ -149,8 +149,10 @@ export interface CompanySummary {
   revenue: number;
   orders: number;
   employees: number;
-  profit: number;
-  growth: number;
+  /** @nullable */
+  profit: number | null;
+  /** @nullable */
+  growth: number | null;
   inventoryValue?: number;
   openLeads?: number;
 }
@@ -160,17 +162,22 @@ export interface ExecutiveSummary {
   dailySales: number;
   monthlySales: number;
   netProfit: number;
-  grossProfit: number;
-  cashBalance: number;
+  /** @nullable */
+  grossProfit: number | null;
+  /** @nullable */
+  cashBalance: number | null;
   totalOrders: number;
   pendingOrders: number;
-  openTickets: number;
+  /** @nullable */
+  openTickets: number | null;
   totalEmployees: number;
   inventoryValue: number;
   pendingPayables: number;
   totalLeads: number;
-  conversionRate: number;
-  revenueGrowth?: number;
+  /** @nullable */
+  conversionRate: number | null;
+  /** @nullable */
+  revenueGrowth?: number | null;
   companySummaries: CompanySummary[];
 }
 
@@ -473,16 +480,23 @@ export interface TransactionList {
 
 export interface PnlSummary {
   revenue: number;
-  cogs: number;
-  grossProfit: number;
-  grossMargin: number;
+  /** @nullable */
+  cogs: number | null;
+  /** @nullable */
+  grossProfit: number | null;
+  /** @nullable */
+  grossMargin: number | null;
   operatingExpenses: number;
-  operatingProfit: number;
+  /** @nullable */
+  operatingProfit: number | null;
   netProfit: number;
-  netMargin: number;
+  /** @nullable */
+  netMargin: number | null;
   period: string;
-  revenueGrowth?: number;
-  profitGrowth?: number;
+  /** @nullable */
+  revenueGrowth?: number | null;
+  /** @nullable */
+  profitGrowth?: number | null;
 }
 
 export interface CashFlowPoint {
@@ -568,10 +582,13 @@ export interface EmployeeList {
 export interface AttendanceSummary {
   date: string;
   totalEmployees: number;
-  present: number;
-  absent: number;
+  /** @nullable */
+  present: number | null;
+  /** @nullable */
+  absent: number | null;
   onLeave: number;
-  late: number;
+  /** @nullable */
+  late: number | null;
 }
 
 export type CustomerStatus = typeof CustomerStatus[keyof typeof CustomerStatus];

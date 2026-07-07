@@ -244,17 +244,17 @@ export const GetExecutiveSummaryResponse = zod.object({
   "dailySales": zod.number(),
   "monthlySales": zod.number(),
   "netProfit": zod.number(),
-  "grossProfit": zod.number(),
-  "cashBalance": zod.number(),
+  "grossProfit": zod.number().nullable(),
+  "cashBalance": zod.number().nullable(),
   "totalOrders": zod.number(),
   "pendingOrders": zod.number(),
-  "openTickets": zod.number(),
+  "openTickets": zod.number().nullable(),
   "totalEmployees": zod.number(),
   "inventoryValue": zod.number(),
   "pendingPayables": zod.number(),
   "totalLeads": zod.number(),
-  "conversionRate": zod.number(),
-  "revenueGrowth": zod.number().optional(),
+  "conversionRate": zod.number().nullable(),
+  "revenueGrowth": zod.number().nullish(),
   "companySummaries": zod.array(zod.object({
   "companyId": zod.number(),
   "companyName": zod.string(),
@@ -262,8 +262,8 @@ export const GetExecutiveSummaryResponse = zod.object({
   "revenue": zod.number(),
   "orders": zod.number(),
   "employees": zod.number(),
-  "profit": zod.number(),
-  "growth": zod.number(),
+  "profit": zod.number().nullable(),
+  "growth": zod.number().nullable(),
   "inventoryValue": zod.number().optional(),
   "openLeads": zod.number().optional()
 }))
@@ -284,8 +284,8 @@ export const GetCompanySummaryResponse = zod.object({
   "revenue": zod.number(),
   "orders": zod.number(),
   "employees": zod.number(),
-  "profit": zod.number(),
-  "growth": zod.number(),
+  "profit": zod.number().nullable(),
+  "growth": zod.number().nullable(),
   "inventoryValue": zod.number().optional(),
   "openLeads": zod.number().optional()
 })
@@ -750,16 +750,16 @@ export const GetPnlSummaryQueryParams = zod.object({
 
 export const GetPnlSummaryResponse = zod.object({
   "revenue": zod.number(),
-  "cogs": zod.number(),
-  "grossProfit": zod.number(),
-  "grossMargin": zod.number(),
+  "cogs": zod.number().nullable(),
+  "grossProfit": zod.number().nullable(),
+  "grossMargin": zod.number().nullable(),
   "operatingExpenses": zod.number(),
-  "operatingProfit": zod.number(),
+  "operatingProfit": zod.number().nullable(),
   "netProfit": zod.number(),
-  "netMargin": zod.number(),
+  "netMargin": zod.number().nullable(),
   "period": zod.string(),
-  "revenueGrowth": zod.number().optional(),
-  "profitGrowth": zod.number().optional()
+  "revenueGrowth": zod.number().nullish(),
+  "profitGrowth": zod.number().nullish()
 })
 
 
@@ -928,10 +928,10 @@ export const GetAttendanceSummaryQueryParams = zod.object({
 export const GetAttendanceSummaryResponse = zod.object({
   "date": zod.string(),
   "totalEmployees": zod.number(),
-  "present": zod.number(),
-  "absent": zod.number(),
+  "present": zod.number().nullable(),
+  "absent": zod.number().nullable(),
   "onLeave": zod.number(),
-  "late": zod.number()
+  "late": zod.number().nullable()
 })
 
 

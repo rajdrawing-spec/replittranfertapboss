@@ -3,15 +3,16 @@ import { useAuth } from "@/contexts/auth-context"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { TrendingUp, TrendingDown, Building2, DollarSign, BarChart3, PieChart, Activity } from "lucide-react"
+import { EmptyState } from "@/components/empty-state"
+import { TrendingUp, TrendingDown, Building2, DollarSign, BarChart3, PieChart } from "lucide-react"
 
 const API_BASE = ""
 
 interface PortfolioData {
-  summary: { totalPortfolioValue: number; totalRevenue: number; totalNetProfit: number; totalDirectorShare: number }
+  summary: { totalRevenue: number; totalExpenses: number; totalNetProfit: number; totalDirectorShare: number }
   companies: Array<{
     id: number; name: string; slug: string; type: string; industry: string | null
-    ownershipPercent: number; revenue: number; netProfit: number; directorShare: number; portfolioValue: number
+    ownershipPercent: number | null; revenue: number; expenses: number; netProfit: number; directorShare: number | null
   }>
   monthlyPnl: Array<{ month: string; revenue: number; expenses: number; profit: number }>
 }
@@ -21,10 +22,12 @@ function fmtINR(n: number) {
   if (Math.abs(n) >= 1000) return `₹${(n / 1000).toFixed(1)}K`
   return `₹${n.toFixed(0)}`
 }
+// Money that may be unavailable (no real data to derive it).
+function fmtMoney(n: number | null) { return n == null ? "—" : fmtINR(n) }
 
 function MiniBarChart({ data }: { data: { month: string; revenue: number; expenses: number; profit: number }[] }) {
   const max = Math.max(...data.flatMap(d => [d.revenue, d.expenses]))
-  if (max === 0) return <div className="h-40 flex items-center justify-center text-muted-foreground text-sm">No data</div>
+  if (max === 0) return <EmptyState className="h-44" />
   return (
     <div className="h-44 flex items-end gap-1.5 px-2">
       {data.map((d) => (
@@ -48,15 +51,16 @@ function MiniBarChart({ data }: { data: { month: string; revenue: number; expens
   )
 }
 
+// Allocation by real revenue contribution (valuation data is not available).
 function DonutChart({ companies }: { companies: PortfolioData["companies"] }) {
-  const total = companies.reduce((s, c) => s + c.portfolioValue, 0)
+  const total = companies.reduce((s, c) => s + c.revenue, 0)
   const colors = ["#2563EB", "#EC4899", "#F59E0B", "#EF4444", "#8B5CF6", "#14B8A6"]
-  if (total === 0) return <div className="h-40 flex items-center justify-center text-muted-foreground text-sm">No data</div>
+  if (total === 0) return <EmptyState className="h-40" />
 
   let cumAngle = -90
   const cx = 80, cy = 80, r = 64, innerR = 44
   const slices = companies.map((c, i) => {
-    const pct = c.portfolioValue / total
+    const pct = c.revenue / total
     const angle = pct * 360
     const startAngle = cumAngle
     cumAngle += angle
@@ -83,10 +87,10 @@ function DonutChart({ companies }: { companies: PortfolioData["companies"] }) {
       <svg width="160" height="160" viewBox="0 0 160 160">
         {slices.map((s) => (
           <path key={s.id} d={describeArc(cx, cy, r, s.startAngle + 90, s.endAngle + 90)} fill={s.color} opacity={0.85} className="hover:opacity-100 transition-opacity cursor-pointer">
-            <title>{s.name}: {(s.pct * 100).toFixed(1)}% · {fmtINR(s.portfolioValue)}</title>
+            <title>{s.name}: {(s.pct * 100).toFixed(1)}% · {fmtINR(s.revenue)}</title>
           </path>
         ))}
-        <text x={cx} y={cy - 6} textAnchor="middle" fontSize="11" fill="#94A3B8">Portfolio</text>
+        <text x={cx} y={cy - 6} textAnchor="middle" fontSize="11" fill="#94A3B8">Revenue</text>
         <text x={cx} y={cy + 10} textAnchor="middle" fontSize="12" fill="#F1F5F9" fontWeight="600">{fmtINR(total)}</text>
       </svg>
       <div className="flex flex-col gap-1.5 text-xs">
@@ -104,6 +108,7 @@ function DonutChart({ companies }: { companies: PortfolioData["companies"] }) {
 
 function ProfitLine({ data }: { data: { month: string; profit: number }[] }) {
   const vals = data.map(d => d.profit)
+  if (vals.every(v => v === 0)) return <EmptyState className="h-20" />
   const min = Math.min(...vals)
   const max = Math.max(...vals)
   const range = max - min || 1
@@ -167,10 +172,10 @@ export default function DirectorPortal() {
   const profitTrend = prevProfit !== 0 ? ((lastProfit - prevProfit) / Math.abs(prevProfit)) * 100 : 0
 
   const kpis = [
-    { label: "Portfolio Value", value: fmtINR(summary.totalPortfolioValue), icon: PieChart, color: "text-blue-400", bg: "bg-blue-500/10", sub: "Market valuation" },
-    { label: "Group Revenue", value: fmtINR(summary.totalRevenue), icon: BarChart3, color: "text-teal-400", bg: "bg-teal-500/10", sub: "All subsidiaries" },
-    { label: "Net Profit", value: fmtINR(summary.totalNetProfit), icon: TrendingUp, color: "text-green-400", bg: "bg-green-500/10", sub: `${profitTrend >= 0 ? "+" : ""}${profitTrend.toFixed(1)}% this month` },
-    { label: "Director Earnings", value: fmtINR(summary.totalDirectorShare), icon: DollarSign, color: "text-purple-400", bg: "bg-purple-500/10", sub: "Your profit share" },
+    { label: "Group Revenue", value: summary.totalRevenue, icon: BarChart3, color: "text-teal-400", bg: "bg-teal-500/10", sub: "All subsidiaries" },
+    { label: "Group Expenses", value: summary.totalExpenses, icon: PieChart, color: "text-blue-400", bg: "bg-blue-500/10", sub: "All subsidiaries" },
+    { label: "Net Profit", value: summary.totalNetProfit, icon: TrendingUp, color: "text-green-400", bg: "bg-green-500/10", sub: summary.totalRevenue > 0 ? `${profitTrend >= 0 ? "+" : ""}${profitTrend.toFixed(1)}% this month` : "Revenue − expenses" },
+    { label: "Director Earnings", value: summary.totalDirectorShare, icon: DollarSign, color: "text-purple-400", bg: "bg-purple-500/10", sub: "Your profit share" },
   ]
 
   return (
@@ -192,20 +197,20 @@ export default function DirectorPortal() {
               <div className={`w-10 h-10 rounded-xl ${k.bg} flex items-center justify-center mb-3`}>
                 <k.icon className={`w-5 h-5 ${k.color}`} />
               </div>
-              <div className="text-2xl font-bold mb-0.5">{k.value}</div>
+              <div className="text-2xl font-bold mb-0.5">{k.value ? fmtINR(k.value) : <span className="text-base font-normal text-muted-foreground">No data connected.</span>}</div>
               <div className="text-xs text-muted-foreground font-medium">{k.label}</div>
-              <div className="text-[11px] text-muted-foreground/70 mt-0.5">{k.sub}</div>
+              {!!k.value && <div className="text-[11px] text-muted-foreground/70 mt-0.5">{k.sub}</div>}
             </CardContent>
           </Card>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Portfolio Donut */}
+        {/* Revenue Allocation Donut */}
         <Card className="lg:col-span-1">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Portfolio Allocation</CardTitle>
-            <CardDescription className="text-xs">Value by subsidiary</CardDescription>
+            <CardTitle className="text-base">Revenue Allocation</CardTitle>
+            <CardDescription className="text-xs">Revenue share by subsidiary</CardDescription>
           </CardHeader>
           <CardContent>
             <DonutChart companies={companies.filter(c => c.type !== "parent")} />
@@ -260,15 +265,15 @@ export default function DirectorPortal() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-medium truncate">{c.name}</span>
-                    <span className="text-xs text-muted-foreground shrink-0 ml-2">{c.ownershipPercent}% stake</span>
+                    <span className="text-xs text-muted-foreground shrink-0 ml-2">{c.ownershipPercent != null ? `${c.ownershipPercent}% stake` : "— stake"}</span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-1.5">
-                    <div className="h-1.5 rounded-full bg-primary" style={{ width: `${Math.min(100, c.ownershipPercent)}%` }} />
+                    <div className="h-1.5 rounded-full bg-primary" style={{ width: `${Math.min(100, c.ownershipPercent ?? 0)}%` }} />
                   </div>
                   <div className="flex justify-between mt-1">
                     <span className="text-[10px] text-muted-foreground">Revenue: {fmtINR(c.revenue)}</span>
                     <span className={`text-[10px] font-medium ${c.netProfit >= 0 ? "text-green-400" : "text-red-400"}`}>
-                      Your share: {fmtINR(c.directorShare)}
+                      Your share: {fmtMoney(c.directorShare)}
                     </span>
                   </div>
                 </div>
@@ -289,7 +294,7 @@ export default function DirectorPortal() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-muted/50">
-                  {["Company", "Industry", "Your Stake", "Revenue", "Net Profit", "Your Share", "Portfolio Value"].map(h => (
+                  {["Company", "Industry", "Your Stake", "Revenue", "Expenses", "Net Profit", "Your Share"].map(h => (
                     <th key={h} className="text-left py-2 px-3 text-xs text-muted-foreground font-semibold uppercase tracking-wider first:pl-0">{h}</th>
                   ))}
                 </tr>
@@ -300,12 +305,12 @@ export default function DirectorPortal() {
                     <td className="py-3 px-3 first:pl-0 font-medium">{c.name}</td>
                     <td className="py-3 px-3 text-muted-foreground">{c.industry ?? "—"}</td>
                     <td className="py-3 px-3">
-                      <Badge variant="outline" className="text-xs">{c.ownershipPercent}%</Badge>
+                      <Badge variant="outline" className="text-xs">{c.ownershipPercent != null ? `${c.ownershipPercent}%` : "—"}</Badge>
                     </td>
                     <td className="py-3 px-3">{fmtINR(c.revenue)}</td>
+                    <td className="py-3 px-3 text-muted-foreground">{fmtINR(c.expenses)}</td>
                     <td className={`py-3 px-3 font-medium ${c.netProfit >= 0 ? "text-green-400" : "text-red-400"}`}>{fmtINR(c.netProfit)}</td>
-                    <td className="py-3 px-3 font-semibold text-purple-400">{fmtINR(c.directorShare)}</td>
-                    <td className="py-3 px-3 font-bold">{fmtINR(c.portfolioValue)}</td>
+                    <td className="py-3 px-3 font-semibold text-purple-400">{fmtMoney(c.directorShare)}</td>
                   </tr>
                 ))}
               </tbody>

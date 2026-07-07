@@ -94,7 +94,7 @@ export default function Marketing() {
 
   const stats = summary ? [
     { l: "Ad Spend", v: fmtINR(summary.totalSpent), sub: `of ${fmtINR(summary.totalBudget)} budget`, icon: IndianRupee, c: "text-blue-400" },
-    { l: "Revenue", v: fmtINR(summary.totalRevenue), sub: `${summary.roas.toFixed(1)}x ROAS`, icon: TrendingUp, c: "text-green-400" },
+    { l: "Revenue", v: fmtINR(summary.totalRevenue), sub: `${(summary.roas ?? 0).toFixed(1)}x ROAS`, icon: TrendingUp, c: "text-green-400" },
     { l: "Leads", v: summary.totalLeads.toLocaleString("en-IN"), sub: `${summary.totalConversions} conversions`, icon: Users, c: "text-purple-400" },
     { l: "Active Campaigns", v: String(summary.activeCount), sub: `${rows.length} total`, icon: Target, c: "text-orange-400" },
   ] : []

@@ -114,8 +114,8 @@ export default function Finance() {
   // P&L KPIs
   const kpis = pnl ? [
     { label: "Revenue", value: `₹${Number(pnl.revenue).toLocaleString("en-IN")}`, icon: TrendingUp, color: "text-green-400 bg-green-500/10" },
-    { label: "Gross Profit", value: `₹${Number(pnl.grossProfit).toLocaleString("en-IN")}`, sub: `Margin: ${Number(pnl.grossMargin).toFixed(1)}%`, icon: Wallet, color: "text-blue-400 bg-blue-500/10" },
-    { label: "Net Profit", value: `₹${Number(pnl.netProfit).toLocaleString("en-IN")}`, sub: `Margin: ${Number(pnl.netMargin).toFixed(1)}%`, icon: TrendingUp, color: "text-purple-400 bg-purple-500/10" },
+    { label: "Gross Profit", value: pnl.grossProfit != null ? `₹${Number(pnl.grossProfit).toLocaleString("en-IN")}` : "No data connected.", sub: pnl.grossMargin != null ? `Margin: ${Number(pnl.grossMargin).toFixed(1)}%` : "COGS not tracked", icon: Wallet, color: "text-blue-400 bg-blue-500/10" },
+    { label: "Net Profit", value: `₹${Number(pnl.netProfit).toLocaleString("en-IN")}`, sub: pnl.netMargin != null ? `Margin: ${Number(pnl.netMargin).toFixed(1)}%` : undefined, icon: TrendingUp, color: "text-purple-400 bg-purple-500/10" },
     { label: "Expenses", value: `₹${Number(pnl.operatingExpenses).toLocaleString("en-IN")}`, icon: TrendingDown, color: "text-red-400 bg-red-500/10" },
   ] : []
 

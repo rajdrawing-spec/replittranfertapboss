@@ -13,8 +13,10 @@ export interface CompanySummary {
   revenue: number;
   orders: number;
   employees: number;
-  profit: number;
-  growth: number;
+  /** @nullable */
+  profit: number | null;
+  /** @nullable */
+  growth: number | null;
   inventoryValue?: number;
   openLeads?: number;
 }

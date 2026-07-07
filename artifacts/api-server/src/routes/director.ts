@@ -1,15 +1,41 @@
 import { Router } from "express";
+import type { Request } from "express";
 import { db } from "@workspace/db";
-import { companiesTable, transactionsTable, usersTable } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { companiesTable, transactionsTable } from "@workspace/db";
+import type { User } from "@workspace/db";
+import { eq, and, sql, inArray } from "drizzle-orm";
+import { isSuperAdmin } from "../lib/auth-user";
 
 const router = Router();
 
+/** Company IDs the caller may see: null = all (Super Admin), else their scope. */
+function companyScope(req: Request): number[] | null {
+  const u = (req as any).localUser as User | undefined;
+  if (u && isSuperAdmin(u)) return null;
+  return ((u?.companyIds as number[] | undefined) ?? []);
+}
+
 // GET /api/director/portfolio
+// All figures are derived strictly from real transaction data, scoped to the
+// companies the caller is authorized to see. Valuations that require inputs we
+// do not have (portfolio market value, gross profit / COGS) are omitted rather
+// than fabricated.
 router.get("/director/portfolio", async (req, res) => {
   try {
-    // userId is guaranteed by requireAuth middleware (applied in routes/index.ts)
-    const companies = await db.select().from(companiesTable).where(eq(companiesTable.status, "active"));
+    const scope = companyScope(req);
+    if (scope && scope.length === 0) {
+      res.json({
+        summary: { totalRevenue: 0, totalExpenses: 0, totalNetProfit: 0, totalDirectorShare: 0 },
+        companies: [],
+        monthlyPnl: [],
+      });
+      return;
+    }
+
+    const companies = await db
+      .select()
+      .from(companiesTable)
+      .where(and(eq(companiesTable.status, "active"), scope ? inArray(companiesTable.id, scope) : undefined));
 
     const companyData = await Promise.all(
       companies.map(async (c) => {
@@ -21,13 +47,11 @@ router.get("/director/portfolio", async (req, res) => {
           .from(transactionsTable)
           .where(eq(transactionsTable.companyId, c.id));
 
-        const revenue = Number(stats?.revenue ?? 0) || c.totalRevenue;
+        const revenue = Number(stats?.revenue ?? 0);
         const expenses = Number(stats?.expenses ?? 0);
-        const grossProfit = revenue * 0.38;
-        const netProfit = grossProfit - expenses * 0.15;
-        const ownership = c.ownershipPercent ?? 30;
-        const directorShare = netProfit * (ownership / 100);
-        const portfolioValue = revenue * 2.8 * (ownership / 100);
+        const netProfit = revenue - expenses;
+        const ownership = c.ownershipPercent; // real, may be null
+        const directorShare = ownership != null ? netProfit * (ownership / 100) : null;
 
         return {
           id: c.id,
@@ -38,21 +62,22 @@ router.get("/director/portfolio", async (req, res) => {
           ownershipPercent: ownership,
           revenue,
           expenses,
-          grossProfit,
           netProfit,
           directorShare,
-          portfolioValue,
           status: c.status,
         };
       })
     );
 
-    const totalPortfolioValue = companyData.reduce((s, c) => s + c.portfolioValue, 0);
     const totalRevenue = companyData.reduce((s, c) => s + c.revenue, 0);
+    const totalExpenses = companyData.reduce((s, c) => s + c.expenses, 0);
     const totalNetProfit = companyData.reduce((s, c) => s + c.netProfit, 0);
-    const totalDirectorShare = companyData.reduce((s, c) => s + c.directorShare, 0);
+    const totalDirectorShare = companyData.reduce((s, c) => s + (c.directorShare ?? 0), 0);
 
-    // Monthly P&L (last 6 months from transactions)
+    const scopeIds = scope ? scope : companyData.map((c) => c.id);
+    const inTx = scopeIds.length ? inArray(transactionsTable.companyId, scopeIds) : sql`false`;
+
+    // Monthly P&L (last 6 months from transactions, scoped)
     const months = [];
     const now = new Date();
     for (let i = 5; i >= 0; i--) {
@@ -64,7 +89,11 @@ router.get("/director/portfolio", async (req, res) => {
           expense: sql<number>`coalesce(sum(case when type = 'expense' then amount else 0 end), 0)`,
         })
         .from(transactionsTable)
-        .where(and(sql`date >= ${d.toISOString().slice(0, 10)}`, sql`date < ${nextD.toISOString().slice(0, 10)}`));
+        .where(and(
+          sql`date >= ${d.toISOString().slice(0, 10)}`,
+          sql`date < ${nextD.toISOString().slice(0, 10)}`,
+          inTx,
+        ));
 
       months.push({
         month: d.toLocaleString("en-IN", { month: "short" }),
@@ -75,7 +104,7 @@ router.get("/director/portfolio", async (req, res) => {
     }
 
     res.json({
-      summary: { totalPortfolioValue, totalRevenue, totalNetProfit, totalDirectorShare },
+      summary: { totalRevenue, totalExpenses, totalNetProfit, totalDirectorShare },
       companies: companyData,
       monthlyPnl: months,
     });

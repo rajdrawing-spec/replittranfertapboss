@@ -76,24 +76,23 @@ router.get("/finance/pnl-summary", async (req, res) => {
 
     const revenue = Number(stats?.revenue ?? 0);
     const expenses = Number(stats?.expenses ?? 0);
-    const cogs = revenue * 0.55;
-    const grossProfit = revenue - cogs;
-    const operatingExpenses = expenses * 0.4;
-    const operatingProfit = grossProfit - operatingExpenses;
-    const netProfit = operatingProfit - expenses * 0.1;
+    // Net profit = real income − real expenses. COGS / gross profit / operating
+    // profit require expense categorisation we do not track, so they are reported
+    // as unavailable rather than fabricated with fixed multipliers.
+    const netProfit = revenue - expenses;
 
     res.json({
       revenue,
-      cogs,
-      grossProfit,
-      grossMargin: revenue > 0 ? (grossProfit / revenue) * 100 : 0,
-      operatingExpenses,
-      operatingProfit,
+      cogs: null,
+      grossProfit: null,
+      grossMargin: null,
+      operatingExpenses: expenses,
+      operatingProfit: null,
       netProfit,
-      netMargin: revenue > 0 ? (netProfit / revenue) * 100 : 0,
+      netMargin: revenue > 0 ? (netProfit / revenue) * 100 : null,
       period,
-      revenueGrowth: 18.5,
-      profitGrowth: 24.2,
+      revenueGrowth: null,
+      profitGrowth: null,
     });
   } catch (e) {
     req.log.error(e);

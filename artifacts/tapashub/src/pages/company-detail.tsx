@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Users, DollarSign, Activity, PackageSearch, FileText } from "lucide-react"
+import { EmptyState, NoData } from "@/components/empty-state"
+import { ArrowLeft, FileText } from "lucide-react"
 
 export default function CompanyDetail() {
   const params = useParams()
@@ -69,8 +70,7 @@ export default function CompanyDetail() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{summary?.revenue?.toLocaleString('en-IN') || 0}</div>
-            <p className="text-xs text-success mt-1">+{summary?.growth || 0}% from last period</p>
+            <div className="text-2xl font-bold">{summary?.revenue ? `₹${summary.revenue.toLocaleString('en-IN')}` : <NoData />}</div>
           </CardContent>
         </Card>
         <Card className="bg-card/50">
@@ -78,7 +78,7 @@ export default function CompanyDetail() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{summary?.orders?.toLocaleString() || 0}</div>
+            <div className="text-2xl font-bold">{summary?.orders ? summary.orders.toLocaleString() : <NoData />}</div>
           </CardContent>
         </Card>
         <Card className="bg-card/50">
@@ -86,7 +86,7 @@ export default function CompanyDetail() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Employees</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{summary?.employees?.toLocaleString() || 0}</div>
+            <div className="text-2xl font-bold">{summary?.employees ? summary.employees.toLocaleString() : <NoData />}</div>
           </CardContent>
         </Card>
         <Card className="bg-card/50">
@@ -94,7 +94,7 @@ export default function CompanyDetail() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Net Profit</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{summary?.profit?.toLocaleString('en-IN') || 0}</div>
+            <div className="text-2xl font-bold">{summary?.profit != null ? `₹${summary.profit.toLocaleString('en-IN')}` : <NoData />}</div>
           </CardContent>
         </Card>
       </div>
@@ -111,10 +111,7 @@ export default function CompanyDetail() {
                 <CardTitle>Recent Activity</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <Activity className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                  <p>Activity feed coming soon</p>
-                </div>
+                <EmptyState />
               </CardContent>
             </Card>
             <Card>
@@ -122,10 +119,7 @@ export default function CompanyDetail() {
                 <CardTitle>Inventory Health</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <PackageSearch className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                  <p>Inventory data coming soon</p>
-                </div>
+                <EmptyState />
               </CardContent>
             </Card>
           </div>

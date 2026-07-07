@@ -4,10 +4,16 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Check, X, CheckSquare, Clock } from "lucide-react"
+import { useCompany } from "@/contexts/company-context"
 
 export default function Approvals() {
-  const { data, isLoading } = useListApprovals({ limit: 50 }, {
-    query: { enabled: true, queryKey: getListApprovalsQueryKey({ limit: 50 }) }
+  const { activeCompany } = useCompany()
+
+  const params: Record<string, string | number> = { limit: 50 }
+  if (activeCompany) params.companyId = activeCompany.id
+
+  const { data, isLoading } = useListApprovals(params, {
+    query: { enabled: true, queryKey: getListApprovalsQueryKey(params) }
   })
 
   return (

@@ -5,14 +5,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { UsersRound, Phone, Mail } from "lucide-react"
+import { useCompany } from "@/contexts/company-context"
 
 export default function CRM() {
-  const { data: customers, isLoading: loadingCustomers } = useListCustomers({ limit: 50 }, {
-    query: { enabled: true, queryKey: getListCustomersQueryKey({ limit: 50 }) }
+  const { activeCompany } = useCompany()
+
+  const customerParams: Record<string, string | number> = { limit: 50 }
+  if (activeCompany) customerParams.companyId = activeCompany.id
+  const leadParams: Record<string, string | number> = { limit: 50 }
+  if (activeCompany) leadParams.companyId = activeCompany.id
+
+  const { data: customers, isLoading: loadingCustomers } = useListCustomers(customerParams, {
+    query: { enabled: true, queryKey: getListCustomersQueryKey(customerParams) }
   })
 
-  const { data: leads, isLoading: loadingLeads } = useListLeads({ limit: 50 }, {
-    query: { enabled: true, queryKey: getListLeadsQueryKey({ limit: 50 }) }
+  const { data: leads, isLoading: loadingLeads } = useListLeads(leadParams, {
+    query: { enabled: true, queryKey: getListLeadsQueryKey(leadParams) }
   })
 
   return (

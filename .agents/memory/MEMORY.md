@@ -15,4 +15,5 @@
 - [Clerk prod custom-domain 401](clerk-prod-custom-domain.md) — live app with "Development mode" badge + 401s = deployment running dev keys; re-publish; custom domain must be registered with Clerk prod.
 - [TBOS analytics module](tbos-analytics.md) — a returned ratio leaks its hidden denominator (gate market-share to super admin); build date buckets from local components, not toISOString.
 - [TBOS shareholder module](tbos-shareholders.md) — cap table = derived ownership recomputed per company in-txn; mutation endpoints must canonicalize signs + validate server-side, not trust client.
+- [TBOS client company scoping](tbos-client-company-scoping.md) — scoped list pages must pass activeCompany.id in BOTH params and queryKey, or they leak/never rescope.
 - [TBOS Vitest setup](tbos-vitest-config.md) — tapashub tests use standalone vitest.config.ts (vite.config throws without PORT/BASE_PATH); mock the @clerk/react boundary + /api/auth/me instead of real OAuth.

@@ -310,6 +310,27 @@ describe("getOrProvisionLocalUser", () => {
     expect(H.store.users).toHaveLength(0);
   });
 
+  it("keeps rejecting a disabled account even when a fresh pending invite exists for the same email", async () => {
+    // A user was intentionally shut out...
+    seedUser({ email: "shutout@example.com", status: "disabled", clerkUserId: null });
+    // ...then someone re-invites the same email with a fresh pending invitation.
+    H.store.invitations.push({
+      id: 1, email: "shutout@example.com", name: "Shut Out",
+      role: "finance_manager", department: null, companyIds: [1], status: "pending",
+    });
+    clerk.getUser.mockResolvedValue(clerkIdentity("shutout@example.com"));
+    const { error, user } = await getOrProvisionLocalUser("c_shutout");
+    // The disabled guard must win over the pending invite.
+    expect(error).toBe("disabled");
+    expect(user).toBeUndefined();
+    // No new active user row was created (only the original disabled row remains).
+    expect(H.store.users).toHaveLength(1);
+    expect(H.store.users[0].status).toBe("disabled");
+    expect(H.store.users[0].clerkUserId).toBeNull();
+    // The stale pending invite must not be consumed.
+    expect(H.store.invitations[0].status).toBe("pending");
+  });
+
   it("uses the newer pending invitation when a stale non-pending invite also exists", async () => {
     // Older, non-pending (revoked) invite with a different role...
     H.store.invitations.push({

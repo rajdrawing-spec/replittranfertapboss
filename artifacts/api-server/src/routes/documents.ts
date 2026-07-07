@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { documentsTable, insertDocumentSchema } from "@workspace/db";
 import { eq, and, desc, or, ilike } from "drizzle-orm";
 import { isSafeAttachmentUrl } from "../lib/url-safety";
+import { canAccessCompany } from "../lib/company-scope";
 
 const router = Router();
 
@@ -26,6 +27,7 @@ router.post("/documents", async (req, res) => {
   try {
     const parsed = insertDocumentSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
+    if (parsed.data.companyId != null && !canAccessCompany(req, parsed.data.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
     if (!isSafeAttachmentUrl(parsed.data.fileUrl)) {
       res.status(400).json({ error: "Unsafe URL: only http(s) links or uploaded files are allowed" }); return;
     }
@@ -37,6 +39,9 @@ router.post("/documents", async (req, res) => {
 router.patch("/documents/:id", async (req, res) => {
   try {
     const { id: _id, createdAt: _c, updatedAt: _u, companyId: _cid, ...body } = req.body ?? {};
+    const [existing] = await db.select().from(documentsTable).where(eq(documentsTable.id, parseInt(req.params.id)));
+    if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+    if (existing.companyId != null && !canAccessCompany(req, existing.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
     if (!isSafeAttachmentUrl(body.fileUrl)) {
       res.status(400).json({ error: "Unsafe URL: only http(s) links or uploaded files are allowed" }); return;
     }

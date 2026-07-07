@@ -5,6 +5,7 @@ import { eq, and, desc, or, ilike, isNotNull } from "drizzle-orm";
 import { getAdapter, type AdapterContext } from "../lib/integration-adapters";
 import { getCatalogPlatform } from "../lib/integration-catalog";
 import { emitNotification } from "../lib/notify";
+import { canAccessCompany } from "../lib/company-scope";
 
 const router = Router();
 
@@ -47,6 +48,7 @@ router.post("/shipments", async (req, res) => {
   try {
     const parsed = insertShipmentSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
+    if (!canAccessCompany(req, parsed.data.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
     const [s] = await db.insert(shipmentsTable).values(parsed.data).returning();
     res.status(201).json(s);
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to create shipment" }); }
@@ -57,6 +59,7 @@ router.patch("/shipments/:id", async (req, res) => {
     const { id: _id, createdAt: _c, updatedAt: _u, companyId: _cid, ...body } = req.body ?? {};
     const [prev] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, parseInt(req.params.id)));
     if (!prev) { res.status(404).json({ error: "Not found" }); return; }
+    if (!canAccessCompany(req, prev.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
     const [s] = await db.update(shipmentsTable).set({ ...body, updatedAt: new Date() }).where(eq(shipmentsTable.id, parseInt(req.params.id))).returning();
     if (!s) { res.status(404).json({ error: "Not found" }); return; }
     if (s.status === "delivered" && prev.status !== "delivered") {

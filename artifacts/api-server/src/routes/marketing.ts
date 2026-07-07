@@ -11,6 +11,7 @@ import {
 import { eq, and, desc, sql } from "drizzle-orm";
 import { emitNotification } from "../lib/notify";
 import { isSafeAttachmentUrl } from "../lib/url-safety";
+import { canAccessCompany } from "../lib/company-scope";
 
 const router = Router();
 
@@ -56,6 +57,7 @@ router.post("/campaigns", async (req, res) => {
   try {
     const parsed = insertCampaignSchema.safeParse(normalizeCampaignBody(req.body));
     if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
+    if (!canAccessCompany(req, parsed.data.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
     const [c] = await db.insert(campaignsTable).values(parsed.data).returning();
     res.status(201).json(c);
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to create campaign" }); }
@@ -69,6 +71,7 @@ router.patch("/campaigns/:id", async (req, res) => {
     // Load the current row so we can detect a status transition to "completed".
     const [existing] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, id));
     if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+    if (!canAccessCompany(req, existing.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
     const [c] = await db.update(campaignsTable).set({ ...body, updatedAt: new Date() }).where(eq(campaignsTable.id, id)).returning();
     if (!c) { res.status(404).json({ error: "Not found" }); return; }
     if (c.status === "completed" && existing.status !== "completed") {

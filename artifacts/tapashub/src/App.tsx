@@ -26,7 +26,7 @@ import AiAssistant from '@/pages/ai-assistant';
 import Settings from '@/pages/settings';
 import Integrations from '@/pages/integrations';
 import DirectorPortal from '@/pages/director';
-import Vault from '@/pages/vault';
+import AccountDirectory from '@/pages/account-directory';
 import Shipping from '@/pages/shipping';
 import Documents from '@/pages/documents';
 import Marketing from '@/pages/marketing';
@@ -179,7 +179,7 @@ function AuthedApp() {
           <Route path="/integrations" component={Integrations} />
           <Route path="/director" component={DirectorPortal} />
           <Route path="/settings" component={Settings} />
-          <Route path="/vault" component={Vault} />
+          <Route path="/accounts" component={AccountDirectory} />
           <Route path="/shipping" component={Shipping} />
           <Route path="/documents" component={Documents} />
           <Route path="/marketing" component={Marketing} />

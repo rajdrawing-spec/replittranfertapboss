@@ -14,7 +14,7 @@ export * from "./notifications";
 export * from "./approvals";
 export * from "./activity";
 export * from "./platforms";
-export * from "./vault";
+export * from "./account-directory";
 export * from "./shipments";
 export * from "./documents";
 export * from "./campaigns";

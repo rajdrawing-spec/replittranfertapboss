@@ -28,7 +28,7 @@ import {
   Layers,
   PieChart,
   LogOut,
-  KeyRound,
+  Contact,
   Truck,
   ShieldCheck,
   ScrollText,
@@ -61,7 +61,7 @@ const parentNav: NavItem[] = [
   { name: "Finance", href: "/finance", icon: Wallet },
   { name: "HR & People", href: "/hr", icon: Users },
   { name: "Documents", href: "/documents", icon: FileText },
-  { name: "Password Vault", href: "/vault", icon: KeyRound },
+  { name: "Account Directory", href: "/accounts", icon: Contact },
   { name: "Approvals", href: "/approvals", icon: CheckSquare },
   { name: "Director Portal", href: "/director", icon: PieChart },
   { name: "Reports", href: "/reports", icon: FileText },
@@ -78,7 +78,7 @@ const baseSubsidiaryNav: NavItem[] = [
   { name: "Platforms", href: "/platforms", icon: Layers },
   { name: "Finance", href: "/finance", icon: Wallet },
   { name: "Documents", href: "/documents", icon: FileText },
-  { name: "Password Vault", href: "/vault", icon: KeyRound },
+  { name: "Account Directory", href: "/accounts", icon: Contact },
   { name: "Integrations", href: "/integrations", icon: Globe2 },
 ]
 

@@ -1,0 +1,666 @@
+# Build TAPBOS(TapasHub Business Operating System)
+
+## Project Name
+
+**TAPBOS (TapasHub Business Operating System)**
+
+### Project Goal
+
+Build a **professional, enterprise-grade business management platform** for TapasHub. This is **not** a CRM or ERP clone—it should be a clean, modern operating system that allows our team, investors, and administrators to manage all TapasHub brands from one secure place.
+
+Do **not** replace or break any existing features. Refactor carefully and preserve current data wherever possible. Existing functionality should continue working while the new UI and architecture are introduced.
+
+---
+
+# Design Style
+
+Create a premium interface inspired by modern business software.
+
+Design inspiration:
+
+* Linear
+* Notion
+* Slack
+* Stripe Dashboard
+* Google Workspace
+* Vercel Dashboard
+
+The interface must be:
+
+* Minimal
+* Modern
+* Fast
+* Responsive
+* Mobile-first
+* Tablet friendly
+* Desktop friendly
+* Easy for non-technical users
+* Accessible with clear typography and spacing
+
+Avoid clutter, excessive colors, unnecessary animations, and complex menus.
+
+---
+
+# Branding
+
+Application Name:
+
+**TAPBOSS**
+
+Subtitle:
+
+**TapasHub Business Operating System**
+
+Use TapasHub brand colors throughout the application.
+
+---
+
+# Login
+
+Implement secure authentication.
+
+Support:
+
+* Google Sign-In
+* Email Login
+* Two-Factor Authentication (future-ready)
+* Forgot Password
+* Session Management
+* Device Management
+* Login History
+
+After login, redirect users to their dashboard based on their role.
+
+---
+
+# Beautiful Loading Screen
+
+Show a professional loading page.
+
+Display:
+
+TAPBOSS Logo
+
+Animated logo
+
+Loading progress
+
+Messages such as:
+
+"Loading your workspace..."
+
+"Syncing business data..."
+
+"Preparing dashboard..."
+
+The loading experience should feel premium.
+
+---
+
+# Dashboard
+
+The dashboard should immediately answer:
+
+What needs attention today?
+
+Display:
+
+* Sales Today
+* Orders
+* Pending Shipments
+* Customer Messages
+* Marketing Performance
+* Inventory Alerts
+* Pending Tasks
+* Notifications
+* Team Activity
+
+Everything should be visible without opening many pages.
+
+---
+
+# Sidebar
+
+Dashboard
+
+Brands
+
+Marketing
+
+Orders
+
+Inventory
+
+Shipping
+
+Customers
+
+Documents
+
+Finance
+
+Reports
+
+Tasks
+
+Calendar
+
+Password Vault
+
+Settings
+
+Admin
+
+---
+
+# Brand Workspace
+
+Each brand should have its own workspace.
+
+Examples:
+
+* Hugfab
+* Pepalworks
+* Sanchikart
+* Throttledaires
+* TikkaTails
+* Tottotoy
+* Undertree Games
+
+Opening a brand should never open another website immediately.
+
+Instead open an internal dashboard showing:
+
+Overview
+
+Platforms
+
+Marketing
+
+Orders
+
+Inventory
+
+Documents
+
+Reports
+
+Password Vault
+
+Settings
+
+---
+
+# Platform Manager
+
+Inside every brand create cards for:
+
+Website
+
+Shopify
+
+Shopdeck
+
+Amazon
+
+Flipkart
+
+Myntra
+
+Meta Business
+
+Instagram
+
+Facebook
+
+Google Business
+
+Google Ads
+
+Razorpay
+
+Shiprocket
+
+Zoho
+
+Gmail
+
+WhatsApp Business
+
+Each card should show:
+
+Platform Logo
+
+Platform Name
+
+Status
+
+Last Sync
+
+Account Owner
+
+Quick Actions
+
+Buttons:
+
+Open
+
+Manage
+
+Settings
+
+Never display passwords publicly.
+
+---
+
+# Secure Password Vault
+
+Encrypted password manager.
+
+Store:
+
+Platform
+
+Username
+
+Email
+
+Phone Number
+
+Password
+
+Recovery Email
+
+Recovery Phone
+
+Notes
+
+Owner
+
+Last Updated
+
+2FA Status
+
+Support global search.
+
+Example:
+
+Search
+
+9866369148
+
+Results should instantly show every account using that number.
+
+Passwords should only be visible to authorized users.
+
+---
+
+# Marketing Workspace
+
+Targetgum Marketing
+
+Campaigns
+
+Ads
+
+Creatives
+
+Meta Ads
+
+Google Ads
+
+Budget
+
+Performance
+
+ROI
+
+Leads
+
+Analytics
+
+---
+
+# Orders
+
+Merge orders from every platform into one screen.
+
+Status
+
+Payment
+
+Shipping
+
+Customer
+
+Timeline
+
+Search
+
+Filters
+
+---
+
+# Inventory
+
+Warehouse
+
+Manufacturers
+
+Stock
+
+Low Stock
+
+Purchase Orders
+
+Transfers
+
+---
+
+# Shipping
+
+Shiprocket
+
+Delhivery
+
+Blue Dart
+
+DTDC
+
+Tracking
+
+Shipping Status
+
+Returns
+
+---
+
+# Customers
+
+Customer Profiles
+
+Orders
+
+Support Tickets
+
+WhatsApp
+
+Emails
+
+Purchase History
+
+Notes
+
+---
+
+# Documents
+
+GST
+
+Trademark
+
+Invoices
+
+Vendor Agreements
+
+Brand Assets
+
+Certificates
+
+Store securely.
+
+---
+
+# Finance
+
+Revenue
+
+Expenses
+
+Profit
+
+Investor Reports
+
+GST
+
+Invoices
+
+Charts
+
+Exports
+
+---
+
+# Reports
+
+Daily
+
+Weekly
+
+Monthly
+
+Brand Performance
+
+Sales Reports
+
+Marketing Reports
+
+Inventory Reports
+
+Investor Reports
+
+---
+
+# Notifications
+
+Real-time notifications.
+
+Examples:
+
+New Order
+
+Low Stock
+
+Failed Login
+
+Campaign Finished
+
+Shipment Delivered
+
+Payment Received
+
+---
+
+# User Roles
+
+Super Admin
+
+Admin
+
+Operations
+
+Marketing
+
+Customer Support
+
+Finance
+
+Investor
+
+Every role should only access what they are allowed to see.
+
+Investors should never see passwords.
+
+---
+
+# Search
+
+Global Search.
+
+Search anything.
+
+Examples:
+
+Brand
+
+Order
+
+Customer
+
+Phone Number
+
+Email
+
+Platform
+
+Invoice
+
+Product
+
+Document
+
+Password Entry
+
+Everything should appear instantly.
+
+---
+
+# Settings
+
+Profile
+
+Security
+
+Notifications
+
+Theme
+
+Language
+
+Devices
+
+API Integrations
+
+User Management
+
+Audit Logs
+
+---
+
+# Security
+
+Google Authentication
+
+Encrypted Password Vault
+
+Role-Based Permissions
+
+Activity Logs
+
+Audit Trail
+
+Session Timeout
+
+Device Management
+
+Automatic Backups
+
+Secure API Tokens
+
+HTTPS Only
+
+Prepare the architecture for enterprise-level security.
+
+---
+
+# Performance
+
+The application must be extremely fast.
+
+Use:
+
+Lazy Loading
+
+Caching
+
+Optimized Database Queries
+
+Reusable Components
+
+Background Sync
+
+Fast Search
+
+No unnecessary page reloads.
+
+---
+
+# Technology
+
+Frontend
+
+React
+
+Next.js
+
+TypeScript
+
+Tailwind CSS
+
+Backend
+
+Node.js
+
+PostgreSQL
+
+Prisma
+
+Authentication
+
+Google OAuth
+
+Firebase Authentication
+
+Storage
+
+Cloudflare R2
+
+Realtime
+
+Socket.IO
+
+Charts
+
+Recharts
+
+---
+
+# UI Requirements
+
+Use cards instead of tables whenever possible.
+
+Large buttons.
+
+Readable fonts.
+
+Proper spacing.
+
+Rounded corners.
+
+Soft shadows.
+
+Professional icons.
+
+Consistent colors.
+
+Responsive layout.
+
+Dark Mode and Light Mode.
+
+Smooth page transitions.
+
+Minimal animations.
+
+No clutter.
+
+The application should feel as polished as Google Workspace, Stripe, or Notion while remaining simple enough for every TapasHub team member to use confidently from their first login.

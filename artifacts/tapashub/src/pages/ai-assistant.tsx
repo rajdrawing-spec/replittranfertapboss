@@ -16,7 +16,7 @@ export default function AiAssistant() {
   const [messages, setMessages] = useState<Message[]>([
     { 
       role: 'assistant', 
-      content: "Hello. I am the TBOS AI Assistant. I have full context of all 6 subsidiaries, including realtime finance, inventory, and CRM data. How can I help you analyze the business today?" 
+      content: "Hello. I am the TAPBOSS AI Assistant. I have full context of all 6 subsidiaries, including realtime finance, inventory, and CRM data. How can I help you analyze the business today?" 
     }
   ])
   const [input, setInput] = useState("")

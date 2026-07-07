@@ -24,6 +24,12 @@ import AiAssistant from '@/pages/ai-assistant';
 import Settings from '@/pages/settings';
 import Integrations from '@/pages/integrations';
 import DirectorPortal from '@/pages/director';
+import Vault from '@/pages/vault';
+import Shipping from '@/pages/shipping';
+import Documents from '@/pages/documents';
+import Marketing from '@/pages/marketing';
+import Platforms from '@/pages/platforms';
+import { LoadingScreen } from '@/components/loading-screen';
 
 const queryClient = new QueryClient();
 
@@ -35,18 +41,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     if (!loading && !user) setLocation('/login')
   }, [user, loading])
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#09090B] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="bg-white rounded-xl p-2">
-            <img src="/tapashub-logo.png" alt="TapasHub" className="w-10 h-10 object-contain" />
-          </div>
-          <div className="w-5 h-5 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
-        </div>
-      </div>
-    )
-  }
+  if (loading) return <LoadingScreen />
   if (!user) return null
   return <>{children}</>
 }
@@ -74,8 +69,12 @@ function Router() {
                 <Route path="/integrations" component={Integrations} />
                 <Route path="/director" component={DirectorPortal} />
                 <Route path="/settings" component={Settings} />
+                <Route path="/vault" component={Vault} />
+                <Route path="/shipping" component={Shipping} />
+                <Route path="/documents" component={Documents} />
+                <Route path="/marketing" component={Marketing} />
+                <Route path="/platforms" component={Platforms} />
                 {/* Subsidiary-specific stubs */}
-                <Route path="/marketing" component={CRM} />
                 <Route path="/reports" component={Finance} />
                 <Route path="/analytics" component={Dashboard} />
                 <Route path="/veterinary" component={HR} />

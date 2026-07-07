@@ -44,7 +44,7 @@ export default function Login() {
           <div className="bg-white rounded-2xl p-3 shadow-2xl mb-4">
             <img src="/tapashub-logo.png" alt="TapasHub" className="w-16 h-16 object-contain" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">TapasHub TBOS</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight">TAPBOSS</h1>
           <p className="text-sm text-slate-400 mt-1">Business Operating System</p>
         </div>
 

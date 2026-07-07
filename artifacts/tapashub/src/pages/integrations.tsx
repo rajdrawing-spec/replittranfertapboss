@@ -51,7 +51,7 @@ function ConnectModal({ platform, companySlug, onDone }: { platform: Platform; c
         {step === "idle" && (
           <>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Connecting will allow TBOS to automatically sync your {platform.syncFeatures.join(", ")} data from {platform.name} into this workspace.
+              Connecting will allow TAPBOSS to automatically sync your {platform.syncFeatures.join(", ")} data from {platform.name} into this workspace.
             </p>
             <div className="bg-muted/40 rounded-lg p-3 space-y-1">
               {platform.syncFeatures.map(f => (

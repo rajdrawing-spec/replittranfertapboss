@@ -3,3 +3,5 @@
 - [DB lib declarations stale after schema add](db-declarations-refresh.md) — After adding new schema files to lib/db, run `pnpm run typecheck:libs` before checking API server types, or imports from @workspace/db appear missing.
 - [TBOS API fetch base URL](tbos-api-base-url.md) — Custom fetch calls in frontend must use bare `/api/...` paths, not `${BASE_URL}/api/...`; BASE_URL is `/tapashub/` so prefixing it creates wrong paths.
 - [TBOS auth approach](tbos-auth.md) — Session auth: cookie-parser signed cookies (`tbos_uid`), SHA-256+email salt password hash. Default pw: Admin@123. requireAuth middleware applied globally to all routes after /auth and /health.
+- [TAPBOSS company scoping](tbos-company-scoping.md) — group roles see all; others limited to companyIds; AND companyId+q filters (never OR); strip id/companyId/timestamps from PATCH bodies.
+- [Sandbox DB seeding](sandbox-seeding.md) — CodeExecution can't import `pg`; use the executeSql callback with batched multi-row INSERTs for bulk seeding.

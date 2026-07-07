@@ -14,6 +14,12 @@ import approvalsRouter from "./approvals";
 import aiRouter from "./ai";
 import usersRouter from "./users";
 import directorRouter from "./director";
+import platformsRouter from "./platforms";
+import vaultRouter from "./vault";
+import shippingRouter from "./shipping";
+import documentsRouter from "./documents";
+import marketingRouter from "./marketing";
+import searchRouter from "./search";
 
 const router: IRouter = Router();
 
@@ -35,5 +41,11 @@ router.use(approvalsRouter);
 router.use(aiRouter);
 router.use(usersRouter);
 router.use(directorRouter);
+router.use(platformsRouter);
+router.use(vaultRouter);
+router.use(shippingRouter);
+router.use(documentsRouter);
+router.use(marketingRouter);
+router.use(searchRouter);
 
 export default router;

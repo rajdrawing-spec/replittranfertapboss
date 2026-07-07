@@ -28,7 +28,10 @@ import {
   Layers,
   PieChart,
   LogOut,
+  KeyRound,
+  Truck,
 } from "lucide-react"
+import { GlobalSearch } from "@/components/global-search"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -52,22 +55,28 @@ interface NavItem {
 const parentNav: NavItem[] = [
   { name: "Portfolio Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Companies", href: "/companies", icon: Building2 },
+  { name: "Marketing", href: "/marketing", icon: Megaphone },
   { name: "Finance", href: "/finance", icon: Wallet },
   { name: "HR & People", href: "/hr", icon: Users },
+  { name: "Documents", href: "/documents", icon: FileText },
+  { name: "Password Vault", href: "/vault", icon: KeyRound },
   { name: "Approvals", href: "/approvals", icon: CheckSquare },
   { name: "Director Portal", href: "/director", icon: PieChart },
-  { name: "AI Insights", href: "/ai-assistant", icon: Bot },
   { name: "Reports", href: "/reports", icon: FileText },
+  { name: "AI Insights", href: "/ai-assistant", icon: Bot },
 ]
 
 const baseSubsidiaryNav: NavItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Orders", href: "/orders", icon: ShoppingCart },
   { name: "Products", href: "/inventory", icon: PackageSearch },
-  { name: "Finance", href: "/finance", icon: Wallet },
-  { name: "HR / Team", href: "/hr", icon: Users },
-  { name: "CRM", href: "/crm", icon: UsersRound },
+  { name: "Shipping", href: "/shipping", icon: Truck },
+  { name: "Customers", href: "/crm", icon: UsersRound },
   { name: "Marketing", href: "/marketing", icon: Megaphone },
+  { name: "Platforms", href: "/platforms", icon: Layers },
+  { name: "Finance", href: "/finance", icon: Wallet },
+  { name: "Documents", href: "/documents", icon: FileText },
+  { name: "Password Vault", href: "/vault", icon: KeyRound },
   { name: "Integrations", href: "/integrations", icon: Globe2 },
 ]
 
@@ -276,7 +285,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <div className="font-bold text-sm leading-tight truncate">TBOS</div>
+            <div className="font-bold text-sm leading-tight truncate">TAPBOSS</div>
             <div className="text-[10px] text-muted-foreground leading-tight truncate">Business Operating System</div>
           </div>
         )}
@@ -400,6 +409,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </>
               )}
             </div>
+          </div>
+
+          {/* Global Search */}
+          <div className="flex-1 hidden md:flex justify-center px-4">
+            <GlobalSearch />
           </div>
 
           <div className="flex items-center gap-2">

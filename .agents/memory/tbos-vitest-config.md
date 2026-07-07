@@ -24,3 +24,13 @@ OAuth (invite-only) and cannot be driven headlessly. Mock `@clerk/react`
 config and the Clerk-store mock pattern rather than trying to boot real Clerk.
 Test files are excluded from `tsconfig.json`, so they are validated by running
 `pnpm test`, not by `pnpm typecheck`.
+
+**Quirks that bite in tapashub component tests:**
+- No `@testing-library/user-event` dep — use `fireEvent` from `@testing-library/react`.
+- Radix `Tabs` only mount the *active* tab's content, so text inside an inactive
+  `TabsContent` is absent from the DOM; assert on the default/overview tab.
+- Interpolated strings like `{industry} • {pct}% Ownership` render as separate
+  text nodes, so `getByText(/Industry/)` fails; use a `(_, el) => el?.textContent === "..."` matcher.
+- Company-scoped list pages (Orders etc.) fetch via `customFetch`/`globalThis.fetch`
+  with the active companyId in the query string; drive scope through `CompanyProvider`
+  + `setActiveCompanyId`, and return per-company fixtures keyed by the `companyId` param.

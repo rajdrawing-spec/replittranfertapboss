@@ -71,3 +71,9 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+EMAIL_FROM = "https://tapboss.tapashub.com"
+APP_URL = "https://tapboss.tapashub.com"

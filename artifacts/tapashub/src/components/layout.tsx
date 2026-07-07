@@ -64,6 +64,7 @@ const parentNav: NavItem[] = [
   { name: "Shareholders", href: "/shareholders", icon: PieChart },
   { name: "Analytics", href: "/analytics", icon: TrendingUp },
   { name: "HR & People", href: "/hr", icon: Users },
+  { name: "Team & Roles", href: "/admin/access", icon: ShieldCheck },
   { name: "Documents", href: "/documents", icon: FileText },
   { name: "Account Directory", href: "/accounts", icon: Contact },
   { name: "Approvals", href: "/approvals", icon: CheckSquare },
@@ -274,9 +275,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   })
   const unreadCount = notificationsData?.length || 0
 
+  // "Team & Roles" is already in parentNav when in the TapasHub parent context;
+  // only add it here (via adminNav) for subsidiary views to avoid duplication.
   const adminNav: NavItem[] = isSuperAdmin
     ? [
-        { name: "Team & Roles", href: "/admin/access", icon: ShieldCheck },
+        ...(!isParentView ? [{ name: "Team & Roles", href: "/admin/access", icon: ShieldCheck }] : []),
         { name: "Audit Logs", href: "/admin/audit", icon: ScrollText },
       ]
     : []

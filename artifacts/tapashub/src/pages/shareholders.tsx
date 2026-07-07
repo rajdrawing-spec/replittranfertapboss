@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { Users, PieChart, Wallet, TrendingUp, Plus, Pencil, Trash2, History } from "lucide-react"
+import { Users, PieChart, Wallet, TrendingUp, Plus, Pencil, Trash2, History, Send } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 
@@ -21,7 +21,7 @@ interface Shareholder {
   name: string; email: string | null; type: string; role: string
   shares: number; sharePrice: number; investmentAmount: number
   ownershipPercent: number; status: string; joinedDate: string | null
-  notes: string | null; createdAt: string
+  notes: string | null; invitedAt: string | null; createdAt: string
 }
 interface ShareTx {
   id: number; type: string; shares: number; pricePerShare: number
@@ -117,6 +117,12 @@ export default function Shareholders() {
     mutationFn: (id: number) => adminApi.del(`/shareholders/${id}`),
     onSuccess: () => { invalidate(); toast({ title: "Shareholder removed" }) },
     onError: (e: Error) => toast({ title: "Couldn't remove", description: e.message, variant: "destructive" }),
+  })
+
+  const invite = useMutation({
+    mutationFn: (id: number) => adminApi.post(`/shareholders/${id}/invite`, {}),
+    onSuccess: () => { invalidate(); toast({ title: "Invite email sent" }) },
+    onError: (e: Error) => toast({ title: "Couldn't send invite", description: e.message, variant: "destructive" }),
   })
 
   function openCreate() { setForm(emptyForm(companyId)); setShowForm(true) }
@@ -226,6 +232,14 @@ export default function Shareholders() {
                     </TableCell>
                     {canManage && (
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost" size="icon"
+                          title={h.email ? (h.invitedAt ? `Invited ${new Date(h.invitedAt).toLocaleDateString("en-IN")} — resend` : "Send invite email") : "Add an email address to invite"}
+                          disabled={!h.email || (invite.isPending && invite.variables === h.id)}
+                          onClick={() => invite.mutate(h.id)}
+                        >
+                          <Send className={`h-4 w-4 ${h.invitedAt ? "text-green-400" : ""}`} />
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => openEdit(h)}><Pencil className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => { if (confirm(`Remove ${h.name}?`)) remove.mutate(h.id) }}><Trash2 className="h-4 w-4 text-red-400" /></Button>
                       </TableCell>

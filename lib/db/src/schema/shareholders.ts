@@ -19,6 +19,7 @@ export const shareholdersTable = pgTable("shareholders", {
   status: text("status").notNull().default("active"), // active | exited
   joinedDate: text("joined_date"), // ISO date (YYYY-MM-DD)
   notes: text("notes"),
+  invitedAt: timestamp("invited_at"), // last time an invite email was sent to this holder
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -41,6 +42,7 @@ export const shareTransactionsTable = pgTable("share_transactions", {
 export const insertShareholderSchema = createInsertSchema(shareholdersTable).omit({
   id: true,
   ownershipPercent: true,
+  invitedAt: true, // server-controlled: set only when an invite email is sent
   createdAt: true,
   updatedAt: true,
 });

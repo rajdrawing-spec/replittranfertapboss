@@ -11,6 +11,7 @@ import { and, eq, inArray, desc } from "drizzle-orm";
 import { requirePermission } from "../middleware/authz";
 import { companyScope, canAccessCompany } from "../lib/company-scope";
 import { writeAudit } from "../lib/audit";
+import { sendShareholderInviteEmail } from "../lib/email";
 
 const router = Router();
 
@@ -259,6 +260,49 @@ router.delete("/shareholders/:id", requirePermission("shareholders.manage"), asy
   }
 });
 
+// POST /shareholders/:id/invite — email the shareholder about their holding.
+router.post("/shareholders/:id/invite", requirePermission("shareholders.manage"), async (req, res) => {
+  try {
+    const id = parseInt(String(req.params.id));
+    const [existing] = await db.select().from(shareholdersTable).where(eq(shareholdersTable.id, id));
+    if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+    if (!canAccessCompany(req, existing.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (!existing.email) { res.status(400).json({ error: "This shareholder has no email address" }); return; }
+
+    const names = await companyNameMap([existing.companyId]);
+    const mail = await sendShareholderInviteEmail({
+      to: existing.email,
+      name: existing.name,
+      companyName: names[existing.companyId] ?? "your company",
+      shares: existing.shares,
+      ownershipPercent: existing.ownershipPercent,
+    });
+    if (!mail.ok) {
+      req.log.error({ err: mail.error }, "Shareholder invite email failed to send");
+      res.status(502).json({ error: "Couldn't send the invite email", detail: mail.error });
+      return;
+    }
+
+    const [updated] = await db.update(shareholdersTable)
+      .set({ invitedAt: new Date(), updatedAt: new Date() })
+      .where(eq(shareholdersTable.id, id)).returning();
+
+    void writeAudit({
+      ...actor(req),
+      action: "shareholder.invited",
+      targetType: "shareholder",
+      targetId: String(id),
+      description: `Sent shareholder invite to ${existing.email}`,
+      metadata: { companyId: existing.companyId },
+    });
+
+    res.json(formatShareholder(updated, names));
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to send invite" });
+  }
+});
+
 // POST /shareholders/:id/transactions — record an investment/share event and
 // fold it into the holder's position, then recompute the cap table.
 router.post("/shareholders/:id/transactions", requirePermission("shareholders.manage"), async (req, res) => {
@@ -352,6 +396,7 @@ function formatShareholder(h: typeof shareholdersTable.$inferSelect, names: Reco
     status: h.status,
     joinedDate: h.joinedDate,
     notes: h.notes,
+    invitedAt: h.invitedAt ? h.invitedAt.toISOString() : null,
     createdAt: h.createdAt.toISOString(),
   };
 }

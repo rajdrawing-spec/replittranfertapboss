@@ -1,11 +1,12 @@
 import { Router } from "express";
-import { db, usersTable, invitationsTable } from "@workspace/db";
+import { db, usersTable, invitationsTable, companiesTable, rolesTable } from "@workspace/db";
 import type { User } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { requireSuperAdmin } from "../middleware/authz";
 import { getUserPermissions, isSuperAdmin } from "../lib/auth-user";
 import { SUPER_ADMIN_EMAIL } from "../lib/permissions";
 import { writeAudit } from "../lib/audit";
+import { sendUserInviteEmail } from "../lib/email";
 import { fmtUser } from "./auth";
 
 const router = Router();
@@ -81,7 +82,23 @@ router.post("/users/invite", requireSuperAdmin, async (req, res) => {
       targetType: "invitation", targetId: String(invite.id),
       description: `Invited ${normEmail} as ${role}`,
     });
-    res.status(201).json(invite);
+
+    // Deliver the invite email. Best-effort: the invitation is already saved, so
+    // a delivery failure returns emailSent=false instead of failing the request.
+    let roleLabel = role;
+    const [roleRow] = await db.select().from(rolesTable).where(eq(rolesTable.key, role)).limit(1);
+    if (roleRow?.name) roleLabel = roleRow.name;
+    let companyNames: string[] = [];
+    if (Array.isArray(companyIds) && companyIds.length) {
+      const rows = await db.select({ name: companiesTable.name }).from(companiesTable).where(inArray(companiesTable.id, companyIds));
+      companyNames = rows.map((r) => r.name);
+    }
+    const mail = await sendUserInviteEmail({
+      to: normEmail, name: name ?? null, roleLabel, inviterName: actor.name, companyNames,
+    });
+    if (!mail.ok) req.log.error({ err: mail.error }, "Invite email failed to send");
+
+    res.status(201).json({ ...invite, emailSent: mail.ok, emailError: mail.ok ? undefined : mail.error });
   } catch (e) {
     req.log.error(e);
     res.status(500).json({ error: "Failed to invite user" });

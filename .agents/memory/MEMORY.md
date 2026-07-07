@@ -17,3 +17,4 @@
 - [TBOS shareholder module](tbos-shareholders.md) — cap table = derived ownership recomputed per company in-txn; mutation endpoints must canonicalize signs + validate server-side, not trust client.
 - [TBOS client company scoping](tbos-client-company-scoping.md) — scoped list pages must pass activeCompany.id in BOTH params and queryKey, or they leak/never rescope.
 - [TBOS Vitest setup](tbos-vitest-config.md) — tapashub tests use standalone vitest.config.ts (vite.config throws without PORT/BASE_PATH); mock the @clerk/react boundary + /api/auth/me instead of real OAuth.
+- [Resend transactional email](resend-email.md) — invites send via Resend connector proxy("resend","/emails"); from must be a verified domain; best-effort (never rolls back the write); always esc() template values.

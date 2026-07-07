@@ -36,6 +36,8 @@ tags:
     description: AI business assistant
   - name: users
     description: User management
+  - name: Storage
+    description: Object storage upload and serving endpoints.
 
 paths:
   /healthz:
@@ -125,6 +127,53 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Company"
+    delete:
+      operationId: deleteCompany
+      tags: [companies]
+      summary: Delete a company
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /storage/uploads/request-url:
+    post:
+      tags: [Storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for file upload
+      description: |
+        Returns a presigned GCS URL for direct upload. The client sends JSON
+        metadata here, then uploads the file directly to the returned URL.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadUrlRequest'
+      responses:
+        '200':
+          description: Presigned upload URL generated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadUrlResponse'
+        '400':
+          description: Missing or invalid required fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Failed to generate upload URL.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   # ─── Dashboard ───────────────────────────────────────────────────
   /dashboard/executive-summary:
@@ -1188,7 +1237,7 @@ components:
     # ─── Companies ─────────────────────────────────────────────────
     Company:
       type: object
-      required: [id, name, slug, type, ownershipPercent, status, createdAt]
+      required: [id, name, slug, type, ownershipPercent, status, archived, currency, createdAt]
       properties:
         id:
           type: integer
@@ -1216,7 +1265,23 @@ components:
         status:
           type: string
           enum: [active, inactive]
+        archived:
+          type: boolean
         logoUrl:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+        country:
+          type: ["string", "null"]
+        currency:
+          type: string
+        timezone:
+          type: ["string", "null"]
+        brandColor:
           type: ["string", "null"]
         employeeCount:
           type: integer
@@ -1253,12 +1318,33 @@ components:
         status:
           type: string
           enum: [active, inactive]
+        archived:
+          type: boolean
+        logoUrl:
+          type: string
+        website:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        country:
+          type: string
+        currency:
+          type: string
+        timezone:
+          type: string
+        brandColor:
+          type: string
 
     CompanyUpdate:
       type: object
       properties:
         name:
           type: string
+        type:
+          type: string
+          enum: [parent, subsidiary]
         industry:
           type: string
         ownershipPercent:
@@ -1276,6 +1362,24 @@ components:
         status:
           type: string
           enum: [active, inactive]
+        archived:
+          type: boolean
+        logoUrl:
+          type: string
+        website:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        country:
+          type: string
+        currency:
+          type: string
+        timezone:
+          type: string
+        brandColor:
+          type: string
 
     # ─── Dashboard ─────────────────────────────────────────────────
     ExecutiveSummary:
@@ -2359,3 +2463,39 @@ components:
           type: array
           items:
             type: integer
+
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Original file name.
+        size:
+          type: integer
+          minimum: 1
+          description: File size in bytes.
+        contentType:
+          type: string
+          minLength: 1
+          description: MIME type of the file (e.g. `image/jpeg`).
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL:
+          type: string
+          format: uri
+          description: Presigned GCS URL for PUT upload.
+        objectPath:
+          type: string
+          description: Normalized object path (e.g. `/objects/uploads/uuid`). Store this in your database.
+        metadata:
+          $ref: '#/components/schemas/UploadUrlRequest'
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string

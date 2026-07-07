@@ -6,3 +6,4 @@
 - [drizzle-kit push non-TTY](drizzle-push-nontty.md) — push --force still prompts on ambiguous drop/rename; apply destructive schema via executeSql direct SQL.
 - [TAPBOSS company scoping](tbos-company-scoping.md) — group roles see all; others limited to companyIds; AND companyId+q filters (never OR); strip id/companyId/timestamps from PATCH bodies.
 - [Sandbox DB seeding](sandbox-seeding.md) — CodeExecution can't import `pg`; use the executeSql callback with batched multi-row INSERTs for bulk seeding.
+- [Object storage + Clerk auth](object-storage-clerk-auth.md) — swap the storage template's req.isAuthenticated() guard for requireAuth/requireSuperAdmin; store full /api/storage path in DB.

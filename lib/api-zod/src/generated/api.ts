@@ -32,7 +32,15 @@ export const ListCompaniesResponseItem = zod.object({
   "city": zod.string().nullish(),
   "state": zod.string().nullish(),
   "status": zod.enum(['active', 'inactive']),
+  "archived": zod.boolean(),
   "logoUrl": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "country": zod.string().nullish(),
+  "currency": zod.string(),
+  "timezone": zod.string().nullish(),
+  "brandColor": zod.string().nullish(),
   "employeeCount": zod.number().optional(),
   "totalRevenue": zod.number().optional(),
   "createdAt": zod.string()
@@ -54,7 +62,16 @@ export const CreateCompanyBody = zod.object({
   "address": zod.string().optional(),
   "city": zod.string().optional(),
   "state": zod.string().optional(),
-  "status": zod.enum(['active', 'inactive']).optional()
+  "status": zod.enum(['active', 'inactive']).optional(),
+  "archived": zod.boolean().optional(),
+  "logoUrl": zod.string().optional(),
+  "website": zod.string().optional(),
+  "description": zod.string().optional(),
+  "category": zod.string().optional(),
+  "country": zod.string().optional(),
+  "currency": zod.string().optional(),
+  "timezone": zod.string().optional(),
+  "brandColor": zod.string().optional()
 })
 
 export const CreateCompanyResponse = zod.object({
@@ -70,7 +87,15 @@ export const CreateCompanyResponse = zod.object({
   "city": zod.string().nullish(),
   "state": zod.string().nullish(),
   "status": zod.enum(['active', 'inactive']),
+  "archived": zod.boolean(),
   "logoUrl": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "country": zod.string().nullish(),
+  "currency": zod.string(),
+  "timezone": zod.string().nullish(),
+  "brandColor": zod.string().nullish(),
   "employeeCount": zod.number().optional(),
   "totalRevenue": zod.number().optional(),
   "createdAt": zod.string()
@@ -97,7 +122,15 @@ export const GetCompanyResponse = zod.object({
   "city": zod.string().nullish(),
   "state": zod.string().nullish(),
   "status": zod.enum(['active', 'inactive']),
+  "archived": zod.boolean(),
   "logoUrl": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "country": zod.string().nullish(),
+  "currency": zod.string(),
+  "timezone": zod.string().nullish(),
+  "brandColor": zod.string().nullish(),
   "employeeCount": zod.number().optional(),
   "totalRevenue": zod.number().optional(),
   "createdAt": zod.string()
@@ -113,6 +146,7 @@ export const UpdateCompanyParams = zod.object({
 
 export const UpdateCompanyBody = zod.object({
   "name": zod.string().optional(),
+  "type": zod.enum(['parent', 'subsidiary']).optional(),
   "industry": zod.string().optional(),
   "ownershipPercent": zod.number().optional(),
   "gstNumber": zod.string().optional(),
@@ -120,7 +154,16 @@ export const UpdateCompanyBody = zod.object({
   "address": zod.string().optional(),
   "city": zod.string().optional(),
   "state": zod.string().optional(),
-  "status": zod.enum(['active', 'inactive']).optional()
+  "status": zod.enum(['active', 'inactive']).optional(),
+  "archived": zod.boolean().optional(),
+  "logoUrl": zod.string().optional(),
+  "website": zod.string().optional(),
+  "description": zod.string().optional(),
+  "category": zod.string().optional(),
+  "country": zod.string().optional(),
+  "currency": zod.string().optional(),
+  "timezone": zod.string().optional(),
+  "brandColor": zod.string().optional()
 })
 
 export const UpdateCompanyResponse = zod.object({
@@ -136,10 +179,60 @@ export const UpdateCompanyResponse = zod.object({
   "city": zod.string().nullish(),
   "state": zod.string().nullish(),
   "status": zod.enum(['active', 'inactive']),
+  "archived": zod.boolean(),
   "logoUrl": zod.string().nullish(),
+  "website": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "country": zod.string().nullish(),
+  "currency": zod.string(),
+  "timezone": zod.string().nullish(),
+  "brandColor": zod.string().nullish(),
   "employeeCount": zod.number().optional(),
   "totalRevenue": zod.number().optional(),
   "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a company
+ */
+export const DeleteCompanyParams = zod.object({
+  "companyId": zod.coerce.number()
+})
+
+export const DeleteCompanyResponse = zod.void()
+
+
+/**
+ * Returns a presigned GCS URL for direct upload. The client sends JSON
+ * metadata here, then uploads the file directly to the returned URL.
+ * @summary Request a presigned URL for file upload
+ */
+
+
+
+
+
+export const RequestUploadUrlBody = zod.object({
+  "name": zod.string().min(1).describe('Original file name.'),
+  "size": zod.number().min(1).describe('File size in bytes.'),
+  "contentType": zod.string().min(1).describe('MIME type of the file (e.g. `image\/jpeg`).')
+})
+
+
+
+
+
+
+export const RequestUploadUrlResponse = zod.object({
+  "uploadURL": zod.string().url().describe('Presigned GCS URL for PUT upload.'),
+  "objectPath": zod.string().describe('Normalized object path (e.g. `\/objects\/uploads\/uuid`). Store this in your database.'),
+  "metadata": zod.object({
+  "name": zod.string().min(1).describe('Original file name.'),
+  "size": zod.number().min(1).describe('File size in bytes.'),
+  "contentType": zod.string().min(1).describe('MIME type of the file (e.g. `image\/jpeg`).')
+}).optional()
 })
 
 

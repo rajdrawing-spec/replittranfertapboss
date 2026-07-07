@@ -1,4 +1,4 @@
-import { pgTable, serial, text, real, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, real, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -15,7 +15,15 @@ export const companiesTable = pgTable("companies", {
   city: text("city"),
   state: text("state"),
   status: text("status").notNull().default("active"), // active | inactive
+  archived: boolean("archived").notNull().default(false),
   logoUrl: text("logo_url"),
+  website: text("website"),
+  description: text("description"),
+  category: text("category"),
+  country: text("country"),
+  currency: text("currency").notNull().default("INR"),
+  timezone: text("timezone"),
+  brandColor: text("brand_color"),
   employeeCount: integer("employee_count").notNull().default(0),
   totalRevenue: real("total_revenue").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),

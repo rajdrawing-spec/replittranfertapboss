@@ -20,4 +20,13 @@ export interface CompanyInput {
   city?: string;
   state?: string;
   status?: CompanyInputStatus;
+  archived?: boolean;
+  logoUrl?: string;
+  website?: string;
+  description?: string;
+  category?: string;
+  country?: string;
+  currency?: string;
+  timezone?: string;
+  brandColor?: string;
 }

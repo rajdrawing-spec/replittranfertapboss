@@ -6,9 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CompanyUpdateStatus } from './companyUpdateStatus';
+import type { CompanyUpdateType } from './companyUpdateType';
 
 export interface CompanyUpdate {
   name?: string;
+  type?: CompanyUpdateType;
   industry?: string;
   ownershipPercent?: number;
   gstNumber?: string;
@@ -17,4 +19,13 @@ export interface CompanyUpdate {
   city?: string;
   state?: string;
   status?: CompanyUpdateStatus;
+  archived?: boolean;
+  logoUrl?: string;
+  website?: string;
+  description?: string;
+  category?: string;
+  country?: string;
+  currency?: string;
+  timezone?: string;
+  brandColor?: string;
 }

@@ -27,8 +27,22 @@ export interface Company {
   /** @nullable */
   state?: string | null;
   status: CompanyStatus;
+  archived: boolean;
   /** @nullable */
   logoUrl?: string | null;
+  /** @nullable */
+  website?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  country?: string | null;
+  currency: string;
+  /** @nullable */
+  timezone?: string | null;
+  /** @nullable */
+  brandColor?: string | null;
   employeeCount?: number;
   totalRevenue?: number;
   createdAt: string;

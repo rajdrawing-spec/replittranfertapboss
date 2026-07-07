@@ -22,6 +22,7 @@ import shippingRouter from "./shipping";
 import documentsRouter from "./documents";
 import marketingRouter from "./marketing";
 import searchRouter from "./search";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -51,5 +52,6 @@ router.use(shippingRouter);
 router.use(documentsRouter);
 router.use(marketingRouter);
 router.use(searchRouter);
+router.use(storageRouter);
 
 export default router;

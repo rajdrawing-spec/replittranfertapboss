@@ -26,14 +26,7 @@ const CompanyContext = React.createContext<CompanyContextValue>({
   isParentView: true,
 })
 
-const COMPANY_COLORS: Record<string, string> = {
-  tapashub: "#2563EB",
-  hugfab: "#EC4899",
-  tikkatails: "#F59E0B",
-  throttledaires: "#EF4444",
-  sanchikart: "#8B5CF6",
-  pepalworks: "#14B8A6",
-}
+const DEFAULT_COLOR = "#64748B"
 
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const [activeId, setActiveId] = React.useState<number | null>(null)
@@ -43,14 +36,16 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
   const companies: ActiveCompany[] = React.useMemo(
     () =>
-      (rawCompanies || []).map((c) => ({
-        id: c.id,
-        name: c.name,
-        slug: c.slug,
-        mode: c.type as CompanyMode,
-        industry: c.industry,
-        color: COMPANY_COLORS[c.slug.toLowerCase()] ?? "#64748B",
-      })),
+      (rawCompanies || [])
+        .filter((c) => !c.archived)
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          mode: c.type as CompanyMode,
+          industry: c.industry,
+          color: c.brandColor || DEFAULT_COLOR,
+        })),
     [rawCompanies]
   )
 

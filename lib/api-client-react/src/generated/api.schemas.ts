@@ -44,8 +44,22 @@ export interface Company {
   /** @nullable */
   state?: string | null;
   status: CompanyStatus;
+  archived: boolean;
   /** @nullable */
   logoUrl?: string | null;
+  /** @nullable */
+  website?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  country?: string | null;
+  currency: string;
+  /** @nullable */
+  timezone?: string | null;
+  /** @nullable */
+  brandColor?: string | null;
   employeeCount?: number;
   totalRevenue?: number;
   createdAt: string;
@@ -79,7 +93,24 @@ export interface CompanyInput {
   city?: string;
   state?: string;
   status?: CompanyInputStatus;
+  archived?: boolean;
+  logoUrl?: string;
+  website?: string;
+  description?: string;
+  category?: string;
+  country?: string;
+  currency?: string;
+  timezone?: string;
+  brandColor?: string;
 }
+
+export type CompanyUpdateType = typeof CompanyUpdateType[keyof typeof CompanyUpdateType];
+
+
+export const CompanyUpdateType = {
+  parent: 'parent',
+  subsidiary: 'subsidiary',
+} as const;
 
 export type CompanyUpdateStatus = typeof CompanyUpdateStatus[keyof typeof CompanyUpdateStatus];
 
@@ -91,6 +122,7 @@ export const CompanyUpdateStatus = {
 
 export interface CompanyUpdate {
   name?: string;
+  type?: CompanyUpdateType;
   industry?: string;
   ownershipPercent?: number;
   gstNumber?: string;
@@ -99,6 +131,15 @@ export interface CompanyUpdate {
   city?: string;
   state?: string;
   status?: CompanyUpdateStatus;
+  archived?: boolean;
+  logoUrl?: string;
+  website?: string;
+  description?: string;
+  category?: string;
+  country?: string;
+  currency?: string;
+  timezone?: string;
+  brandColor?: string;
 }
 
 export interface CompanySummary {
@@ -1071,6 +1112,36 @@ export interface UserInput {
   email: string;
   role: UserInputRole;
   companyIds?: number[];
+}
+
+export interface UploadUrlRequest {
+  /**
+     * Original file name.
+     * @minLength 1
+     */
+  name: string;
+  /**
+     * File size in bytes.
+     * @minimum 1
+     */
+  size: number;
+  /**
+     * MIME type of the file (e.g. `image/jpeg`).
+     * @minLength 1
+     */
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  /** Presigned GCS URL for PUT upload. */
+  uploadURL: string;
+  /** Normalized object path (e.g. `/objects/uploads/uuid`). Store this in your database. */
+  objectPath: string;
+  metadata?: UploadUrlRequest;
+}
+
+export interface ErrorEnvelope {
+  error: string;
 }
 
 export type GetRevenueChartParams = {

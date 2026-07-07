@@ -16,6 +16,7 @@ import {
 } from "../lib/integration-catalog";
 import { getAdapter } from "../lib/integration-adapters";
 import { runSync } from "../lib/integration-sync";
+import { emitNotification } from "../lib/notify";
 
 const router = Router();
 
@@ -178,6 +179,12 @@ router.post("/integrations/connections/:id/disconnect", async (req, res) => {
       connectedUserId: null, connectedUserName: null, connectedUserEmail: null,
       updatedAt: new Date(),
     }).where(eq(integrationConnectionsTable.id, conn.id)).returning();
+    void emitNotification({
+      type: "integration", severity: "warning", companyId: conn.companyId,
+      title: "API Disconnected",
+      message: `${conn.platformKey} was disconnected and will no longer sync.`,
+      actionUrl: "/integrations",
+    });
     res.json(updated);
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to disconnect" }); }
 });

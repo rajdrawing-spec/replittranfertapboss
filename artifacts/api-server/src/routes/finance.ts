@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { transactionsTable, companiesTable, insertTransactionSchema } from "@workspace/db";
 import { eq, and, sql, desc } from "drizzle-orm";
+import { emitNotification } from "../lib/notify";
 
 const router = Router();
 
@@ -47,6 +48,14 @@ router.post("/finance/transactions", async (req, res) => {
     if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
     const [t] = await db.insert(transactionsTable).values(parsed.data).returning();
     const [c] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, t.companyId));
+    if (t.type === "income") {
+      void emitNotification({
+        type: "payment", severity: "success", companyId: t.companyId, companyName: c?.name ?? null,
+        title: "Invoice Generated",
+        message: `Payment of ₹${Math.round(t.amount).toLocaleString("en-IN")} recorded${t.referenceNumber ? ` (${t.referenceNumber})` : ""}.`,
+        actionUrl: "/finance",
+      });
+    }
     res.status(201).json(formatTransaction(t, { [t.companyId]: c?.name ?? "Unknown" }));
   } catch (e) {
     req.log.error(e);

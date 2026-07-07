@@ -13,6 +13,7 @@ export const usersTable = pgTable("users", {
   avatarUrl: text("avatar_url"),
   status: text("status").notNull().default("invited"), // invited | active | disabled
   lastLoginAt: timestamp("last_login_at"),
+  lastUserAgent: text("last_user_agent"), // for new-device login detection
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

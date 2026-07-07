@@ -4,6 +4,7 @@ import type { User } from "@workspace/db";
 import { and, eq, desc } from "drizzle-orm";
 import { SUPER_ADMIN_EMAIL } from "./permissions";
 import { writeAudit } from "./audit";
+import { emitNotification } from "./notify";
 
 export type ProvisionError = "unauthenticated" | "disabled" | "not_invited";
 
@@ -18,14 +19,32 @@ export interface LocalUserResult {
  * pending invitation are rejected. The single Super Admin (SUPER_ADMIN_EMAIL)
  * is always bootstrapped.
  */
-export async function getOrProvisionLocalUser(clerkUserId: string | null | undefined): Promise<LocalUserResult> {
+export async function getOrProvisionLocalUser(clerkUserId: string | null | undefined, userAgent?: string): Promise<LocalUserResult> {
   if (!clerkUserId) return { error: "unauthenticated" };
 
   // Fast path — already linked to a Clerk account.
   const linked = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, clerkUserId)).limit(1);
   if (linked[0]) {
     if (linked[0].status === "disabled") return { error: "disabled" };
-    return { user: linked[0] };
+    let user = linked[0];
+    // New-device / new-browser login detection. Only fires when a previous
+    // user agent was recorded (so first sign-in never alarms), and only writes
+    // when the agent actually changes to avoid churn on frequent /auth/me calls.
+    if (userAgent && user.lastUserAgent !== userAgent) {
+      if (user.lastUserAgent) {
+        void emitNotification({
+          type: "security", severity: "warning",
+          companyId: (user.companyIds as number[])[0] ?? null,
+          title: "Login From New Device",
+          message: `${user.name} signed in from a new device or browser.`,
+          actionUrl: "/settings",
+        });
+      }
+      [user] = await db.update(usersTable)
+        .set({ lastUserAgent: userAgent, lastLoginAt: new Date() })
+        .where(eq(usersTable.id, user.id)).returning();
+    }
+    return { user };
   }
 
   // First sign-in: fetch identity from Clerk to bridge by email.
@@ -73,6 +92,14 @@ export async function getOrProvisionLocalUser(clerkUserId: string | null | undef
       action: wasInvited ? "user.joined" : "user.login",
       description: wasInvited ? "Accepted invitation and joined" : "Signed in",
     });
+    if (wasInvited) {
+      void emitNotification({
+        type: "hr", severity: "info", companyId: (user.companyIds as number[])[0] ?? null,
+        title: "New User Joined",
+        message: `${user.name} (${user.email}) accepted their invitation and joined the workspace.`,
+        actionUrl: "/settings",
+      });
+    }
     return { user };
   }
 
@@ -90,6 +117,12 @@ export async function getOrProvisionLocalUser(clerkUserId: string | null | undef
     }).returning();
     await db.update(invitationsTable).set({ status: "accepted", acceptedAt: new Date(), updatedAt: new Date() }).where(eq(invitationsTable.id, invite[0].id));
     await writeAudit({ userId: user.id, userEmail: email, action: "user.joined", description: "Accepted invitation and joined", targetType: "user", targetId: String(user.id) });
+    void emitNotification({
+      type: "hr", severity: "info", companyId: (user.companyIds as number[])[0] ?? null,
+      title: "New User Joined",
+      message: `${user.name} (${user.email}) accepted their invitation and joined the workspace.`,
+      actionUrl: "/settings",
+    });
     return { user };
   }
 

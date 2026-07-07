@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { documentsTable, insertDocumentSchema } from "@workspace/db";
 import { eq, and, desc, or, ilike } from "drizzle-orm";
+import { isSafeAttachmentUrl } from "../lib/url-safety";
 
 const router = Router();
 
@@ -25,6 +26,9 @@ router.post("/documents", async (req, res) => {
   try {
     const parsed = insertDocumentSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
+    if (!isSafeAttachmentUrl(parsed.data.fileUrl)) {
+      res.status(400).json({ error: "Unsafe URL: only http(s) links or uploaded files are allowed" }); return;
+    }
     const [d] = await db.insert(documentsTable).values(parsed.data).returning();
     res.status(201).json(d);
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to create document" }); }
@@ -33,6 +37,9 @@ router.post("/documents", async (req, res) => {
 router.patch("/documents/:id", async (req, res) => {
   try {
     const { id: _id, createdAt: _c, updatedAt: _u, companyId: _cid, ...body } = req.body ?? {};
+    if (!isSafeAttachmentUrl(body.fileUrl)) {
+      res.status(400).json({ error: "Unsafe URL: only http(s) links or uploaded files are allowed" }); return;
+    }
     const [d] = await db.update(documentsTable).set({ ...body, updatedAt: new Date() }).where(eq(documentsTable.id, parseInt(req.params.id))).returning();
     if (!d) { res.status(404).json({ error: "Not found" }); return; }
     res.json(d);

@@ -16,6 +16,9 @@ export const shipmentsTable = pgTable("shipments", {
   shippingCost: real("shipping_cost").default(0),
   shippedAt: timestamp("shipped_at"),
   deliveredAt: timestamp("delivered_at"),
+  returnReason: text("return_reason"), // set when a shipment is returned / RTO
+  returnedAt: timestamp("returned_at"),
+  lastSyncedAt: timestamp("last_synced_at"), // last courier tracking sync
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

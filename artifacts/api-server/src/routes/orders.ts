@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { ordersTable, companiesTable, insertOrderSchema } from "@workspace/db";
 import { eq, ilike, and, sql, desc } from "drizzle-orm";
+import { emitNotification } from "../lib/notify";
 
 const router = Router();
 
@@ -51,6 +52,12 @@ router.post("/orders", async (req, res) => {
     if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
     const [o] = await db.insert(ordersTable).values(parsed.data).returning();
     const [c] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, o.companyId));
+    void emitNotification({
+      type: "order", severity: "success", companyId: o.companyId, companyName: c?.name ?? null,
+      title: "Order Received",
+      message: `New order ${o.orderNumber} received from ${o.customerName} (₹${Math.round(o.totalAmount).toLocaleString("en-IN")}).`,
+      actionUrl: "/orders",
+    });
     res.status(201).json(formatOrder(o, { [o.companyId]: c?.name ?? "Unknown" }));
   } catch (e) {
     req.log.error(e);

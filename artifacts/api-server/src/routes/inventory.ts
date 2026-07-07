@@ -2,8 +2,24 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { productsTable, companiesTable, insertProductSchema } from "@workspace/db";
 import { eq, and, ilike, lte, sql, desc } from "drizzle-orm";
+import { emitNotification } from "../lib/notify";
 
 const router = Router();
+
+// Emit only when a product *crosses* into low-stock (or is created low), never
+// on every subsequent update while it stays low — otherwise notifications spam.
+function maybeNotifyLowStock(p: typeof productsTable.$inferSelect, companyName: string | null, prevStock?: number) {
+  const nowLow = p.stockQuantity <= p.reorderLevel;
+  const wasLow = prevStock != null && prevStock <= p.reorderLevel;
+  if (nowLow && !wasLow) {
+    void emitNotification({
+      type: "inventory", severity: "warning", companyId: p.companyId, companyName,
+      title: "Inventory Low",
+      message: `${p.name} is low on stock — ${p.stockQuantity} left (reorder at ${p.reorderLevel}).`,
+      actionUrl: "/inventory",
+    });
+  }
+}
 
 router.get("/products", async (req, res) => {
   try {
@@ -47,6 +63,7 @@ router.post("/products", async (req, res) => {
     if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
     const [p] = await db.insert(productsTable).values(parsed.data).returning();
     const [c] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, p.companyId));
+    maybeNotifyLowStock(p, c?.name ?? null);
     res.status(201).json(formatProduct(p, { [p.companyId]: c?.name ?? "Unknown" }));
   } catch (e) {
     req.log.error(e);
@@ -126,6 +143,7 @@ router.get("/products/:productId", async (req, res) => {
 router.patch("/products/:productId", async (req, res) => {
   try {
     const id = parseInt(req.params.productId);
+    const [before] = await db.select({ stockQuantity: productsTable.stockQuantity }).from(productsTable).where(eq(productsTable.id, id));
     const [p] = await db
       .update(productsTable)
       .set({ ...req.body, updatedAt: new Date() })
@@ -133,6 +151,7 @@ router.patch("/products/:productId", async (req, res) => {
       .returning();
     if (!p) { res.status(404).json({ error: "Not found" }); return; }
     const [c] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, p.companyId));
+    maybeNotifyLowStock(p, c?.name ?? null, before?.stockQuantity);
     res.json(formatProduct(p, { [p.companyId]: c?.name ?? "Unknown" }));
   } catch (e) {
     req.log.error(e);

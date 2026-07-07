@@ -9,7 +9,6 @@ import {
   ObjectNotFoundError,
   ObjectStorageService,
 } from '../lib/objectStorage';
-import { requireSuperAdmin } from '../middleware/authz';
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -20,12 +19,12 @@ const objectStorageService = new ObjectStorageService();
  * Request a presigned URL for file upload.
  * The client sends JSON metadata (name, size, contentType) — NOT the file.
  * Then uploads the file directly to the returned presigned URL.
- * Gated to Super Admin: only admins upload assets (e.g. company logos).
+ * Available to any authenticated staff member: uploads cover company logos
+ * (admins) as well as document attachments managed by regular users.
  * Global requireAuth already runs before this router is mounted.
  */
 router.post(
   '/storage/uploads/request-url',
-  requireSuperAdmin,
   async (req: Request, res: Response) => {
     const parsed = RequestUploadUrlBody.safeParse(req.body);
     if (!parsed.success) {

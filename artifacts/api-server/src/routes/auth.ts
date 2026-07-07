@@ -31,7 +31,7 @@ router.get("/auth/me", async (req, res) => {
       res.status(401).json({ error: "Not authenticated" });
       return;
     }
-    const { user, error } = await getOrProvisionLocalUser(clerkUserId);
+    const { user, error } = await getOrProvisionLocalUser(clerkUserId, req.get("user-agent") ?? undefined);
     if (error === "disabled") {
       res.status(403).json({ error: "disabled", message: "Your account has been disabled." });
       return;

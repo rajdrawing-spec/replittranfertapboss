@@ -1,0 +1,75 @@
+The application should use a **persistent production database** instead of local or temporary storage. Currently, data is being lost after publishing, which is unacceptable for a real business application.
+
+Please migrate the application to a production-ready architecture with the following services:
+
+### Database
+
+* Use **Supabase PostgreSQL** (preferred) or **Neon PostgreSQL** as the primary database.
+* Store all business data permanently, including:
+
+  * Users
+  * Companies
+  * Subsidiaries
+  * Shareholders
+  * Directors
+  * Investments
+  * Share values
+  * Fund allocations
+  * Transactions
+  * Sales
+  * Expenses
+  * Financial records
+  * Audit logs
+  * Approval history
+
+### Authentication
+
+* Use **Supabase Auth** with secure authentication.
+* Implement role-based access for:
+
+  * Super Admin
+  * Directors
+  * Shareholders
+  * Finance Team
+  * Managers
+  * Employees
+
+### File Storage
+
+* Use **Supabase Storage** (or AWS S3) for:
+
+  * Company logos
+  * Documents
+  * Contracts
+  * Invoices
+  * Product images
+  * User profile photos
+
+### Real-Time Synchronization
+
+* All changes should sync instantly across the application.
+* When a shareholder is added, funds are allocated, or a transaction is approved, every related module should update automatically.
+
+### Approval Workflow
+
+* Fix the approval system so that:
+
+  * Parent company allocates funds.
+  * Assigned shareholders and directors receive approval requests.
+  * Approvals update company balances automatically.
+  * Every approval or rejection is saved permanently with timestamps and audit logs.
+
+### Data Persistence
+
+* Publishing or redeploying the application must **never erase existing data**.
+* Existing companies, shareholders, investments, fund allocations, approvals, and financial records must remain intact after every deployment.
+* Do not use local JSON files, browser local storage, in-memory storage, or mock data for production.
+
+### Security
+
+* Implement proper database security and permissions so users can only access data based on their assigned roles.
+* Add automatic backups and database migration support.
+
+### Goal
+
+This is a production business management platform, not a demo. Please ensure all modules are fully functional, connected to a persistent database, and suitable for real users. Publishing a new version should update the application without deleting or resetting any existing business data.

@@ -1,0 +1,47 @@
+There is a critical issue with the application after publishing.
+
+**Data is being lost every time the app is published or redeployed.** This should never happen in a production application.
+
+Please investigate and fix the following issues:
+
+1. **Persistent Database**
+
+   * Publishing or redeploying the application must **not erase any existing data**.
+   * All company data, users, shareholders, investments, fund allocations, transactions, approvals, and financial records must remain permanently stored in the database.
+   * Ensure the application is connected to a persistent production database instead of temporary or development storage.
+
+2. **Shareholder Data**
+
+   * All assigned shareholders should remain linked to their companies after publishing.
+   * Ownership percentages, investments, share values, voting rights, and historical records must never disappear.
+
+3. **Fund Allocation Workflow**
+
+   * Parent company fund allocations are not working correctly.
+   * Funds allocated by the parent company should be sent to the assigned subsidiary and remain pending until approved by the authorized shareholder(s) or director(s).
+   * After approval, the transaction should automatically update company balances, financial reports, and audit logs.
+   * The approval workflow is currently not functioning and must be fixed.
+
+4. **Approval System**
+
+   * Finance approvals, shareholder approvals, and director approvals should work end-to-end.
+   * Every approval or rejection must be recorded with timestamps, user information, and comments.
+
+5. **Production Stability**
+
+   * The application must be fully production-ready for real users.
+   * No user data should ever be deleted during publishing, deployment, updates, or server restarts.
+   * Existing records must remain intact after every release.
+
+6. **Data Integrity**
+
+   * Verify that all CRUD operations (Create, Read, Update, Delete) are saving correctly.
+   * Ensure data relationships between companies, subsidiaries, shareholders, directors, finance, investments, and fund allocations remain intact after deployment.
+
+7. **Root Cause Analysis**
+
+   * Please identify why publishing is causing data loss.
+   * If the application is using temporary storage, local files, in-memory data, or mock data, migrate everything to a persistent production database.
+   * Confirm that database migrations and deployments preserve all existing records.
+
+This platform is intended for real businesses and real users. Data persistence and approval workflows are critical. Publishing a new version must **never erase or reset existing data**, and all shareholder records, fund allocations, approvals, financial transactions, and company information must remain fully functional after every deployment.

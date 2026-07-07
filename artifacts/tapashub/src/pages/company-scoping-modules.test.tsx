@@ -66,6 +66,10 @@ const customersByCompany: Record<string, any[]> = {
   "1": [{ id: 14, name: "Acme Customer", email: "cust@acme.test", phone: null, companyId: 1, companyName: "Acme Foods", totalOrders: 3, totalSpend: 1500, status: "active" }],
   "2": [{ id: 24, name: "Brava Customer", email: "cust@brava.test", phone: null, companyId: 2, companyName: "Brava Textiles", totalOrders: 7, totalSpend: 8800, status: "vip" }],
 }
+const leadsByCompany: Record<string, any[]> = {
+  "1": [{ id: 15, name: "Acme Lead", email: "lead@acme.test", phone: null, companyId: 1, companyName: "Acme Foods", company: "Acme Prospect Co", stage: "qualified", source: "website", value: 5000, assignedTo: null, notes: null, expectedCloseDate: null }],
+  "2": [{ id: 25, name: "Brava Lead", email: "lead@brava.test", phone: null, companyId: 2, companyName: "Brava Textiles", company: "Brava Prospect Co", stage: "proposal", source: "referral", value: 9000, assignedTo: null, notes: null, expectedCloseDate: null }],
+}
 const approvalsByCompany: Record<string, any[]> = {
   "1": [{ id: 16, type: "expense", title: "Acme Approval", description: "Acme spend", requestedBy: "Aaron", companyId: 1, companyName: "Acme Foods", amount: 500, status: "pending" }],
   "2": [{ id: 26, type: "expense", title: "Brava Approval", description: "Brava spend", requestedBy: "Bella", companyId: 2, companyName: "Brava Textiles", amount: 900, status: "pending" }],
@@ -94,7 +98,7 @@ beforeEach(() => {
     if (url.includes("/api/products")) return jsonResponse(listFor(productsByCompany, companyId))
     if (url.includes("/api/employees")) return jsonResponse(listFor(employeesByCompany, companyId))
     if (url.includes("/api/customers")) return jsonResponse(listFor(customersByCompany, companyId))
-    if (url.includes("/api/leads")) return jsonResponse(listFor({ "1": [], "2": [] }, companyId))
+    if (url.includes("/api/leads")) return jsonResponse(listFor(leadsByCompany, companyId))
     if (url.includes("/api/approvals")) return jsonResponse(listFor(approvalsByCompany, companyId))
     if (url.includes("/api/companies")) return jsonResponse([COMPANY_A, COMPANY_B])
 
@@ -185,6 +189,18 @@ describe("company scoping — module list views", () => {
   it("CRM renders only the active company's customers and rescopes on switch", async () => {
     renderPage(CRM)
     await assertScoped({ pathFragment: "/api/customers", aText: "Acme Customer", bText: "Brava Customer" })
+  })
+
+  it("CRM Leads pipeline renders only the active company's leads and rescopes on switch", async () => {
+    renderPage(CRM)
+    // Move off the default Customers tab into Leads / Pipeline so the leads
+    // table is the mounted, visible view. Radix Tabs uses automatic activation,
+    // which switches on focus rather than a bare click.
+    const leadsTab = screen.getByRole("tab", { name: /leads \/ pipeline/i })
+    fireEvent.mouseDown(leadsTab)
+    leadsTab.focus()
+    fireEvent.focus(leadsTab)
+    await assertScoped({ pathFragment: "/api/leads", aText: "Acme Lead", bText: "Brava Lead" })
   })
 
   it("Approvals renders only the active company's requests and rescopes on switch", async () => {

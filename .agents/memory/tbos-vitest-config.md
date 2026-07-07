@@ -28,7 +28,10 @@ Test files are excluded from `tsconfig.json`, so they are validated by running
 **Quirks that bite in tapashub component tests:**
 - No `@testing-library/user-event` dep — use `fireEvent` from `@testing-library/react`.
 - Radix `Tabs` only mount the *active* tab's content, so text inside an inactive
-  `TabsContent` is absent from the DOM; assert on the default/overview tab.
+  `TabsContent` is absent from the DOM. To assert on a non-default tab, switch to
+  it first — a bare `fireEvent.click` on the trigger does NOT switch it (Radix
+  uses automatic activation on focus); do `mouseDown` + `.focus()` + `fireEvent.focus`
+  on the `getByRole("tab", { name })` trigger, then assert.
 - Interpolated strings like `{industry} • {pct}% Ownership` render as separate
   text nodes, so `getByText(/Industry/)` fails; use a `(_, el) => el?.textContent === "..."` matcher.
 - Company-scoped list pages (Orders etc.) fetch via `customFetch`/`globalThis.fetch`

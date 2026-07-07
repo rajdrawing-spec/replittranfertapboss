@@ -40,6 +40,8 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "directory.manage", label: "Manage account directory", group: "Directory" },
   { key: "approvals.view", label: "View approvals", group: "Approvals" },
   { key: "approvals.manage", label: "Manage approvals", group: "Approvals" },
+  { key: "shareholders.view", label: "View shareholders & cap table", group: "Shareholders" },
+  { key: "shareholders.manage", label: "Manage shareholders & equity", group: "Shareholders" },
 ];
 
 export const ALL_MODULE_PERMISSIONS = PERMISSIONS.filter((p) => !p.key.startsWith("platform.")).map((p) => p.key);
@@ -60,7 +62,9 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
   { key: "sales_manager", name: "Sales Manager", description: "Manages customers and sales orders.", permissions: ["dashboard.view", "crm.view", "crm.manage", "orders.view", "marketing.view"] },
   { key: "inventory_manager", name: "Inventory Manager", description: "Manages stock and products.", permissions: ["dashboard.view", "inventory.view", "inventory.manage", "orders.view"] },
   { key: "shipping_manager", name: "Shipping Manager", description: "Manages shipments and returns.", permissions: ["dashboard.view", "shipping.view", "shipping.manage", "orders.view"] },
-  { key: "finance", name: "Finance", description: "Access to finance and documents.", permissions: ["dashboard.view", "finance.view", "finance.manage", "documents.view"] },
   { key: "customer_support", name: "Customer Support", description: "Views customers and orders to help buyers.", permissions: ["dashboard.view", "crm.view", "orders.view"] },
+  { key: "finance", name: "Finance", description: "Access to finance and documents.", permissions: ["dashboard.view", "finance.view", "finance.manage", "documents.view", "shareholders.view"] },
+  { key: "director", name: "Director", description: "Company oversight: dashboard, finance, approvals and shareholder cap table.", permissions: ["dashboard.view", "finance.view", "approvals.view", "approvals.manage", "shareholders.view", "documents.view"] },
   { key: "investor", name: "Investor", description: "Read-only high-level financial view.", permissions: ["dashboard.view", "finance.view"] },
+  { key: "shareholder", name: "Shareholder", description: "Views their own equity, cap table and investment history.", permissions: ["dashboard.view", "shareholders.view"] },
 ];

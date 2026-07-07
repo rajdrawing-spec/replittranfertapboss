@@ -7,6 +7,7 @@ export * from "./orders";
 export * from "./products";
 export * from "./transactions";
 export * from "./fund-allocations";
+export * from "./shareholders";
 export * from "./employees";
 export * from "./customers";
 export * from "./leads";

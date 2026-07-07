@@ -61,6 +61,7 @@ const parentNav: NavItem[] = [
   { name: "Marketing", href: "/marketing", icon: Megaphone },
   { name: "Finance", href: "/finance", icon: Wallet },
   { name: "Fund Allocation", href: "/fund-allocation", icon: Landmark },
+  { name: "Shareholders", href: "/shareholders", icon: PieChart },
   { name: "HR & People", href: "/hr", icon: Users },
   { name: "Documents", href: "/documents", icon: FileText },
   { name: "Account Directory", href: "/accounts", icon: Contact },

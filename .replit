@@ -54,12 +54,12 @@ isValidation = true
 name = "typecheck"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm run typecheck:libs && pnpm --filter @workspace/api-server run typecheck"
-
 [workflows.workflow.metadata]
 isValidation = true
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm run typecheck:libs && pnpm --filter @workspace/api-server run typecheck && pnpm --filter @workspace/tapashub run typecheck"
 
 [agent]
 stack = "PNPM_WORKSPACE"

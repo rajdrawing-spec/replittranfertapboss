@@ -35,3 +35,22 @@ dashboards must never show fake numbers. Keep this contract when adding adapters
 The 17-platform catalog lives in `integration-catalog.ts` and is served via
 `GET /api/integrations/catalog`. The frontend renders cards purely from it —
 adding a platform there surfaces a working card with no UI changes.
+
+## Real adapters: registration + the revenue-recognition trap
+Real per-provider adapters live in `lib/adapters/<provider>.ts` and are wired up
+by `registerAdapters()` (`lib/adapters/index.ts`), called once at startup in
+`index.ts` **before** the scheduler starts. Anything not registered still falls
+back to the honest stub. Shopify is the reference implementation (Admin REST API,
+Link-header cursor pagination, per-company creds via `secretEnvName`).
+
+**Revenue-recognition rule (accounting-critical):** an imported order should only
+map to our `delivered` status — the one status that triggers `syncOrderRevenue`
+to book Sales Revenue — when the order is BOTH fulfilled AND actually paid.
+Mapping "fulfilled but unpaid" to delivered will recognise revenue on money never
+received. **Why:** a code review caught exactly this bug in the first Shopify
+adapter (it mapped `fulfillment_status==='fulfilled'` to delivered ignoring
+`financial_status`). **How to apply:** any new storefront/marketplace adapter's
+status mapping must gate the revenue-triggering status on a paid-equivalent
+financial state; add a unit test asserting paid+fulfilled→revenue and
+unpaid+fulfilled→no revenue (see `shopify.test.ts`). Don't auto-reverse partial
+refunds — the reversal books the full amount.

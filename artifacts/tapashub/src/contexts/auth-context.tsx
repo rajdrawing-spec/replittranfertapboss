@@ -1,18 +1,29 @@
 import * as React from "react"
+import { useAuth as useClerkAuth, useClerk } from "@clerk/react"
 
 export interface AuthUser {
   id: number
   name: string
   email: string
   role: string
+  department: string | null
   companyIds: number[]
   avatarUrl: string | null
+  status: string
+  permissions: string[]
+  isSuperAdmin: boolean
 }
 
 interface AuthContextValue {
   user: AuthUser | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
+  /** null when OK, otherwise "not_invited" | "disabled" */
+  accessError: string | null
+  accessMessage: string | null
+  /** true when signed in but the profile fetch failed for a non-access reason (401/500/network) */
+  loadError: boolean
+  isSuperAdmin: boolean
+  hasPermission: (perm: string) => boolean
   logout: () => Promise<void>
   refetch: () => Promise<void>
 }
@@ -20,66 +31,99 @@ interface AuthContextValue {
 const AuthContext = React.createContext<AuthContextValue>({
   user: null,
   loading: true,
-  login: async () => {},
+  accessError: null,
+  accessMessage: null,
+  loadError: false,
+  isSuperAdmin: false,
+  hasPermission: () => false,
   logout: async () => {},
   refetch: async () => {},
 })
 
-const API_BASE = ""
-
-async function apiFetch(path: string, opts?: RequestInit) {
-  const res = await fetch(`${API_BASE}/api${path}`, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-  })
-  return res
-}
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "")
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { isLoaded, isSignedIn } = useClerkAuth()
+  const { signOut } = useClerk()
   const [user, setUser] = React.useState<AuthUser | null>(null)
   const [loading, setLoading] = React.useState(true)
+  const [accessError, setAccessError] = React.useState<string | null>(null)
+  const [accessMessage, setAccessMessage] = React.useState<string | null>(null)
+  const [loadError, setLoadError] = React.useState(false)
 
-  async function fetchMe() {
+  const fetchMe = React.useCallback(async () => {
+    setLoading(true)
+    setLoadError(false)
     try {
-      const res = await apiFetch("/auth/me")
+      const res = await fetch("/api/auth/me", {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      })
       if (res.ok) {
         const data = await res.json()
         setUser(data.user)
-      } else {
+        setAccessError(null)
+        setAccessMessage(null)
+      } else if (res.status === 403) {
+        const data = await res.json().catch(() => ({}))
         setUser(null)
+        setAccessError(data.error || "not_invited")
+        setAccessMessage(data.message || "You do not have access to this workspace.")
+      } else {
+        // Signed in per Clerk, but the profile fetch failed (401/500/etc.).
+        // Surface an error instead of leaving the app stuck on a loading screen.
+        setUser(null)
+        setAccessError(null)
+        setAccessMessage(null)
+        setLoadError(true)
       }
     } catch {
       setUser(null)
+      setLoadError(true)
     } finally {
       setLoading(false)
     }
-  }
-
-  React.useEffect(() => {
-    fetchMe()
   }, [])
 
-  async function login(email: string, password: string) {
-    const res = await apiFetch("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || "Login failed")
+  React.useEffect(() => {
+    if (!isLoaded) return
+    if (!isSignedIn) {
+      setUser(null)
+      setAccessError(null)
+      setAccessMessage(null)
+      setLoading(false)
+      return
     }
-    const data = await res.json()
-    setUser(data.user)
-  }
+    void fetchMe()
+  }, [isLoaded, isSignedIn, fetchMe])
 
-  async function logout() {
-    await apiFetch("/auth/logout", { method: "POST" })
-    setUser(null)
-  }
+  const logout = React.useCallback(async () => {
+    await signOut({ redirectUrl: basePath || "/" })
+  }, [signOut])
+
+  const hasPermission = React.useCallback(
+    (perm: string) => {
+      if (!user) return false
+      if (user.isSuperAdmin) return true
+      return user.permissions.includes("*") || user.permissions.includes(perm)
+    },
+    [user],
+  )
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refetch: fetchMe }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        accessError,
+        accessMessage,
+        loadError,
+        isSuperAdmin: user?.isSuperAdmin ?? false,
+        hasPermission,
+        logout,
+        refetch: fetchMe,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

@@ -2,6 +2,7 @@
 - [Express return-pattern typecheck](express-return-typecheck.md) — Using `return res.json()` as early-exit causes TS7030; always use `res.json(); return;` pattern in Express handlers.
 - [DB lib declarations stale after schema add](db-declarations-refresh.md) — After adding new schema files to lib/db, run `pnpm run typecheck:libs` before checking API server types, or imports from @workspace/db appear missing.
 - [TBOS API fetch base URL](tbos-api-base-url.md) — Custom fetch calls in frontend must use bare `/api/...` paths, not `${BASE_URL}/api/...`; BASE_URL is `/tapashub/` so prefixing it creates wrong paths.
-- [TBOS auth approach](tbos-auth.md) — Session auth: cookie-parser signed cookies (`tbos_uid`), SHA-256+email salt password hash. Default pw: Admin@123. requireAuth middleware applied globally to all routes after /auth and /health.
+- [TBOS auth approach](tbos-auth.md) — Clerk (Google) invite-only auth; JIT provision local user by email; super_admin bootstrapped from SUPER_ADMIN_EMAIL; web uses cookie transport, bare /api paths.
+- [drizzle-kit push non-TTY](drizzle-push-nontty.md) — push --force still prompts on ambiguous drop/rename; apply destructive schema via executeSql direct SQL.
 - [TAPBOSS company scoping](tbos-company-scoping.md) — group roles see all; others limited to companyIds; AND companyId+q filters (never OR); strip id/companyId/timestamps from PATCH bodies.
 - [Sandbox DB seeding](sandbox-seeding.md) — CodeExecution can't import `pg`; use the executeSql callback with batched multi-row INSERTs for bulk seeding.

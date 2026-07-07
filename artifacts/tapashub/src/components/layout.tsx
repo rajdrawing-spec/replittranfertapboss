@@ -30,6 +30,8 @@ import {
   LogOut,
   KeyRound,
   Truck,
+  ShieldCheck,
+  ScrollText,
 } from "lucide-react"
 import { GlobalSearch } from "@/components/global-search"
 
@@ -37,7 +39,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/components/theme-provider"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { useGetMe, useListNotifications } from "@workspace/api-client-react"
+import { useListNotifications } from "@workspace/api-client-react"
 import { useCompany } from "@/contexts/company-context"
 import type { ActiveCompany } from "@/contexts/company-context"
 import { useAuth } from "@/contexts/auth-context"
@@ -262,15 +264,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = React.useState(true)
   const [mobileOpen, setMobileOpen] = React.useState(false)
   const { activeCompany, isParentView } = useCompany()
-  const { logout, user: authUser } = useAuth()
+  const { logout, user: authUser, isSuperAdmin } = useAuth()
 
-  const { data: me } = useGetMe({ query: { enabled: true, queryKey: ["/api/users/me"] } })
   const { data: notificationsData } = useListNotifications({ unreadOnly: true }, {
     query: { enabled: true, queryKey: ["/api/notifications", { unreadOnly: true }] }
   })
   const unreadCount = notificationsData?.length || 0
 
-  const navItems = getNavItems(activeCompany)
+  const adminNav: NavItem[] = isSuperAdmin
+    ? [
+        { name: "Team & Roles", href: "/admin/access", icon: ShieldCheck },
+        { name: "Audit Logs", href: "/admin/audit", icon: ScrollText },
+      ]
+    : []
+  const navItems = [...getNavItems(activeCompany), ...adminNav]
   const collapsed = !sidebarOpen
 
   const workspaceLabel = activeCompany?.name ?? "TapasHub"
@@ -436,11 +443,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
             <div className="flex items-center gap-2 border-l pl-3 ml-1">
               <Avatar className="w-8 h-8 ring-2" style={{ "--ring-color": workspaceColor } as React.CSSProperties}>
-                <AvatarFallback className="text-xs font-bold">{me?.name?.substring(0, 2) || "U"}</AvatarFallback>
+                <AvatarFallback className="text-xs font-bold">{authUser?.name?.substring(0, 2) || "U"}</AvatarFallback>
               </Avatar>
               <div className="hidden sm:block">
-                <div className="text-sm font-semibold leading-tight">{me?.name || "User"}</div>
-                <div className="text-[11px] text-muted-foreground leading-tight capitalize">{me?.role?.replace(/_/g, " ") || "Loading…"}</div>
+                <div className="text-sm font-semibold leading-tight">{authUser?.name || "User"}</div>
+                <div className="text-[11px] text-muted-foreground leading-tight capitalize">{authUser?.role?.replace(/_/g, " ") || "Loading…"}</div>
               </div>
             </div>
           </div>

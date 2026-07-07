@@ -1,32 +1,41 @@
 ---
-name: TBOS auth approach
-description: How authentication is implemented in TBOS API and frontend
+name: TBOS/TAPBOSS auth approach
+description: How authentication and invite-only access work in the TAPBOSS app (Clerk-based).
 ---
 
-## Mechanism
-- **Cookie:** `tbos_uid` signed with `SESSION_SECRET` via `cookie-parser`. HttpOnly, SameSite=Lax.
-- **Password hash:** SHA-256(password + email) — simple, no bcrypt dependency.
-- **Bootstrap password:** `Admin@123` — valid when `passwordHash` is null (first login sets the hash).
-- **Middleware:** `requireAuth` in `artifacts/api-server/src/middleware/auth.ts` — reads `req.signedCookies.tbos_uid`, returns 401 if missing, attaches `req.userId`.
+# TAPBOSS auth
 
-## Route protection
-Applied in `routes/index.ts` as a blanket middleware after auth/health routers:
-```ts
-router.use(healthRouter);
-router.use(authRouter);      // public
-router.use(requireAuth);     // all routes below need auth
-router.use(companiesRouter);
-// ... all other routers
-```
+Auth is **Replit-managed Clerk** with Google sign-in (whitelabel), replacing the
+old password/session-cookie system. The app is **invite-only** and internal —
+there is no public content; signed-out users are redirected to a branded
+`/sign-in` (Clerk `<SignIn>`).
 
-## Frontend
-- `AuthProvider` in `contexts/auth-context.tsx` checks `/api/auth/me` on mount.
-- `AuthGuard` wraps all authenticated pages, redirects to `/login` if unauthenticated.
-- Login page at `/login` — standalone, outside AuthGuard.
+**Web transport is cookie-based.** Frontend calls use bare `/api/...` paths
+(same origin), never Bearer/getToken. Clerk cookie is sent automatically.
 
-## SESSION_SECRET
-Required — index.ts throws on startup if missing. No insecure fallback.
+**Server bridge (JIT provisioning), in `lib/auth-user.ts`:**
+`getOrProvisionLocalUser(clerkUserId)` maps a Clerk session to a local `users`
+row. Fast path: match by `clerkUserId`. First sign-in: fetch email from Clerk,
+then:
+- email === `SUPER_ADMIN_EMAIL` (tapashub@gmail.com) → bootstrap/activate the
+  single super_admin.
+- existing users row by email → link + activate.
+- pending `invitations` row → create user from invite, mark accepted.
+- otherwise → `not_invited` (403). This is the invite-only gate.
 
-## How to apply
-Any new route that should be public (e.g. webhooks, health): mount BEFORE `requireAuth`.
-Any new route that should be protected: mount AFTER `requireAuth` (default).
+`requireAuth` (global, after health+auth routers) runs this and attaches
+`req.userId` + `req.localUser`. Admin routes gate with `requireSuperAdmin` /
+`requirePermission(perm)` from `middleware/authz.ts`.
+
+**Permissions:** catalog + system roles in `lib/permissions.ts`. super_admin
+has `["*"]`. `platform.*` perms are super-admin-reserved; other roles get module
+perms. System roles are re-seeded idempotently on boot (`seed-roles.ts`).
+
+**Why:** spec required Google auth, invite-only SaaS, configurable roles, and an
+audit trail. Super admin is the only account that can invite/manage users,
+roles, companies, integrations, billing, and view audit logs.
+
+**How to apply:** never reintroduce password concepts. Keep Clerk wiring
+(pubkey via `publishableKeyFromHost`, unconditional `proxyUrl`,
+`/sign-in/*?` + `/sign-up/*?` routes, proxy middleware before body parsers)
+verbatim — only theme/UI is customizable.

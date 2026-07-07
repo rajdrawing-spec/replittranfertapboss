@@ -6,11 +6,12 @@ export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
-  passwordHash: text("password_hash"),
-  role: text("role").notNull().default("employee"), // super_admin|founder|director|finance|operations|hr|marketing|customer_support|warehouse|vendor|ca|employee|investor
+  clerkUserId: text("clerk_user_id").unique(), // linked on first Clerk sign-in
+  role: text("role").notNull().default("customer_support"), // role key -> rolesTable.key
+  department: text("department"),
   companyIds: json("company_ids").$type<number[]>().notNull().default([]),
   avatarUrl: text("avatar_url"),
-  status: text("status").notNull().default("active"), // active | inactive
+  status: text("status").notNull().default("invited"), // invited | active | disabled
   lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

@@ -1,0 +1,75 @@
+Please update the application to make it fully functional and production-ready. There are several important features that are currently missing or not working correctly:
+
+1. **Company Management**
+
+   * After creating a company, there is no option to edit, update, or manage the company details. Please add full CRUD (Create, Read, Update, Delete) functionality for companies.
+
+2. **Shareholder Management**
+
+   * The shareholder roles and permissions are missing. Please implement the shareholder system exactly as discussed:
+
+     * Shareholder profiles
+     * Ownership percentage
+     * Investment history
+     * Share value
+     * Equity allocation
+     * Role-based access for shareholders
+
+3. **Parent Company & Fund Allocation**
+
+   * TapasHub is the parent company and should be able to allocate funds and investments to all subsidiary brands.
+   * Add a fund allocation system where the parent company can distribute budgets to each brand.
+   * Each subsidiary should maintain separate financial records while also reporting to the parent company.
+
+4. **Company Analytics**
+
+   * Add a complete Company Analytics dashboard that includes:
+
+     * Revenue
+     * Expenses
+     * Profit & Loss
+     * Cash Flow
+     * Investments
+     * Shareholder Equity
+     * Company Valuation
+     * Market Share Value
+     * AI-powered financial analysis and insights
+     * Growth trends
+     * Monthly, quarterly, and yearly reports
+
+5. **Finance Module**
+
+   * Some finance approval features are incomplete or not working. Please remove broken functionality and replace it with a fully working finance system.
+   * Add comprehensive financial management, including:
+
+     * Income
+     * Expenses
+     * Purchase Orders
+     * Sales
+     * Vendor Payments
+     * Customer Payments
+     * Payroll
+     * Inventory Value
+     * Tax & GST
+     * Assets & Liabilities
+     * Budgets
+     * Fund Transfers
+     * Investment Tracking
+     * Share Capital
+     * Financial Statements
+     * Audit Logs
+
+6. **Role-Based Data**
+
+   * Every user should only see data based on their assigned role.
+   * Shareholders should only see shareholder-related information.
+   * Directors should see company management and approvals.
+   * Finance users should access finance modules.
+   * Super Admin should have complete access to all companies and brands.
+
+7. **Real Data Synchronization**
+
+   * All modules should be connected and synchronized with each other.
+   * Sales, inventory, investments, finance, shareholders, HR, and analytics should update automatically in real time across the system.
+
+Please don't build placeholder pages or demo screens. Implement these as fully working modules with proper database integration, role-based permissions, real calculations, editable records, and live dashboards suitable for a production business management platform.

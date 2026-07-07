@@ -1,0 +1,422 @@
+Update only the sections listed below. Do NOT redesign or rebuild the whole application. Keep the existing UI, routing, and functionality wherever possible. Focus on making these modules production-ready, secure, and fully synchronized. 
+This must work like a combination of:
+Oracle NetSuite
+SAP Business One
+Zoho One
+Odoo Enterprise
+Carta (Cap Table)
+Stripe Dashboard
+Shopify Admin
+Microsoft Power BI
+Salesforce
+Everything must work with real database synchronization, secure authentication, audit logs, workflows, approvals, and real-time analytics.
+
+Parent Company
+Tapas Hub Pvt Ltd
+Tapas Hub is the Holding Company.
+All subsidiary businesses belong under Tapas Hub.
+Example companies:
+HugFAB
+TikkaTails
+Pepalworks
+Sanchi Kart
+Tapas Entertainment
+Future Brands
+Every company should have its own workspace but remain synchronized with Tapas Hub.
+
+Database
+Use PostgreSQL.
+No local storage.
+Everything must sync in real time.
+Every action updates every module automatically.
+Examples:
+Sales →
+ Finance →
+ Profit →
+ Inventory →
+ Investors →
+ Company valuation →
+ Founder ownership
+Everything updates automatically.
+
+Role Based Security
+Implement enterprise Role Based Access Control (RBAC).
+Super Admin
+Email:
+tapashub@gmail.com
+Only this account can
+Create companies
+Edit ownership
+Add shareholders
+Remove shareholders
+Create users
+Assign permissions
+View every financial record
+View AI analytics
+Approve equity changes
+Manage security
+No one else can access these features.
+
+Directors
+Can
+Approve investments
+Approve shares
+Approve expenses
+View company financials
+View board reports
+Vote on ownership changes
+Cannot edit ownership directly.
+
+Shareholder Portal (Highly Secure)
+Access is restricted to authenticated shareholders only.
+Each shareholder can ONLY view:
+Their own shareholder profile
+Number of shares owned
+Ownership percentage
+Investment amount
+Investment history
+Share certificate(s)
+Dividend history
+Share value
+Portfolio value
+Company valuation (if permitted by the Board)
+AI investment analysis
+Board announcements
+Documents shared specifically with that shareholder
+Voting rights and resolutions assigned to them
+Shareholders cannot view:
+Other shareholders' personal information
+Other shareholders' investments or holdings (unless granted Board-level permission)
+Employee profiles
+Employee salaries
+HR records
+Customer information
+Supplier contracts
+Internal financial transactions outside their permission level
+Payroll
+Private company documents
+System settings
+
+Employee Portal (No Shareholder Access)
+Employees can ONLY access information required for their role.
+Employees can view:
+Their own profile
+Assigned tasks
+Attendance
+Leave requests
+Payslips and salary (their own only)
+Performance reviews
+Department announcements
+Assigned projects
+Company policies
+Work calendars
+Training materials
+Employees can NEVER access:
+Shareholders
+Founder ownership
+Cap table
+Equity distribution
+Share certificates
+Investment records
+Company valuation
+Investor dashboard
+Dividend information
+Board meeting documents
+Director approvals
+Financial statements (unless explicitly authorized)
+Ownership structure
+AI investment analysis
+Confidential legal documents
+
+Founder & Director Access
+Only Founders, Directors, and Super Admin can access:
+Complete cap table
+All shareholder records
+Ownership structure
+Equity changes
+Share transfers
+Company valuation
+Funding rounds
+Investment management
+Board resolutions
+Legal documents
+AI valuation reports
+Future dilution scenarios
+Investor management
+
+
+Employees
+Employees can only see
+Their profile
+Assigned tasks
+Attendance
+Salary (their own)
+Performance
+Leave
+Orders
+Assigned company
+Employees cannot access
+Ownership
+Investments
+Shares
+Company valuation
+Financial statements
+Founder information
+
+Security
+Enterprise security only.
+Implement
+JWT
+Refresh Tokens
+Encrypted Database Fields
+HTTPS
+CSRF
+Rate Limiting
+Password Encryption
+Session Expiration
+Device Tracking
+Login History
+Audit Logs
+IP Tracking
+Role Permission Matrix
+
+Two Factor Authentication
+Critical actions require 2FA approval.
+Examples
+Changing Shares
+Adding Investors
+Changing Ownership
+Changing Directors
+Changing Company Equity
+Deleting Companies
+Require
+OTP
+Authenticator App
+Email Verification
+Director Approval
+
+Multi Director Approval
+Ownership cannot be edited by one person.
+Workflow
+Super Admin submits change
+↓
+All Directors receive notification
+↓
+Directors approve
+↓
+If required approvals reached
+↓
+System executes
+↓
+Audit Log generated
+
+Founder Structure
+Current Founder Equity
+Only visible to
+Super Admin
+Directors
+Shareholders
+Never visible to employees.
+Current Ownership
+Director & founder 1
+31%
+Director & founder 2
+23%
+Director & founder 3
+23%
+Director & founder 4
+23%
+
+Company Structure
+Tapas Hub owns
+30%
+of every subsidiary.
+Every subsidiary
+Remaining
+70%
+belongs to founders.
+Future companies should automatically inherit this ownership structure unless manually changed.
+
+Share Management System
+Create a professional Cap Table.
+Features
+Share Ledger
+Ownership %
+Voting Rights
+Share Classes
+Investment History
+Founder Dilution
+Future Funding
+Share Certificates
+Digital Signing
+Board Approvals
+Investor Dashboard
+
+AI Market Analysis
+Build AI dashboards.
+Show
+Company Health Score
+Growth Prediction
+Revenue Forecast
+Profit Forecast
+Cash Flow
+Risk Analysis
+Investment Opportunities
+Valuation Trends
+Burn Rate
+Customer Growth
+Sales Growth
+Inventory Prediction
+Future Funding Suggestions
+Use charts and AI insights.
+
+Financial Module
+Automatically calculate
+Revenue
+Profit
+Expenses
+Net Margin
+GST
+Tax
+Cash Flow
+Outstanding Payments
+Invoices
+Vendor Payments
+Payroll
+Investor Returns
+Everything updates automatically.
+
+Sales Module
+Real-time synchronization
+Orders
+Invoices
+Shipping
+Returns
+Refunds
+Revenue
+Inventory
+Marketing Cost
+Profit
+AI Sales Prediction
+
+Inventory
+Inventory automatically updates after sales.
+Warehouse
+Purchase Orders
+Supplier Management
+Low Stock Alerts
+Manufacturing
+Serial Numbers
+Barcode
+QR Code
+
+Investor Portal
+Secure portal.
+Investors can view
+Their investment
+Share %
+Portfolio Value
+Company Valuation
+Funding History
+Dividend
+Documents
+AI Growth Analysis
+Nothing else.
+
+Dashboard
+Modern professional UI.
+Use
+Glassmorphism
+Dark Mode
+Light Mode
+Animated Charts
+Interactive KPIs
+Responsive Design
+Professional Cards
+Power BI style graphs
+
+Notifications
+Email
+SMS
+Push Notifications
+Board Approval Requests
+Investment Updates
+Share Transfers
+Sales Alerts
+Inventory Alerts
+Security Alerts
+
+Audit Logs
+Every action stored.
+Who
+What
+When
+IP
+Device
+Old Value
+New Value
+Cannot be deleted.
+
+API Integrations
+Future-ready architecture.
+Support
+Shopify
+Amazon
+Flipkart
+Shiprocket
+Razorpay
+Stripe
+QuickBooks
+Google Workspace
+Microsoft 365
+WhatsApp
+Slack
+AWS
+Google Cloud
+Azure
+
+AI Assistant
+Integrated business assistant.
+Can answer
+Revenue questions
+Sales questions
+Investor questions
+Inventory questions
+HR questions
+Financial reports
+Business insights
+Only based on user permissions.
+
+Performance
+Support
+100,000+ users
+Millions of records
+Redis Cache
+Background Jobs
+Queue System
+Database Indexing
+Lazy Loading
+Infinite Pagination
+
+Code Quality
+Use enterprise architecture.
+Clean code
+Reusable components
+TypeScript
+React
+Next.js
+Node.js
+Express
+Prisma
+PostgreSQL
+Redis
+Docker
+Proper folder structure
+Unit Tests
+API Documentation
+Error Handling
+Logging
+No placeholder code.
+No fake data.
+Everything must be production-ready.
+

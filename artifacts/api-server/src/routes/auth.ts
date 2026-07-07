@@ -26,29 +26,7 @@ function fmtUser(u: User) {
 // before requireAuth) so the frontend can distinguish signed-out vs not-invited.
 router.get("/auth/me", async (req, res) => {
   try {
-    const auth = getAuth(req);
-    const { userId: clerkUserId } = auth;
-    // TEMP DEBUG — remove after diagnosing dev 401s
-    const cookieHeader = req.headers.cookie ?? "";
-    const cookieNames = cookieHeader
-      .split(";")
-      .map((c) => c.split("=")[0]?.trim())
-      .filter(Boolean);
-    req.log.info(
-      {
-        cookieNames,
-        hasSessionCookie: cookieNames.includes("__session"),
-        hasAuthHeader: Boolean(req.headers.authorization),
-        host: req.headers.host,
-        xfHost: req.headers["x-forwarded-host"],
-        origin: req.headers.origin,
-        authUserId: auth.userId ?? null,
-        authSessionId: auth.sessionId ?? null,
-        // @ts-expect-error debug-only fields present at runtime
-        authReason: (auth as any).reason ?? null,
-      },
-      "auth/me debug",
-    );
+    const { userId: clerkUserId } = getAuth(req);
     if (!clerkUserId) {
       res.status(401).json({ error: "Not authenticated" });
       return;

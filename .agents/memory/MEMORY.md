@@ -11,3 +11,4 @@
 - [TBOS integrations framework](tbos-integrations-framework.md) — credentials are env-var NAME refs (never DB plaintext); stub adapters return "skipped" not fake data; catalog drives UI generically.
 - [TBOS feature modules](tbos-feature-modules.md) — notifications fire on state transitions (not every write) via void emitNotification; last-synced only on success; allowlist attachment URL schemes; object read-ACL still disabled.
 - [TBOS client caching](tbos-client-caching.md) — any user-scoped react-query cache key must include the Clerk userId; never rely on a listener-based cache clear alone for cross-user isolation.
+- [Clerk prod custom-domain 401](clerk-prod-custom-domain.md) — live app with "Development mode" badge + 401s = deployment running dev keys; re-publish; custom domain must be registered with Clerk prod.

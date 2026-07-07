@@ -10,3 +10,4 @@
 - [TAPBOSS tenant scoping endpoints](tbos-tenant-scoping-endpoints.md) — ~17 routes trust a client companyId with no authz; use companyScope(req) + 403; never pass [] to drizzle inArray (guard length before DB).
 - [TBOS integrations framework](tbos-integrations-framework.md) — credentials are env-var NAME refs (never DB plaintext); stub adapters return "skipped" not fake data; catalog drives UI generically.
 - [TBOS feature modules](tbos-feature-modules.md) — notifications fire on state transitions (not every write) via void emitNotification; last-synced only on success; allowlist attachment URL schemes; object read-ACL still disabled.
+- [TBOS client caching](tbos-client-caching.md) — any user-scoped react-query cache key must include the Clerk userId; never rely on a listener-based cache clear alone for cross-user isolation.

@@ -1,26 +1,12 @@
 import * as React from "react"
 
-const MESSAGES = [
-  "Loading your workspace…",
-  "Syncing business data…",
-  "Securing the vault…",
-  "Preparing dashboard…",
-]
-
+/**
+ * Branded loading screen shown only while the session is genuinely being
+ * resolved. It uses an *indeterminate* progress bar (no fake percentage timer),
+ * so it never pretends to make progress and disappears the instant readiness is
+ * known.
+ */
 export function LoadingScreen() {
-  const [progress, setProgress] = React.useState(8)
-  const [msgIndex, setMsgIndex] = React.useState(0)
-
-  React.useEffect(() => {
-    const p = setInterval(() => {
-      setProgress((v) => (v >= 95 ? 95 : v + Math.random() * 12))
-    }, 300)
-    const m = setInterval(() => {
-      setMsgIndex((i) => (i + 1) % MESSAGES.length)
-    }, 1100)
-    return () => { clearInterval(p); clearInterval(m) }
-  }, [])
-
   return (
     <div className="min-h-screen bg-[#09090B] flex items-center justify-center relative overflow-hidden">
       {/* ambient glow */}
@@ -41,21 +27,20 @@ export function LoadingScreen() {
           <p className="text-xs text-white/40 mt-1 tracking-wide">TapasHub Business Operating System</p>
         </div>
 
-        {/* progress bar */}
+        {/* indeterminate progress bar */}
         <div className="w-64 h-1.5 bg-white/10 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-blue-500 to-indigo-400 rounded-full transition-all duration-300 ease-out"
-            style={{ width: `${progress}%` }}
-          />
+          <div className="h-full w-1/3 bg-gradient-to-r from-blue-500 to-indigo-400 rounded-full animate-[indeterminate_1.2s_ease-in-out_infinite]" />
         </div>
-
-        <p className="text-sm text-white/50 h-5 transition-opacity duration-500">{MESSAGES[msgIndex]}</p>
       </div>
 
       <style>{`
         @keyframes float {
           0%, 100% { transform: translateY(0px); }
           50% { transform: translateY(-8px); }
+        }
+        @keyframes indeterminate {
+          0% { transform: translateX(-120%); }
+          100% { transform: translateX(320%); }
         }
       `}</style>
     </div>

@@ -12,30 +12,52 @@ import { Layout } from '@/components/layout';
 import { CompanyProvider } from '@/contexts/company-context';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 
-import Dashboard from '@/pages/dashboard';
-import Companies from '@/pages/companies';
-import CompanyDetail from '@/pages/company-detail';
-import Orders from '@/pages/orders';
-import Inventory from '@/pages/inventory';
-import Finance from '@/pages/finance';
-import HR from '@/pages/hr';
-import CRM from '@/pages/crm';
-import Approvals from '@/pages/approvals';
-import Notifications from '@/pages/notifications';
-import AiAssistant from '@/pages/ai-assistant';
-import Settings from '@/pages/settings';
-import Integrations from '@/pages/integrations';
-import DirectorPortal from '@/pages/director';
-import AccountDirectory from '@/pages/account-directory';
-import Shipping from '@/pages/shipping';
-import Documents from '@/pages/documents';
-import Marketing from '@/pages/marketing';
-import AccessControl from '@/pages/admin/access-control';
-import AuditLogs from '@/pages/admin/audit-logs';
+// Page components are code-split: each becomes its own chunk loaded on demand,
+// so the initial bundle stays small and first paint is fast.
+const Dashboard = React.lazy(() => import('@/pages/dashboard'));
+const Companies = React.lazy(() => import('@/pages/companies'));
+const CompanyDetail = React.lazy(() => import('@/pages/company-detail'));
+const Orders = React.lazy(() => import('@/pages/orders'));
+const Inventory = React.lazy(() => import('@/pages/inventory'));
+const Finance = React.lazy(() => import('@/pages/finance'));
+const HR = React.lazy(() => import('@/pages/hr'));
+const CRM = React.lazy(() => import('@/pages/crm'));
+const Approvals = React.lazy(() => import('@/pages/approvals'));
+const Notifications = React.lazy(() => import('@/pages/notifications'));
+const AiAssistant = React.lazy(() => import('@/pages/ai-assistant'));
+const Settings = React.lazy(() => import('@/pages/settings'));
+const Integrations = React.lazy(() => import('@/pages/integrations'));
+const DirectorPortal = React.lazy(() => import('@/pages/director'));
+const AccountDirectory = React.lazy(() => import('@/pages/account-directory'));
+const Shipping = React.lazy(() => import('@/pages/shipping'));
+const Documents = React.lazy(() => import('@/pages/documents'));
+const Marketing = React.lazy(() => import('@/pages/marketing'));
+const AccessControl = React.lazy(() => import('@/pages/admin/access-control'));
+const AuditLogs = React.lazy(() => import('@/pages/admin/audit-logs'));
 import { LoadingScreen } from '@/components/loading-screen';
 import { Button } from '@/components/ui/button';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Cache data across mounts so navigating between pages doesn't refetch
+      // everything every time; background-refresh once it goes stale.
+      staleTime: 60_000, // 1 minute
+      gcTime: 5 * 60_000, // keep unused data 5 minutes
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
+
+// Lightweight fallback shown while a route chunk loads — never a blank screen.
+function PageFallback() {
+  return (
+    <div className="flex h-[60vh] w-full items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+    </div>
+  );
+}
 
 // REQUIRED — copy verbatim.
 const clerkPubKey = publishableKeyFromHost(
@@ -163,6 +185,7 @@ function AuthedApp() {
   return (
     <CompanyProvider>
       <Layout>
+        <React.Suspense fallback={<PageFallback />}>
         <Switch>
           <Route path="/" component={Dashboard} />
           <Route path="/companies" component={Companies} />
@@ -196,6 +219,7 @@ function AuthedApp() {
           <Route path="/services" component={Orders} />
           <Route component={NotFound} />
         </Switch>
+        </React.Suspense>
       </Layout>
     </CompanyProvider>
   );

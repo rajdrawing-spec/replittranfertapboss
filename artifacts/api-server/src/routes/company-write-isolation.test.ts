@@ -307,6 +307,24 @@ const CASES = [
     editBody: { status: "paused" },
     seedExtra: { name: "Existing Campaign", channel: "meta", status: "active" },
   },
+  {
+    name: "creative",
+    table: "campaign_creatives",
+    createPath: "/marketing/creatives",
+    editPath: (id: number) => `/marketing/creatives/${id}`,
+    body: (companyId: number) => ({ companyId, name: "Hero Banner", format: "image", status: "active" }),
+    editBody: { status: "paused" },
+    seedExtra: { name: "Existing Creative", format: "image", status: "active" },
+  },
+  {
+    name: "lead",
+    table: "campaign_leads",
+    createPath: "/marketing/leads",
+    editPath: (id: number) => `/marketing/leads/${id}`,
+    body: (companyId: number) => ({ companyId, name: "Jane Prospect", status: "new" }),
+    editBody: { status: "qualified" },
+    seedExtra: { name: "Existing Lead", status: "new" },
+  },
 ] as const;
 
 for (const c of CASES) {

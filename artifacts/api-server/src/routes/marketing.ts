@@ -220,6 +220,7 @@ router.post("/marketing/creatives", async (req, res) => {
     if (!isSafeAttachmentUrl(parsed.data.url) || !isSafeAttachmentUrl(parsed.data.thumbnailUrl)) {
       res.status(400).json({ error: "Unsafe URL: only http(s) links or uploaded files are allowed" }); return;
     }
+    if (!canAccessCompany(req, parsed.data.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
     const [row] = await db.insert(campaignCreativesTable).values(parsed.data).returning();
     res.status(201).json(row);
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to create creative" }); }
@@ -232,7 +233,11 @@ router.patch("/marketing/creatives/:id", async (req, res) => {
     if (!isSafeAttachmentUrl(body.url) || !isSafeAttachmentUrl(body.thumbnailUrl)) {
       res.status(400).json({ error: "Unsafe URL: only http(s) links or uploaded files are allowed" }); return;
     }
-    const [row] = await db.update(campaignCreativesTable).set({ ...body, updatedAt: new Date() }).where(eq(campaignCreativesTable.id, parseInt(req.params.id))).returning();
+    const id = parseInt(req.params.id);
+    const [existing] = await db.select().from(campaignCreativesTable).where(eq(campaignCreativesTable.id, id));
+    if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+    if (!canAccessCompany(req, existing.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    const [row] = await db.update(campaignCreativesTable).set({ ...body, updatedAt: new Date() }).where(eq(campaignCreativesTable.id, id)).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to update creative" }); }
@@ -240,7 +245,11 @@ router.patch("/marketing/creatives/:id", async (req, res) => {
 
 router.delete("/marketing/creatives/:id", async (req, res) => {
   try {
-    const [row] = await db.delete(campaignCreativesTable).where(eq(campaignCreativesTable.id, parseInt(req.params.id))).returning();
+    const id = parseInt(req.params.id);
+    const [existing] = await db.select().from(campaignCreativesTable).where(eq(campaignCreativesTable.id, id));
+    if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+    if (!canAccessCompany(req, existing.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    const [row] = await db.delete(campaignCreativesTable).where(eq(campaignCreativesTable.id, id)).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ ok: true });
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to delete creative" }); }
@@ -276,6 +285,7 @@ router.post("/marketing/leads", async (req, res) => {
   try {
     const parsed = insertCampaignLeadSchema.safeParse(normalizeLeadBody(req.body));
     if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
+    if (!canAccessCompany(req, parsed.data.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
     const [row] = await db.insert(campaignLeadsTable).values(parsed.data).returning();
     res.status(201).json(row);
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to create lead" }); }
@@ -285,7 +295,11 @@ router.patch("/marketing/leads/:id", async (req, res) => {
   try {
     const { id: _id, createdAt: _cr, updatedAt: _u, companyId: _cid, ...raw } = req.body ?? {};
     const body = normalizeLeadBody(raw);
-    const [row] = await db.update(campaignLeadsTable).set({ ...body, updatedAt: new Date() }).where(eq(campaignLeadsTable.id, parseInt(req.params.id))).returning();
+    const id = parseInt(req.params.id);
+    const [existing] = await db.select().from(campaignLeadsTable).where(eq(campaignLeadsTable.id, id));
+    if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+    if (!canAccessCompany(req, existing.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    const [row] = await db.update(campaignLeadsTable).set({ ...body, updatedAt: new Date() }).where(eq(campaignLeadsTable.id, id)).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to update lead" }); }
@@ -293,7 +307,11 @@ router.patch("/marketing/leads/:id", async (req, res) => {
 
 router.delete("/marketing/leads/:id", async (req, res) => {
   try {
-    const [row] = await db.delete(campaignLeadsTable).where(eq(campaignLeadsTable.id, parseInt(req.params.id))).returning();
+    const id = parseInt(req.params.id);
+    const [existing] = await db.select().from(campaignLeadsTable).where(eq(campaignLeadsTable.id, id));
+    if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+    if (!canAccessCompany(req, existing.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    const [row] = await db.delete(campaignLeadsTable).where(eq(campaignLeadsTable.id, id)).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ ok: true });
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to delete lead" }); }

@@ -55,6 +55,15 @@ router.post("/employees", async (req, res) => {
   }
 });
 
+router.delete("/employees/:employeeId", async (req, res) => {
+  try {
+    const id = parseInt(req.params.employeeId);
+    const [e] = await db.delete(employeesTable).where(eq(employeesTable.id, id)).returning();
+    if (!e) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ ok: true });
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to delete employee" }); }
+});
+
 router.get("/employees/attendance-summary", async (req, res) => {
   try {
     const { companyId } = req.query as Record<string, string>;

@@ -54,6 +54,15 @@ router.post("/products", async (req, res) => {
   }
 });
 
+router.delete("/products/:productId", async (req, res) => {
+  try {
+    const id = parseInt(req.params.productId);
+    const [p] = await db.delete(productsTable).where(eq(productsTable.id, id)).returning();
+    if (!p) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ ok: true });
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to delete product" }); }
+});
+
 router.get("/inventory/low-stock", async (req, res) => {
   try {
     const { companyId } = req.query as Record<string, string>;

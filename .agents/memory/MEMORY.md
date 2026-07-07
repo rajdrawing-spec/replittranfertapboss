@@ -1,3 +1,5 @@
 - [TBOS API body-naming](tbos-api-naming.md) — AiChatResponse collided with Orval auto-generated response type; renamed to AiChatResult to avoid TS2308.
 - [Express return-pattern typecheck](express-return-typecheck.md) — Using `return res.json()` as early-exit causes TS7030; always use `res.json(); return;` pattern in Express handlers.
 - [DB lib declarations stale after schema add](db-declarations-refresh.md) — After adding new schema files to lib/db, run `pnpm run typecheck:libs` before checking API server types, or imports from @workspace/db appear missing.
+- [TBOS API fetch base URL](tbos-api-base-url.md) — Custom fetch calls in frontend must use bare `/api/...` paths, not `${BASE_URL}/api/...`; BASE_URL is `/tapashub/` so prefixing it creates wrong paths.
+- [TBOS auth approach](tbos-auth.md) — Session auth: cookie-parser signed cookies (`tbos_uid`), SHA-256+email salt password hash. Default pw: Admin@123. requireAuth middleware applied globally to all routes after /auth and /health.

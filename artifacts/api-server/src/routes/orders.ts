@@ -58,6 +58,25 @@ router.post("/orders", async (req, res) => {
   }
 });
 
+router.patch("/orders/:orderId", async (req, res) => {
+  try {
+    const id = parseInt(req.params.orderId);
+    const [o] = await db.update(ordersTable).set({ ...req.body, updatedAt: new Date() }).where(eq(ordersTable.id, id)).returning();
+    if (!o) { res.status(404).json({ error: "Not found" }); return; }
+    const [c] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, o.companyId));
+    res.json(formatOrder(o, { [o.companyId]: c?.name ?? "Unknown" }));
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to update order" }); }
+});
+
+router.delete("/orders/:orderId", async (req, res) => {
+  try {
+    const id = parseInt(req.params.orderId);
+    const [o] = await db.delete(ordersTable).where(eq(ordersTable.id, id)).returning();
+    if (!o) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ ok: true });
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to delete order" }); }
+});
+
 router.get("/orders/stats", async (req, res) => {
   try {
     const { companyId } = req.query as Record<string, string>;

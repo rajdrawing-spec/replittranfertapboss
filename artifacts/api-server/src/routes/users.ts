@@ -39,8 +39,9 @@ router.post("/users", async (req, res) => {
 
 router.get("/users/me", async (req, res) => {
   try {
-    // Return the first super_admin as the "current" user
-    const [u] = await db.select().from(usersTable).where(eq(usersTable.role, "super_admin")).limit(1);
+    // userId is guaranteed by requireAuth middleware
+    const userId = (req as any).userId as number;
+    const [u] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
     if (!u) { res.status(404).json({ error: "Not found" }); return; }
     res.json(fmtUser(u));
   } catch (e) {

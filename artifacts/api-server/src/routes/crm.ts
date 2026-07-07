@@ -57,6 +57,15 @@ router.patch("/customers/:customerId", async (req, res) => {
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to update customer" }); }
 });
 
+router.delete("/customers/:customerId", async (req, res) => {
+  try {
+    const id = parseInt(req.params.customerId);
+    const [c] = await db.delete(customersTable).where(eq(customersTable.id, id)).returning();
+    if (!c) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ ok: true });
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to delete customer" }); }
+});
+
 // ── Leads ──
 router.get("/leads", async (req, res) => {
   try {
@@ -121,6 +130,15 @@ router.patch("/leads/:leadId", async (req, res) => {
     const [co] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, l.companyId));
     res.json(fmtLead(l, { [l.companyId]: co?.name ?? "Unknown" }));
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to update lead" }); }
+});
+
+router.delete("/leads/:leadId", async (req, res) => {
+  try {
+    const id = parseInt(req.params.leadId);
+    const [l] = await db.delete(leadsTable).where(eq(leadsTable.id, id)).returning();
+    if (!l) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ ok: true });
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to delete lead" }); }
 });
 
 // ── Vendors ──

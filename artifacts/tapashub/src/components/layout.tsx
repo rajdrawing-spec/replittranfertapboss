@@ -26,6 +26,8 @@ import {
   Wrench,
   LayoutDashboard,
   Layers,
+  PieChart,
+  LogOut,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -35,6 +37,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useGetMe, useListNotifications } from "@workspace/api-client-react"
 import { useCompany } from "@/contexts/company-context"
 import type { ActiveCompany } from "@/contexts/company-context"
+import { useAuth } from "@/contexts/auth-context"
 
 interface NavItem {
   name: string
@@ -52,6 +55,7 @@ const parentNav: NavItem[] = [
   { name: "Finance", href: "/finance", icon: Wallet },
   { name: "HR & People", href: "/hr", icon: Users },
   { name: "Approvals", href: "/approvals", icon: CheckSquare },
+  { name: "Director Portal", href: "/director", icon: PieChart },
   { name: "AI Insights", href: "/ai-assistant", icon: Bot },
   { name: "Reports", href: "/reports", icon: FileText },
 ]
@@ -249,6 +253,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = React.useState(true)
   const [mobileOpen, setMobileOpen] = React.useState(false)
   const { activeCompany, isParentView } = useCompany()
+  const { logout, user: authUser } = useAuth()
 
   const { data: me } = useGetMe({ query: { enabled: true, queryKey: ["/api/users/me"] } })
   const { data: notificationsData } = useListNotifications({ unreadOnly: true }, {
@@ -315,8 +320,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         })}
       </nav>
 
-      {/* Bottom: Settings */}
-      <div className="p-3 border-t shrink-0">
+      {/* Bottom: Settings + Logout */}
+      <div className="p-3 border-t shrink-0 space-y-0.5">
         <Link href="/settings" className="block">
           <span className={cn(
             "flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all",
@@ -331,6 +336,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
             {!collapsed && <span className="ml-3">Settings</span>}
           </span>
         </Link>
+        <button
+          onClick={() => logout()}
+          className="w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-red-500/10 hover:text-red-400 transition-all"
+          title={collapsed ? "Sign Out" : undefined}
+        >
+          <LogOut className="w-[18px] h-[18px] shrink-0" />
+          {!collapsed && <span className="ml-3">Sign Out</span>}
+        </button>
       </div>
     </>
   )

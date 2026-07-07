@@ -1,5 +1,7 @@
 import { Router, type IRouter } from "express";
+import { requireAuth } from "../middleware/auth";
 import healthRouter from "./health";
+import authRouter from "./auth";
 import companiesRouter from "./companies";
 import dashboardRouter from "./dashboard";
 import ordersRouter from "./orders";
@@ -11,10 +13,16 @@ import notificationsRouter from "./notifications";
 import approvalsRouter from "./approvals";
 import aiRouter from "./ai";
 import usersRouter from "./users";
+import directorRouter from "./director";
 
 const router: IRouter = Router();
 
+// Public (no auth required)
 router.use(healthRouter);
+router.use(authRouter);
+
+// All other routes require a valid session cookie
+router.use(requireAuth);
 router.use(companiesRouter);
 router.use(dashboardRouter);
 router.use(ordersRouter);
@@ -26,5 +34,6 @@ router.use(notificationsRouter);
 router.use(approvalsRouter);
 router.use(aiRouter);
 router.use(usersRouter);
+router.use(directorRouter);
 
 export default router;

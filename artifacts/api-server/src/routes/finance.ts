@@ -101,20 +101,53 @@ router.get("/finance/pnl-summary", async (req, res) => {
   }
 });
 
+router.patch("/finance/transactions/:txId", async (req, res) => {
+  try {
+    const id = parseInt(req.params.txId);
+    const [t] = await db.update(transactionsTable).set(req.body).where(eq(transactionsTable.id, id)).returning();
+    if (!t) { res.status(404).json({ error: "Not found" }); return; }
+    const [c] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, t.companyId));
+    res.json(formatTransaction(t, { [t.companyId]: c?.name ?? "Unknown" }));
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to update transaction" }); }
+});
+
+router.delete("/finance/transactions/:txId", async (req, res) => {
+  try {
+    const id = parseInt(req.params.txId);
+    const [t] = await db.delete(transactionsTable).where(eq(transactionsTable.id, id)).returning();
+    if (!t) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ ok: true });
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to delete transaction" }); }
+});
+
 router.get("/finance/cash-flow", async (req, res) => {
   try {
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const { companyId } = req.query as Record<string, string>;
     const now = new Date();
     const result = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const inflow = 600000 + Math.random() * 400000;
-      const outflow = 400000 + Math.random() * 200000;
+      const nextD = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+        const companyCondition = companyId ? eq(transactionsTable.companyId, parseInt(companyId)) : undefined;
+      const dateFrom = sql`date >= ${d.toISOString().slice(0, 10)}`;
+      const dateTo = sql`date < ${nextD.toISOString().slice(0, 10)}`;
+      const whereClause = companyCondition
+        ? and(companyCondition, dateFrom, dateTo)
+        : and(dateFrom, dateTo);
+      const [row] = await db
+        .select({
+          inflow: sql<number>`coalesce(sum(case when type = 'income' then amount else 0 end), 0)`,
+          outflow: sql<number>`coalesce(sum(case when type = 'expense' then amount else 0 end), 0)`,
+        })
+        .from(transactionsTable)
+        .where(whereClause);
+      const inflow = Number(row?.inflow ?? 0);
+      const outflow = Number(row?.outflow ?? 0);
       result.push({
-        label: months[d.getMonth()],
-        inflow: Math.round(inflow),
-        outflow: Math.round(outflow),
-        net: Math.round(inflow - outflow),
+        label: d.toLocaleString("en-IN", { month: "short" }),
+        inflow,
+        outflow,
+        net: inflow - outflow,
       });
     }
     res.json(result);

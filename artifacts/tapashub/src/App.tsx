@@ -1,6 +1,6 @@
 import * as React from "react"
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { ClerkProvider, SignIn, Show, useClerk } from '@clerk/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ClerkProvider, SignIn, Show } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { Toaster } from '@/components/ui/toaster';
@@ -11,6 +11,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { Layout } from '@/components/layout';
 import { CompanyProvider } from '@/contexts/company-context';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
+import { ClerkQueryClientCacheInvalidator } from '@/components/clerk-cache-invalidator';
 
 // Page components are code-split: each becomes its own chunk loaded on demand,
 // so the initial bundle stays small and first paint is fast.
@@ -225,25 +226,6 @@ function AuthedApp() {
       </Layout>
     </CompanyProvider>
   );
-}
-
-function ClerkQueryClientCacheInvalidator() {
-  const { addListener } = useClerk();
-  const qc = useQueryClient();
-  const prevUserIdRef = React.useRef<string | null | undefined>(undefined);
-
-  React.useEffect(() => {
-    const unsubscribe = addListener(({ user }) => {
-      const userId = user?.id ?? null;
-      if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== userId) {
-        qc.clear();
-      }
-      prevUserIdRef.current = userId;
-    });
-    return unsubscribe;
-  }, [addListener, qc]);
-
-  return null;
 }
 
 function ClerkProviderWithRoutes() {

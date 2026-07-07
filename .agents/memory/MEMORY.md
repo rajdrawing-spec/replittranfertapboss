@@ -13,3 +13,4 @@
 - [TBOS fund allocation & finance sync](tbos-fund-allocation-sync.md) — allocations = paired ALLOC-<id> txns; order revenue keyed ORDER-/REFUND-; idempotency via partial unique index + FOR UPDATE; threshold approval gating.
 - [TBOS client caching](tbos-client-caching.md) — any user-scoped react-query cache key must include the Clerk userId; never rely on a listener-based cache clear alone for cross-user isolation.
 - [Clerk prod custom-domain 401](clerk-prod-custom-domain.md) — live app with "Development mode" badge + 401s = deployment running dev keys; re-publish; custom domain must be registered with Clerk prod.
+- [TBOS Vitest setup](tbos-vitest-config.md) — tapashub tests use standalone vitest.config.ts (vite.config throws without PORT/BASE_PATH); mock the @clerk/react boundary + /api/auth/me instead of real OAuth.

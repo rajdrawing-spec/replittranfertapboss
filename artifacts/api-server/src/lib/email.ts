@@ -15,7 +15,21 @@ import { ReplitConnectors } from "@replit/connectors-sdk";
 
 const connectors = new ReplitConnectors();
 
-const FROM = process.env.EMAIL_FROM?.trim() || "TapasHub <onboarding@resend.dev>";
+const _emailFromRaw = process.env.EMAIL_FROM?.trim() || "";
+
+// Guard against a common misconfiguration where a URL is pasted into EMAIL_FROM.
+// A valid sender is an RFC 5321 address or "Display Name <addr@domain>" — never a URL.
+if (_emailFromRaw && /^https?:\/\//i.test(_emailFromRaw)) {
+  console.error(
+    `[email] EMAIL_FROM is set to a URL ("${_emailFromRaw}") instead of an email address. ` +
+    `All email delivery will fail until this is corrected. ` +
+    `Set EMAIL_FROM to e.g. "TapasHub <noreply@yourdomain.com>".`
+  );
+}
+
+const FROM = _emailFromRaw && !/^https?:\/\//i.test(_emailFromRaw)
+  ? _emailFromRaw
+  : "TapasHub <onboarding@resend.dev>";
 
 /** Public URL of the web app, used for sign-in / call-to-action links. */
 export function appUrl(): string {

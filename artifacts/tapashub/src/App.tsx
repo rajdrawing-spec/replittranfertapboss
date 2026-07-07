@@ -39,6 +39,7 @@ const Marketing = React.lazy(() => import('@/pages/marketing'));
 const AccessControl = React.lazy(() => import('@/pages/admin/access-control'));
 const AuditLogs = React.lazy(() => import('@/pages/admin/audit-logs'));
 import { LoadingScreen } from '@/components/loading-screen';
+import { OfflineBanner } from '@/components/offline-banner';
 import { Button } from '@/components/ui/button';
 
 const queryClient = new QueryClient({
@@ -47,10 +48,20 @@ const queryClient = new QueryClient({
       // Cache data across mounts so navigating between pages doesn't refetch
       // everything every time; background-refresh once it goes stale.
       staleTime: 60_000, // 1 minute
-      gcTime: 5 * 60_000, // keep unused data 5 minutes
+      // Keep unused data for 30 min: on slow connections, revisiting a page
+      // shows cached content instantly instead of a blank spinner.
+      gcTime: 30 * 60_000,
       refetchOnWindowFocus: false,
-      retry: 1,
+      // Re-fetch automatically once the connection comes back.
+      refetchOnReconnect: true,
+      // Retry transient failures a couple of times with exponential backoff,
+      // which rides out brief drops on unreliable mobile networks.
+      retry: 2,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15_000),
     },
+    // Mutations are intentionally NOT retried: a write can succeed server-side
+    // and still fail client-side on a flaky connection, so an automatic retry
+    // risks duplicate records/side effects. Users re-submit explicitly instead.
   },
 });
 
@@ -269,6 +280,7 @@ function App() {
             <ClerkProviderWithRoutes />
           </WouterRouter>
           <Toaster />
+          <OfflineBanner />
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>

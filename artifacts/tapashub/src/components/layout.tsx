@@ -457,7 +457,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto bg-background p-6">
+        <main className="flex-1 overflow-auto bg-background p-4 sm:p-6">
           <div className="max-w-7xl mx-auto">
             {children}
           </div>

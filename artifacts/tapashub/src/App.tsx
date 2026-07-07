@@ -23,6 +23,7 @@ const Inventory = React.lazy(() => import('@/pages/inventory'));
 const Finance = React.lazy(() => import('@/pages/finance'));
 const FundAllocations = React.lazy(() => import('@/pages/fund-allocations'));
 const Shareholders = React.lazy(() => import('@/pages/shareholders'));
+const Analytics = React.lazy(() => import('@/pages/analytics'));
 const HR = React.lazy(() => import('@/pages/hr'));
 const CRM = React.lazy(() => import('@/pages/crm'));
 const Approvals = React.lazy(() => import('@/pages/approvals'));
@@ -215,7 +216,7 @@ function AuthedApp() {
           <Route path="/admin/audit" component={AuditLogs} />
           {/* Subsidiary-specific stubs */}
           <Route path="/reports" component={Finance} />
-          <Route path="/analytics" component={Dashboard} />
+          <Route path="/analytics" component={Analytics} />
           <Route path="/veterinary" component={HR} />
           <Route path="/community" component={CRM} />
           <Route path="/collections" component={Inventory} />

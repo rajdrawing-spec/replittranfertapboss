@@ -225,9 +225,16 @@ async function validateCampaignLink(
 
 router.get("/marketing/creatives", async (req, res) => {
   try {
+    const scope = companyScope(req);
+    if (scope !== null && scope.length === 0) { res.json([]); return; }
     const { companyId, campaignId, status } = req.query as Record<string, string>;
     const conds = [];
-    if (companyId) conds.push(eq(campaignCreativesTable.companyId, parseInt(companyId)));
+    if (companyId) {
+      const cid = parseInt(companyId);
+      if (scope !== null && !scope.includes(cid)) { res.status(403).json({ error: "Forbidden" }); return; }
+      conds.push(eq(campaignCreativesTable.companyId, cid));
+    }
+    if (scope !== null) conds.push(inArray(campaignCreativesTable.companyId, scope));
     if (campaignId) conds.push(eq(campaignCreativesTable.campaignId, parseInt(campaignId)));
     if (status && status !== "all") conds.push(eq(campaignCreativesTable.status, status));
     const where = conds.length ? and(...conds) : undefined;
@@ -297,9 +304,16 @@ function normalizeCreativeBody(body: Record<string, unknown>): Record<string, un
 
 router.get("/marketing/leads", async (req, res) => {
   try {
+    const scope = companyScope(req);
+    if (scope !== null && scope.length === 0) { res.json([]); return; }
     const { companyId, campaignId, status } = req.query as Record<string, string>;
     const conds = [];
-    if (companyId) conds.push(eq(campaignLeadsTable.companyId, parseInt(companyId)));
+    if (companyId) {
+      const cid = parseInt(companyId);
+      if (scope !== null && !scope.includes(cid)) { res.status(403).json({ error: "Forbidden" }); return; }
+      conds.push(eq(campaignLeadsTable.companyId, cid));
+    }
+    if (scope !== null) conds.push(inArray(campaignLeadsTable.companyId, scope));
     if (campaignId) conds.push(eq(campaignLeadsTable.campaignId, parseInt(campaignId)));
     if (status && status !== "all") conds.push(eq(campaignLeadsTable.status, status));
     const where = conds.length ? and(...conds) : undefined;

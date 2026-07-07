@@ -26,12 +26,16 @@ const H = vi.hoisted(() => {
     documents: [],
     shipments: [],
     campaigns: [],
+    campaign_creatives: [],
+    campaign_leads: [],
   };
 
   function reset() {
     store.documents = [];
     store.shipments = [];
     store.campaigns = [];
+    store.campaign_creatives = [];
+    store.campaign_leads = [];
   }
 
   function makeTable(name: string) {
@@ -48,6 +52,8 @@ const H = vi.hoisted(() => {
   const documentsTable = makeTable("documents");
   const shipmentsTable = makeTable("shipments");
   const campaignsTable = makeTable("campaigns");
+  const campaignCreativesTable = makeTable("campaign_creatives");
+  const campaignLeadsTable = makeTable("campaign_leads");
 
   const field = (col: string) => col.split(".")[1];
 
@@ -117,7 +123,7 @@ const H = vi.hoisted(() => {
 
   const db = { select: (cols?: Record<string, any>) => new QB().select(cols) };
 
-  return { store, reset, db, documentsTable, shipmentsTable, campaignsTable };
+  return { store, reset, db, documentsTable, shipmentsTable, campaignsTable, campaignCreativesTable, campaignLeadsTable };
 });
 
 vi.mock("@workspace/db", () => ({
@@ -129,9 +135,9 @@ vi.mock("@workspace/db", () => ({
   integrationConnectionsTable: {},
   campaignsTable: H.campaignsTable,
   insertCampaignSchema: { safeParse: () => ({ success: false }) },
-  campaignCreativesTable: {},
+  campaignCreativesTable: H.campaignCreativesTable,
   insertCampaignCreativeSchema: { safeParse: () => ({ success: false }) },
-  campaignLeadsTable: {},
+  campaignLeadsTable: H.campaignLeadsTable,
   insertCampaignLeadSchema: { safeParse: () => ({ success: false }) },
 }));
 
@@ -198,6 +204,16 @@ function seedShipment(companyId: number) {
 function seedCampaign(companyId: number, overrides: Record<string, any> = {}) {
   const id = H.store.campaigns.length + 1;
   H.store.campaigns.push({ id, companyId, name: `Camp ${id}`, status: "active", channel: "meta", budget: 100, spent: 50, revenue: 200, leads: 5, conversions: 2, clicks: 10, impressions: 100, createdAt: new Date(Date.now() + id * 1000), ...overrides });
+  return id;
+}
+function seedCreative(companyId: number) {
+  const id = H.store.campaign_creatives.length + 1;
+  H.store.campaign_creatives.push({ id, companyId, campaignId: null, name: `Creative ${id}`, status: "active", format: "image", url: null, thumbnailUrl: null, notes: null, createdAt: new Date(Date.now() + id * 1000) });
+  return id;
+}
+function seedLead(companyId: number) {
+  const id = H.store.campaign_leads.length + 1;
+  H.store.campaign_leads.push({ id, companyId, campaignId: null, name: `Lead ${id}`, status: "new", email: null, phone: null, source: null, notes: null, value: 0, createdAt: new Date(Date.now() + id * 1000) });
   return id;
 }
 
@@ -321,5 +337,63 @@ describe("GET /campaigns tenant isolation", () => {
     expect(list.body.map((c: any) => c.companyId).sort()).toEqual([ALPHA, BETA, GAMMA]);
     const perf = await request(app).get("/marketing/performance");
     expect(perf.body.totals.campaignCount).toBe(3);
+  });
+});
+
+// ---- GET /marketing/creatives -----------------------------------------------
+describe("GET /marketing/creatives tenant isolation", () => {
+  beforeEach(() => {
+    seedCreative(ALPHA);
+    seedCreative(BETA);
+    seedCreative(GAMMA);
+  });
+
+  it("lists only the scoped staff's own company creatives when companyId is omitted", async () => {
+    currentUser = SCOPED_STAFF;
+    const res = await request(app).get("/marketing/creatives");
+    expect(res.status).toBe(200);
+    expect(res.body.map((c: any) => c.companyId)).toEqual([ALPHA]);
+  });
+
+  it("rejects a creatives companyId outside scope with 403", async () => {
+    currentUser = SCOPED_STAFF;
+    const res = await request(app).get("/marketing/creatives").query({ companyId: String(BETA) });
+    expect(res.status).toBe(403);
+  });
+
+  it("shows a super admin every company's creatives", async () => {
+    currentUser = SUPER_ADMIN;
+    const res = await request(app).get("/marketing/creatives");
+    expect(res.status).toBe(200);
+    expect(res.body.map((c: any) => c.companyId).sort()).toEqual([ALPHA, BETA, GAMMA]);
+  });
+});
+
+// ---- GET /marketing/leads ---------------------------------------------------
+describe("GET /marketing/leads tenant isolation", () => {
+  beforeEach(() => {
+    seedLead(ALPHA);
+    seedLead(BETA);
+    seedLead(GAMMA);
+  });
+
+  it("lists only the scoped staff's own company leads when companyId is omitted", async () => {
+    currentUser = SCOPED_STAFF;
+    const res = await request(app).get("/marketing/leads");
+    expect(res.status).toBe(200);
+    expect(res.body.map((l: any) => l.companyId)).toEqual([ALPHA]);
+  });
+
+  it("rejects a leads companyId outside scope with 403", async () => {
+    currentUser = SCOPED_STAFF;
+    const res = await request(app).get("/marketing/leads").query({ companyId: String(GAMMA) });
+    expect(res.status).toBe(403);
+  });
+
+  it("shows a super admin every company's leads", async () => {
+    currentUser = SUPER_ADMIN;
+    const res = await request(app).get("/marketing/leads");
+    expect(res.status).toBe(200);
+    expect(res.body.map((l: any) => l.companyId).sort()).toEqual([ALPHA, BETA, GAMMA]);
   });
 });

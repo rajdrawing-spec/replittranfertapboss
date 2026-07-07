@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { approvalsTable, companiesTable, insertApprovalSchema } from "@workspace/db";
+import { approvalsTable, companiesTable, fundAllocationsTable, insertApprovalSchema } from "@workspace/db";
+import type { User } from "@workspace/db";
 import { eq, and, sql, desc } from "drizzle-orm";
+import { executeFundAllocation } from "../lib/fund-allocation";
+import { canAccessCompany } from "../lib/company-scope";
 
 const router = Router();
 
@@ -44,12 +47,44 @@ router.patch("/approvals/:approvalId/action", async (req, res) => {
     const id = parseInt(req.params.approvalId);
     const { action, note } = req.body as { action: "approve" | "reject"; note?: string };
     const newStatus = action === "approve" ? "approved" : "rejected";
+
+    const [existing] = await db.select().from(approvalsTable).where(eq(approvalsTable.id, id)).limit(1);
+    if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+
+    // Fund allocations move real money + equity, so only a Super Admin or a
+    // Company Admin may action them.
+    if (existing.type === "fund_allocation") {
+      const u = (req as any).localUser as User | undefined;
+      if (!u || (u.role !== "super_admin" && u.role !== "company_admin")) {
+        res.status(403).json({ error: "Only a Super Admin or Company Admin can approve fund allocations" });
+        return;
+      }
+      // A Company Admin may only action allocations for a company they belong to.
+      if (!canAccessCompany(req, existing.companyId)) {
+        res.status(403).json({ error: "You are not authorized to action this allocation" });
+        return;
+      }
+    }
+
     const [a] = await db
       .update(approvalsTable)
       .set({ status: newStatus, approverNote: note ?? null, updatedAt: new Date() })
       .where(eq(approvalsTable.id, id))
       .returning();
-    if (!a) { res.status(404).json({ error: "Not found" }); return; }
+
+    // Propagate the decision to any linked fund allocation.
+    if (a.type === "fund_allocation") {
+      const [alloc] = await db.select().from(fundAllocationsTable).where(eq(fundAllocationsTable.approvalId, a.id)).limit(1);
+      if (alloc && alloc.status === "pending_approval") {
+        const u = (req as any).localUser as User | undefined;
+        if (newStatus === "approved") {
+          await executeFundAllocation(alloc.id, { id: u?.id ?? null, email: u?.email ?? null });
+        } else {
+          await db.update(fundAllocationsTable).set({ status: "rejected", updatedAt: new Date() }).where(eq(fundAllocationsTable.id, alloc.id));
+        }
+      }
+    }
+
     const [co] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, a.companyId));
     res.json(fmtApproval(a, { [a.companyId]: co?.name ?? "Unknown" }));
   } catch (e) {

@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { ordersTable, companiesTable, insertOrderSchema } from "@workspace/db";
 import { eq, ilike, and, sql, desc } from "drizzle-orm";
 import { emitNotification } from "../lib/notify";
+import { syncOrderRevenue } from "../lib/order-revenue-sync";
 
 const router = Router();
 
@@ -52,6 +53,7 @@ router.post("/orders", async (req, res) => {
     if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
     const [o] = await db.insert(ordersTable).values(parsed.data).returning();
     const [c] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, o.companyId));
+    void syncOrderRevenue(o);
     void emitNotification({
       type: "order", severity: "success", companyId: o.companyId, companyName: c?.name ?? null,
       title: "Order Received",
@@ -71,6 +73,7 @@ router.patch("/orders/:orderId", async (req, res) => {
     const [o] = await db.update(ordersTable).set({ ...req.body, updatedAt: new Date() }).where(eq(ordersTable.id, id)).returning();
     if (!o) { res.status(404).json({ error: "Not found" }); return; }
     const [c] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, o.companyId));
+    void syncOrderRevenue(o);
     res.json(formatOrder(o, { [o.companyId]: c?.name ?? "Unknown" }));
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to update order" }); }
 });

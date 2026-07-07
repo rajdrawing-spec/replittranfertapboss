@@ -32,6 +32,7 @@ import {
   Truck,
   ShieldCheck,
   ScrollText,
+  Landmark,
 } from "lucide-react"
 import { GlobalSearch } from "@/components/global-search"
 
@@ -59,6 +60,7 @@ const parentNav: NavItem[] = [
   { name: "Companies", href: "/companies", icon: Building2 },
   { name: "Marketing", href: "/marketing", icon: Megaphone },
   { name: "Finance", href: "/finance", icon: Wallet },
+  { name: "Fund Allocation", href: "/fund-allocation", icon: Landmark },
   { name: "HR & People", href: "/hr", icon: Users },
   { name: "Documents", href: "/documents", icon: FileText },
   { name: "Account Directory", href: "/accounts", icon: Contact },

@@ -20,6 +20,7 @@ const CompanyDetail = React.lazy(() => import('@/pages/company-detail'));
 const Orders = React.lazy(() => import('@/pages/orders'));
 const Inventory = React.lazy(() => import('@/pages/inventory'));
 const Finance = React.lazy(() => import('@/pages/finance'));
+const FundAllocations = React.lazy(() => import('@/pages/fund-allocations'));
 const HR = React.lazy(() => import('@/pages/hr'));
 const CRM = React.lazy(() => import('@/pages/crm'));
 const Approvals = React.lazy(() => import('@/pages/approvals'));
@@ -193,6 +194,7 @@ function AuthedApp() {
           <Route path="/orders" component={Orders} />
           <Route path="/inventory" component={Inventory} />
           <Route path="/finance" component={Finance} />
+          <Route path="/fund-allocation" component={FundAllocations} />
           <Route path="/hr" component={HR} />
           <Route path="/crm" component={CRM} />
           <Route path="/approvals" component={Approvals} />

@@ -30,7 +30,6 @@ import AccountDirectory from '@/pages/account-directory';
 import Shipping from '@/pages/shipping';
 import Documents from '@/pages/documents';
 import Marketing from '@/pages/marketing';
-import Platforms from '@/pages/platforms';
 import AccessControl from '@/pages/admin/access-control';
 import AuditLogs from '@/pages/admin/audit-logs';
 import { LoadingScreen } from '@/components/loading-screen';
@@ -183,7 +182,7 @@ function AuthedApp() {
           <Route path="/shipping" component={Shipping} />
           <Route path="/documents" component={Documents} />
           <Route path="/marketing" component={Marketing} />
-          <Route path="/platforms" component={Platforms} />
+          <Route path="/platforms" component={Integrations} />
           <Route path="/admin/access" component={AccessControl} />
           <Route path="/admin/audit" component={AuditLogs} />
           {/* Subsidiary-specific stubs */}

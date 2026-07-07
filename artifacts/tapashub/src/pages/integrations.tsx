@@ -1,87 +1,150 @@
 import * as React from "react"
-import { ExternalLink, Globe, Plug, PlugZap, RefreshCw, ToggleLeft, ToggleRight, ChevronDown, AlertCircle, CheckCircle2, Clock } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import {
+  ExternalLink, Globe, Plug, PlugZap, RefreshCw, ChevronDown,
+  AlertCircle, CheckCircle2, Clock, ShieldAlert, KeyRound, Webhook,
+  History, XCircle, Loader2, Building2,
+} from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import { useCompany } from "@/contexts/company-context"
 import {
-  getPlatformsForCompany,
-  getIntegrationState,
-  saveIntegrationState,
-  type Platform,
-  type IntegrationState,
-} from "@/lib/platforms"
+  useCatalog, useConnections, useConnect, useDisconnect, useUpdateConnection,
+  useSyncNow, useSyncHistory, useErrorLogs,
+  type CatalogPlatform, type Connection, type AuthType,
+} from "@/lib/integrations-api"
 
-/* ─── Connect modal ─── */
-function ConnectModal({ platform, companySlug, onDone }: { platform: Platform; companySlug: string; onDone: () => void }) {
-  const [step, setStep] = React.useState<"idle" | "connecting" | "done">("idle")
-  const current = getIntegrationState(companySlug, platform.id)
+/* ── helpers ── */
 
-  function connect() {
-    setStep("connecting")
-    setTimeout(() => {
-      const next: IntegrationState = {
-        ...current,
-        connected: true,
-        lastSync: new Date().toLocaleString("en-IN"),
-        autoSync: true,
-      }
-      saveIntegrationState(companySlug, platform.id, next)
-      setStep("done")
-      setTimeout(onDone, 800)
-    }, 1800)
+function fmtDate(iso: string | null): string {
+  if (!iso) return "Never"
+  return new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+}
+
+const STATUS_META: Record<Connection["status"], { label: string; dot: string; text: string }> = {
+  connected: { label: "Live", dot: "bg-green-400 animate-pulse", text: "text-green-400" },
+  pending: { label: "Pending", dot: "bg-amber-400", text: "text-amber-400" },
+  error: { label: "Error", dot: "bg-red-400", text: "text-red-400" },
+  disconnected: { label: "Disconnected", dot: "bg-muted-foreground/50", text: "text-muted-foreground" },
+}
+
+/* ── Connect modal ── */
+function ConnectModal({
+  platform, companyId, existing, onClose,
+}: {
+  platform: CatalogPlatform
+  companyId: number
+  existing?: Connection
+  onClose: () => void
+}) {
+  const methods = React.useMemo<AuthType[]>(() => {
+    const m: AuthType[] = []
+    if (platform.capabilities.oauth) m.push("oauth")
+    if (platform.capabilities.apiKey) m.push("api_key")
+    if (platform.capabilities.webhook) m.push("webhook")
+    if (m.length === 0) m.push("manual")
+    return m
+  }, [platform])
+
+  const [authType, setAuthType] = React.useState<AuthType>(existing?.authType ?? methods[0])
+  const connect = useConnect()
+
+  const authLabel: Record<AuthType, string> = {
+    oauth: "OAuth Login", api_key: "API Key", webhook: "Webhook", manual: "Manual",
   }
+  const authIcon: Record<AuthType, React.ReactNode> = {
+    oauth: <Plug className="w-4 h-4" />, api_key: <KeyRound className="w-4 h-4" />,
+    webhook: <Webhook className="w-4 h-4" />, manual: <Globe className="w-4 h-4" />,
+  }
+
+  const result = connect.data
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onDone} />
-      <div className="relative bg-card border rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-5">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-card border rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center gap-3">
           <div className={`w-12 h-12 rounded-xl ${platform.logoColor} flex items-center justify-center text-white font-bold text-sm shadow-lg`}>
             {platform.logo}
           </div>
           <div>
             <div className="font-bold text-base">Connect {platform.name}</div>
-            <div className={`text-xs px-2 py-0.5 rounded-full border font-medium inline-block mt-0.5 ${platform.colorClass.badge}`}>
-              {platform.category}
-            </div>
+            <div className="text-xs text-muted-foreground capitalize">{platform.category}</div>
           </div>
         </div>
 
-        {step === "idle" && (
+        {!result && (
           <>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Connecting will allow TAPBOSS to automatically sync your {platform.syncFeatures.join(", ")} data from {platform.name} into this workspace.
-            </p>
-            <div className="bg-muted/40 rounded-lg p-3 space-y-1">
-              {platform.syncFeatures.map(f => (
-                <div key={f} className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
-                  Sync {f}
-                </div>
-              ))}
-              {platform.syncFeatures.length === 0 && (
-                <div className="text-xs text-muted-foreground">Direct portal access — no data sync available.</div>
-              )}
+            <p className="text-sm text-muted-foreground leading-relaxed">{platform.description}</p>
+
+            <div>
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Authentication method</div>
+              <div className="grid grid-cols-1 gap-2">
+                {methods.map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setAuthType(m)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all ${
+                      authType === m ? "border-primary bg-primary/10 text-foreground" : "border-white/10 text-muted-foreground hover:border-white/20"
+                    }`}
+                  >
+                    {authIcon[m]} {authLabel[m]}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {platform.secretKeys.length > 0 && (
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-300">
+                  <ShieldAlert className="w-3.5 h-3.5" /> Credentials required
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Add these as Replit Secrets (never stored in the database). The connection activates automatically once they are present:
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {platform.secretKeys.map((k) => (
+                    <code key={k} className="text-[10px] bg-background/60 border border-white/10 rounded px-1.5 py-0.5 text-amber-200">
+                      INTEGRATION_{platform.key.toUpperCase()}_{companyId}_{k}
+                    </code>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {connect.isError && (
+              <div className="text-xs text-red-400">{(connect.error as Error)?.message ?? "Failed to connect"}</div>
+            )}
+
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={onDone}>Cancel</Button>
-              <Button className="flex-1" onClick={connect}>
-                <Plug className="w-4 h-4 mr-1.5" /> Connect
+              <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+              <Button
+                className="flex-1"
+                disabled={connect.isPending}
+                onClick={() => connect.mutate({ companyId, platformKey: platform.key, authType })}
+              >
+                {connect.isPending ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Connecting…</> : <><PlugZap className="w-4 h-4 mr-1.5" />Connect</>}
               </Button>
             </div>
           </>
         )}
-        {step === "connecting" && (
-          <div className="flex flex-col items-center gap-3 py-4">
-            <RefreshCw className="w-8 h-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Establishing secure connection…</p>
-          </div>
-        )}
-        {step === "done" && (
-          <div className="flex flex-col items-center gap-3 py-4">
-            <CheckCircle2 className="w-8 h-8 text-green-500" />
-            <p className="text-sm font-medium text-green-400">Connected successfully!</p>
+
+        {result && (
+          <div className="space-y-3">
+            {result.status === "connected" ? (
+              <div className="flex flex-col items-center gap-2 py-2 text-center">
+                <CheckCircle2 className="w-8 h-8 text-green-500" />
+                <p className="text-sm font-medium text-green-400">Connected successfully</p>
+                <p className="text-xs text-muted-foreground">{platform.name} is live for this company.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 py-2 text-center">
+                <Clock className="w-8 h-8 text-amber-400" />
+                <p className="text-sm font-medium text-amber-300">Awaiting credentials</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">{result.lastError ?? "Add the required secrets to activate this connection."}</p>
+              </div>
+            )}
+            <Button className="w-full" onClick={onClose}>Done</Button>
           </div>
         )}
       </div>
@@ -89,204 +152,192 @@ function ConnectModal({ platform, companySlug, onDone }: { platform: Platform; c
   )
 }
 
-/* ─── Sync toggle row ─── */
-function SyncRow({ label, enabled, onChange }: { label: string; enabled: boolean; onChange: (v: boolean) => void }) {
+/* ── History / errors drawer ── */
+function ActivityDrawer({ connection, platform, onClose }: { connection: Connection; platform: CatalogPlatform; onClose: () => void }) {
+  const [tab, setTab] = React.useState<"history" | "errors">("history")
+  const history = useSyncHistory(connection.id)
+  const errors = useErrorLogs(connection.id)
+
   return (
-    <div className="flex items-center justify-between py-1">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <button
-        onClick={() => onChange(!enabled)}
-        className={`flex items-center gap-1 text-xs font-medium transition-colors ${enabled ? "text-green-400" : "text-muted-foreground"}`}
-      >
-        {enabled ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-        {enabled ? "On" : "Off"}
-      </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-card border rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-lg ${platform.logoColor} flex items-center justify-center text-white font-bold text-xs`}>{platform.logo}</div>
+          <div className="font-semibold">{platform.name} — Activity</div>
+        </div>
+
+        <div className="flex gap-1 border-b border-white/10">
+          <button onClick={() => setTab("history")} className={`px-3 py-2 text-sm border-b-2 -mb-px ${tab === "history" ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`}>Sync History</button>
+          <button onClick={() => setTab("errors")} className={`px-3 py-2 text-sm border-b-2 -mb-px ${tab === "errors" ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`}>Error Log</button>
+        </div>
+
+        {tab === "history" && (
+          <div className="space-y-2">
+            {history.isLoading && <p className="text-xs text-muted-foreground">Loading…</p>}
+            {history.data?.length === 0 && <p className="text-xs text-muted-foreground py-4 text-center">No sync runs yet.</p>}
+            {history.data?.map((h) => (
+              <div key={h.id} className="flex items-start justify-between gap-3 text-xs bg-background/40 rounded-lg p-2.5 border border-white/5">
+                <div className="flex items-start gap-2">
+                  {h.status === "success" ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500 mt-0.5" /> : h.status === "failed" ? <XCircle className="w-3.5 h-3.5 text-red-500 mt-0.5" /> : <Clock className="w-3.5 h-3.5 text-muted-foreground mt-0.5" />}
+                  <div>
+                    <div className="font-medium capitalize">{h.status} · {h.trigger}{h.recordsSynced > 0 ? ` · ${h.recordsSynced} records` : ""}</div>
+                    {h.message && <div className="text-muted-foreground mt-0.5">{h.message}</div>}
+                  </div>
+                </div>
+                <span className="text-muted-foreground shrink-0">{fmtDate(h.createdAt)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === "errors" && (
+          <div className="space-y-2">
+            {errors.isLoading && <p className="text-xs text-muted-foreground">Loading…</p>}
+            {errors.data?.length === 0 && <p className="text-xs text-muted-foreground py-4 text-center">No errors logged.</p>}
+            {errors.data?.map((e) => (
+              <div key={e.id} className="flex items-start justify-between gap-3 text-xs bg-background/40 rounded-lg p-2.5 border border-white/5">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className={`w-3.5 h-3.5 mt-0.5 ${e.level === "error" ? "text-red-500" : "text-amber-500"}`} />
+                  <div>
+                    <div className="font-medium">{e.message}</div>
+                    {e.detail && <div className="text-muted-foreground mt-0.5">{e.detail}</div>}
+                  </div>
+                </div>
+                <span className="text-muted-foreground shrink-0">{fmtDate(e.createdAt)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <Button variant="outline" className="w-full" onClick={onClose}>Close</Button>
+      </div>
     </div>
   )
 }
 
-/* ─── Platform card ─── */
-function PlatformCard({
-  platform,
-  companySlug,
-  onStateChange,
-}: {
-  platform: Platform
-  companySlug: string
-  onStateChange: () => void
-}) {
-  const [state, setState] = React.useState<IntegrationState>(() =>
-    getIntegrationState(companySlug, platform.id)
-  )
-  const [showModal, setShowModal] = React.useState(false)
+/* ── Platform card ── */
+function PlatformCard({ platform, companyId, connection }: { platform: CatalogPlatform; companyId: number; connection?: Connection }) {
+  const [showConnect, setShowConnect] = React.useState(false)
+  const [showActivity, setShowActivity] = React.useState(false)
   const [expanded, setExpanded] = React.useState(false)
-  const [syncing, setSyncing] = React.useState(false)
 
-  function save(next: IntegrationState) {
-    saveIntegrationState(companySlug, platform.id, next)
-    setState(next)
-    onStateChange()
-  }
+  const disconnect = useDisconnect()
+  const update = useUpdateConnection()
+  const sync = useSyncNow()
 
-  function disconnect() {
-    save({ ...state, connected: false, lastSync: null, autoSync: false })
-  }
+  const status: Connection["status"] = connection?.status ?? "disconnected"
+  const meta = STATUS_META[status]
+  const isLinked = !!connection && status !== "disconnected"
 
-  function syncNow() {
-    setSyncing(true)
-    setTimeout(() => {
-      save({ ...state, lastSync: new Date().toLocaleString("en-IN") })
-      setSyncing(false)
-    }, 1400)
-  }
-
-  function toggle<K extends keyof IntegrationState>(key: K, val: IntegrationState[K]) {
-    save({ ...state, [key]: val })
+  function toggleFeature(feature: string, val: boolean) {
+    if (!connection) return
+    update.mutate({ id: connection.id, syncSettings: { ...connection.syncSettings, [feature]: val } })
   }
 
   return (
     <>
-      {showModal && (
-        <ConnectModal
-          platform={platform}
-          companySlug={companySlug}
-          onDone={() => {
-            setShowModal(false)
-            setState(getIntegrationState(companySlug, platform.id))
-            onStateChange()
-          }}
-        />
+      {showConnect && (
+        <ConnectModal platform={platform} companyId={companyId} existing={connection} onClose={() => setShowConnect(false)} />
+      )}
+      {showActivity && connection && (
+        <ActivityDrawer connection={connection} platform={platform} onClose={() => setShowActivity(false)} />
       )}
 
-      <Card className={`bg-gradient-to-br ${platform.colorClass.bg} border ${platform.colorClass.border} transition-all duration-300 hover:shadow-lg`}>
+      <Card className="bg-card/60 border border-white/10 hover:shadow-lg hover:border-white/20 transition-all">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-3">
-              <div className={`w-11 h-11 rounded-xl ${platform.logoColor} flex items-center justify-center text-white font-bold text-xs shadow-lg shrink-0`}>
-                {platform.logo}
-              </div>
+              <div className={`w-11 h-11 rounded-xl ${platform.logoColor} flex items-center justify-center text-white font-bold text-xs shadow-lg shrink-0`}>{platform.logo}</div>
               <div>
                 <CardTitle className="text-sm leading-tight">{platform.name}</CardTitle>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${platform.colorClass.badge}`}>
-                  {platform.category}
-                </span>
+                <span className="text-[10px] text-muted-foreground capitalize">{platform.category}</span>
               </div>
             </div>
-
-            {/* Status + external link */}
             <div className="flex items-center gap-1.5 shrink-0">
-              {state.connected ? (
-                <span className="flex items-center gap-1 text-[10px] text-green-400 font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                  Live
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-[10px] text-muted-foreground font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50" />
-                  Disconnected
-                </span>
-              )}
+              <span className={`flex items-center gap-1 text-[10px] font-medium ${meta.text}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+                {meta.label}
+              </span>
               <a href={platform.url} target="_blank" rel="noopener noreferrer">
-                <Button size="icon" variant="ghost" className="w-7 h-7 opacity-50 hover:opacity-100">
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </Button>
+                <Button size="icon" variant="ghost" className="w-7 h-7 opacity-50 hover:opacity-100"><ExternalLink className="w-3.5 h-3.5" /></Button>
               </a>
             </div>
           </div>
 
-          {/* Last sync */}
-          {state.connected && state.lastSync && (
-            <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-1">
-              <Clock className="w-3 h-3" />
-              Last sync: {state.lastSync}
+          {isLinked && (
+            <div className="mt-2 space-y-0.5">
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <Clock className="w-3 h-3" /> Last sync: {fmtDate(connection!.lastSyncAt)}
+              </div>
+              {connection!.connectedUserName && (
+                <div className="text-[10px] text-muted-foreground">Connected by {connection!.connectedUserName}</div>
+              )}
+              {connection!.lastError && status !== "connected" && (
+                <div className="text-[10px] text-amber-400 leading-snug">{connection!.lastError}</div>
+              )}
             </div>
           )}
         </CardHeader>
 
         <CardContent className="pt-0 space-y-3">
-          {/* Primary action */}
           <div className="flex gap-2">
-            {state.connected ? (
+            {isLinked ? (
               <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 h-8 text-xs border-white/10"
-                  onClick={syncNow}
-                  disabled={syncing}
-                >
-                  {syncing
-                    ? <><RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" />Syncing…</>
-                    : <><RefreshCw className="w-3.5 h-3.5 mr-1" />Sync Now</>
-                  }
+                <Button size="sm" variant="outline" className="flex-1 h-8 text-xs border-white/10" disabled={sync.isPending} onClick={() => sync.mutate(connection!.id)}>
+                  {sync.isPending ? <><RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" />Syncing…</> : <><RefreshCw className="w-3.5 h-3.5 mr-1" />Sync Now</>}
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-                  onClick={disconnect}
-                >
+                <Button size="sm" variant="ghost" className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10" disabled={disconnect.isPending} onClick={() => disconnect.mutate(connection!.id)}>
                   Disconnect
                 </Button>
               </>
             ) : (
-              <Button size="sm" className="flex-1 h-8 text-xs" onClick={() => setShowModal(true)}>
-                <PlugZap className="w-3.5 h-3.5 mr-1.5" />
-                Connect Account
+              <Button size="sm" className="flex-1 h-8 text-xs" onClick={() => setShowConnect(true)}>
+                <PlugZap className="w-3.5 h-3.5 mr-1.5" /> Connect Account
               </Button>
             )}
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8 shrink-0 text-muted-foreground"
-              onClick={() => setExpanded(!expanded)}
-              title="Settings"
-            >
+            <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-muted-foreground" onClick={() => setExpanded(!expanded)} title="Settings">
               <ChevronDown className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
             </Button>
           </div>
 
-          {/* Expanded settings */}
           {expanded && (
-            <div className="border-t border-white/10 pt-3 space-y-1">
-              {state.connected && (
+            <div className="border-t border-white/10 pt-3 space-y-3">
+              {isLinked && (
                 <>
-                  <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Sync Settings</div>
-                  {platform.syncFeatures.includes("Products") && (
-                    <SyncRow label="Sync Products" enabled={state.syncProducts} onChange={v => toggle("syncProducts", v)} />
-                  )}
-                  {platform.syncFeatures.includes("Orders") && (
-                    <SyncRow label="Sync Orders" enabled={state.syncOrders} onChange={v => toggle("syncOrders", v)} />
-                  )}
-                  {platform.syncFeatures.includes("Inventory") && (
-                    <SyncRow label="Sync Inventory" enabled={state.syncInventory} onChange={v => toggle("syncInventory", v)} />
-                  )}
-                  {platform.syncFeatures.includes("Customers") && (
-                    <SyncRow label="Sync Customers" enabled={state.syncCustomers} onChange={v => toggle("syncCustomers", v)} />
-                  )}
-                  {platform.syncFeatures.includes("Finance") && (
-                    <SyncRow label="Sync Finance" enabled={state.syncFinance} onChange={v => toggle("syncFinance", v)} />
-                  )}
-                  <div className="border-t border-white/10 mt-2 pt-2">
-                    <SyncRow label="Auto Sync (every 15 min)" enabled={state.autoSync} onChange={v => toggle("autoSync", v)} />
+                  <div>
+                    <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Data to sync</div>
+                    <div className="space-y-1.5">
+                      {platform.syncFeatures.map((f) => (
+                        <div key={f} className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">{f}</span>
+                          <Switch checked={connection!.syncSettings?.[f] ?? true} onCheckedChange={(v) => toggleFeature(f, v)} />
+                        </div>
+                      ))}
+                      {platform.syncFeatures.length === 0 && <div className="text-xs text-muted-foreground">Portal access only — no data sync.</div>}
+                    </div>
                   </div>
+                  <div className="flex items-center justify-between border-t border-white/10 pt-2">
+                    <span className="text-xs text-muted-foreground">Auto sync (every 15 min)</span>
+                    <Switch
+                      checked={connection!.autoSync}
+                      disabled={status !== "connected"}
+                      onCheckedChange={(v) => update.mutate({ id: connection!.id, autoSync: v })}
+                    />
+                  </div>
+                  <Button variant="ghost" size="sm" className="w-full h-7 text-xs text-muted-foreground" onClick={() => setShowActivity(true)}>
+                    <History className="w-3.5 h-3.5 mr-1.5" /> View sync history & errors
+                  </Button>
                 </>
               )}
 
-              {/* Quick links always shown in expanded */}
-              <div className="mt-3">
+              <div>
                 <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Quick Links</div>
                 <div className="grid grid-cols-2 gap-1.5">
-                  {platform.quickLinks.map(link => (
-                    <a
-                      key={link.label}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground bg-background/30 hover:bg-background/60 px-2.5 py-1.5 rounded-md transition-all border border-transparent hover:border-white/10"
-                    >
-                      <Globe className="w-3 h-3 shrink-0" />
-                      {link.label}
+                  {platform.quickLinks.map((link) => (
+                    <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground bg-background/30 hover:bg-background/60 px-2.5 py-1.5 rounded-md transition-all border border-transparent hover:border-white/10">
+                      <Globe className="w-3 h-3 shrink-0" /> {link.label}
                     </a>
                   ))}
                 </div>
@@ -299,83 +350,73 @@ function PlatformCard({
   )
 }
 
-/* ─── Main page ─── */
+/* ── Main page ── */
 export default function Integrations() {
-  const { activeCompany, isParentView } = useCompany()
-  const companySlug = activeCompany?.slug ?? "tapashub"
-  const platforms = getPlatformsForCompany(companySlug)
+  const { activeCompany } = useCompany()
+  const catalog = useCatalog()
+  const companyId = activeCompany?.id ?? null
+  const connections = useConnections(companyId)
 
-  // re-render when state changes
-  const [tick, setTick] = React.useState(0)
-  const refresh = () => setTick(t => t + 1)
+  const byPlatform = React.useMemo(() => {
+    const m = new Map<string, Connection>()
+    for (const c of connections.data ?? []) m.set(c.platformKey, c)
+    return m
+  }, [connections.data])
 
-  const connectedPlatforms = platforms.filter(
-    p => getIntegrationState(companySlug, p.id).connected
-  )
+  if (!activeCompany) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-500">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Integrations</h1>
+          <p className="text-muted-foreground mt-1 text-sm">Connect sales channels, payments, logistics and marketing platforms.</p>
+        </div>
+        <div className="flex items-start gap-3 bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
+          <Building2 className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+          <div>
+            <div className="text-sm font-semibold text-blue-300">Select a company</div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Each company maintains its own separate platform connections. Choose a company from the switcher to manage its integrations.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
-  // group by category
-  const byCategory = platforms.reduce<Record<string, Platform[]>>((acc, p) => {
+  const platforms = catalog.data ?? []
+  const connectedCount = (connections.data ?? []).filter((c) => c.status === "connected").length
+
+  const byCategory = platforms.reduce<Record<string, CatalogPlatform[]>>((acc, p) => {
     ;(acc[p.category] ??= []).push(p)
     return acc
   }, {})
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            {isParentView ? "Group Integrations" : `${activeCompany?.name} Integrations`}
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            {isParentView
-              ? "Compliance and accounting platforms for TapasHub Holdings"
-              : `Connect sales channels, payment gateways and marketing platforms for ${activeCompany?.name}`}
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">{activeCompany.name} Integrations</h1>
+          <p className="text-muted-foreground mt-1 text-sm">Connect and sync sales channels, payments, logistics and marketing platforms.</p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <div className="text-center">
-            <div className="text-2xl font-bold text-green-400">{connectedPlatforms.length}</div>
+            <div className="text-2xl font-bold text-green-400">{connectedCount}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Connected</div>
           </div>
           <div className="h-8 w-px bg-border" />
           <div className="text-center">
-            <div className="text-2xl font-bold">{platforms.length - connectedPlatforms.length}</div>
+            <div className="text-2xl font-bold">{platforms.length}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Available</div>
           </div>
         </div>
       </div>
 
-      {/* Connected pill strip */}
-      {connectedPlatforms.length > 0 && (
-        <div className="flex flex-wrap gap-2 items-center">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mr-1">Live:</span>
-          {connectedPlatforms.map(p => (
-            <span
-              key={p.id}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium ${p.colorClass.pill}`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              {p.shortName}
-            </span>
-          ))}
-        </div>
+      {(catalog.isLoading || connections.isLoading) && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Loading integrations…</div>
       )}
 
-      {/* Parent view info banner */}
-      {isParentView && (
-        <div className="flex items-start gap-3 bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
-          <AlertCircle className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
-          <div>
-            <div className="text-sm font-semibold text-blue-300">Viewing TapasHub Holdings</div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Switch to a subsidiary workspace to manage that company's sales channels, social media, and payment integrations. Each company maintains its own separate connections.
-            </p>
-          </div>
-        </div>
-      )}
+      {catalog.isError && <div className="text-sm text-red-400">Failed to load platform catalog.</div>}
 
-      {/* Platform cards grouped by category */}
       {Object.entries(byCategory).map(([cat, ps]) => (
         <div key={cat} className="space-y-4">
           <div className="flex items-center gap-3">
@@ -384,13 +425,8 @@ export default function Integrations() {
             <span className="text-xs text-muted-foreground">{ps.length} platform{ps.length !== 1 ? "s" : ""}</span>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-            {ps.map(platform => (
-              <PlatformCard
-                key={`${companySlug}-${platform.id}-${tick}`}
-                platform={platform}
-                companySlug={companySlug}
-                onStateChange={refresh}
-              />
+            {ps.map((platform) => (
+              <PlatformCard key={platform.key} platform={platform} companyId={activeCompany.id} connection={byPlatform.get(platform.key)} />
             ))}
           </div>
         </div>

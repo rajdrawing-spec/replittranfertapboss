@@ -6,16 +6,18 @@ import { EmptyState, NoData } from "@/components/empty-state"
 import { TrendingUp, Users, ShoppingCart, AlertTriangle, Activity, ExternalLink } from "lucide-react"
 import { Link } from "wouter"
 import { useCompany } from "@/contexts/company-context"
-import { getPlatformsForCompany, getIntegrationState } from "@/lib/platforms"
+import { useCatalog, useConnections } from "@/lib/integrations-api"
 
 export default function Dashboard() {
   const { activeCompany, isParentView } = useCompany()
-  const companySlug = activeCompany?.slug ?? "tapashub"
 
-  // Quick Open: show connected platforms first, fall back to first 5 of the company's platforms
-  const allCompanyPlatforms = getPlatformsForCompany(companySlug)
-  const connected = allCompanyPlatforms.filter(p => getIntegrationState(companySlug, p.id).connected)
-  const quickPlatforms = (connected.length > 0 ? connected : allCompanyPlatforms).slice(0, 5)
+  // Quick Open: show connected platforms first, fall back to the first few catalog platforms.
+  const { data: catalog } = useCatalog()
+  const { data: connections } = useConnections(activeCompany?.id ?? null)
+  const connectedKeys = new Set((connections ?? []).filter(c => c.status === "connected").map(c => c.platformKey))
+  const allCompanyPlatforms = catalog ?? []
+  const connectedPlatforms = allCompanyPlatforms.filter(p => connectedKeys.has(p.key))
+  const quickPlatforms = (connectedPlatforms.length > 0 ? connectedPlatforms : allCompanyPlatforms).slice(0, 5)
   const { data: summary, isLoading: loadingSummary } = useGetExecutiveSummary({
     query: { enabled: true, queryKey: getGetExecutiveSummaryQueryKey() }
   })
@@ -57,10 +59,10 @@ export default function Dashboard() {
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider mr-1">Quick Open:</span>
         {quickPlatforms.map(p => {
-          const isLive = getIntegrationState(companySlug, p.id).connected
+          const isLive = connectedKeys.has(p.key)
           return (
-            <a key={p.id} href={p.url} target="_blank" rel="noopener noreferrer"
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all hover:scale-105 active:scale-95 ${p.colorClass.pill}`}>
+            <a key={p.key} href={p.url} target="_blank" rel="noopener noreferrer"
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 bg-card/60 text-xs font-medium transition-all hover:scale-105 active:scale-95 hover:border-white/20 ${p.accent}`}>
               {isLive && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
               {p.shortName}
               <ExternalLink className="w-3 h-3 opacity-70" />

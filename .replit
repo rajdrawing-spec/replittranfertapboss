@@ -75,5 +75,5 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-EMAIL_FROM = "https://tapboss.tapashub.com"
+EMAIL_FROM = "team@tapashub.com"
 APP_URL = "https://tapboss.tapashub.com"

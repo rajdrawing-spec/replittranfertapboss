@@ -121,7 +121,18 @@ export default function Shareholders() {
 
   const invite = useMutation({
     mutationFn: (id: number) => adminApi.post(`/shareholders/${id}/invite`, {}),
-    onSuccess: () => { invalidate(); toast({ title: "Invite email sent" }) },
+    onSuccess: (data: { emailSent?: boolean }) => {
+      invalidate();
+      if (data?.emailSent === false) {
+        toast({
+          title: "Invite recorded — email not delivered",
+          description: "The shareholder has been marked as invited, but the email could not be sent. Ask your admin to set a verified EMAIL_FROM address in deployment secrets.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Invite email sent" });
+      }
+    },
     onError: (e: Error) => toast({ title: "Couldn't send invite", description: e.message, variant: "destructive" }),
   })
 

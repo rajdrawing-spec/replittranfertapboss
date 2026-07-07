@@ -277,10 +277,11 @@ router.post("/shareholders/:id/invite", requirePermission("shareholders.manage")
       shares: existing.shares,
       ownershipPercent: existing.ownershipPercent,
     });
+    // Best-effort: log the failure but always stamp invitedAt so the action is
+    // recorded regardless of email delivery. The client receives emailSent=false
+    // and can show a warning without treating it as a hard error.
     if (!mail.ok) {
       req.log.error({ err: mail.error }, "Shareholder invite email failed to send");
-      res.status(502).json({ error: "Couldn't send the invite email", detail: mail.error });
-      return;
     }
 
     const [updated] = await db.update(shareholdersTable)
@@ -292,11 +293,11 @@ router.post("/shareholders/:id/invite", requirePermission("shareholders.manage")
       action: "shareholder.invited",
       targetType: "shareholder",
       targetId: String(id),
-      description: `Sent shareholder invite to ${existing.email}`,
+      description: `Shareholder invite attempted to ${existing.email} (emailSent=${mail.ok})`,
       metadata: { companyId: existing.companyId },
     });
 
-    res.json(formatShareholder(updated, names));
+    res.json({ ...formatShareholder(updated, names), emailSent: mail.ok, emailError: mail.ok ? undefined : mail.error });
   } catch (e) {
     req.log.error(e);
     res.status(500).json({ error: "Failed to send invite" });

@@ -104,8 +104,12 @@ export function BrowserWorkspace({
         const { token } = (await res.json()) as { token: string }
         if (cancelled) return
 
-        const proto = window.location.protocol === "https:" ? "wss:" : "ws:"
-        ws = new WebSocket(`${proto}//${window.location.host}/api/browser/ws?token=${token}`)
+        // Use the same origin as the page — Replit's proxy routes /api/browser/ws
+        // to the API server's upgrade handler.  Avoid hardcoding wss:// because
+        // some Replit preview environments expose the app over plain http.
+        const proto = window.location.protocol === "https:" ? "wss" : "ws"
+        const wsUrl = `${proto}://${window.location.host}/api/browser/ws?token=${token}`
+        ws = new WebSocket(wsUrl)
         ws.binaryType = "arraybuffer"
         wsRef.current = ws
 

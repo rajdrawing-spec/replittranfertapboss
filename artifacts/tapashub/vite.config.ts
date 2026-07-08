@@ -148,6 +148,26 @@ export default defineConfig({
     fs: {
       strict: true,
     },
+    proxy: {
+      // ── Browser workspace WebSocket ──────────────────────────────────────
+      // Must be listed BEFORE the /api catch-all so Vite's WS upgrade handler
+      // takes effect for this specific path.  Replit's path-based proxy handles
+      // HTTP but does NOT forward WebSocket upgrade requests to artifact ports;
+      // going through Vite's proxy (same process, same port) is the only
+      // reliable way to get WS upgrades to the API server in dev.
+      '/api/browser/ws': {
+        target: `http://localhost:${process.env['API_SERVER_PORT'] ?? '8080'}`,
+        ws: true,
+        changeOrigin: true,
+      },
+      // ── All other API REST calls ─────────────────────────────────────────
+      // In dev, route /api/* to the API server directly so both REST and WS
+      // share the same proxy instead of relying on two different routing paths.
+      '/api': {
+        target: `http://localhost:${process.env['API_SERVER_PORT'] ?? '8080'}`,
+        changeOrigin: true,
+      },
+    },
   },
   preview: {
     port: port || undefined,

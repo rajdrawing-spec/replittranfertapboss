@@ -85,32 +85,30 @@ class BrowserSessionManager {
 
   /**
    * Returns the Page for the given (company, platform) pair, creating it if
-   * it does not exist or was closed.  The page navigates to `platformUrl` on
-   * first creation only — subsequent calls return the page as-is so the user's
-   * in-progress work is not interrupted on reconnect.
+   * it does not exist or was closed.
+   *
+   * Returns { page, isNew } so callers can decide whether to navigate.
+   * Navigation is intentionally NOT done here — callers should fire it in the
+   * background after the screenshot loop has started, so the user sees the
+   * browser loading live rather than waiting for a full page load first.
    */
   async getOrCreatePage(
     companyId: number,
     platformKey: string,
-    platformUrl: string,
     viewport = { width: 1280, height: 800 },
-  ): Promise<Page> {
+  ): Promise<{ page: Page; isNew: boolean }> {
     const session = await this.getOrCreateSession(companyId, viewport);
 
     let page = session.pages.get(platformKey);
-    if (!page || page.isClosed()) {
+    const isNew = !page || page.isClosed();
+    if (isNew) {
       page = await session.context.newPage();
       await page.setViewportSize(viewport);
       session.pages.set(platformKey, page);
-      // Navigate to the platform on first open; don't block on full load.
-      await page.goto(platformUrl, {
-        waitUntil: 'domcontentloaded',
-        timeout: 30_000,
-      });
     }
 
     session.lastActivity = Date.now();
-    return page;
+    return { page: page!, isNew };
   }
 
   async closePlatformPage(

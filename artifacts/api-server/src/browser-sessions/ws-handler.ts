@@ -113,15 +113,23 @@ async function handleSession(ws: WebSocket, token: WsTokenData): Promise<void> {
 
   sendJson({ type: 'status', state: 'loading' });
 
-  let page: Awaited<ReturnType<typeof browserSessionManager.getOrCreatePage>>;
+  let page: import('playwright-core').Page;
   try {
-    page = await browserSessionManager.getOrCreatePage(
-      companyId,
-      platform,
-      platformUrl,
-      viewport,
-    );
+    // getOrCreatePage no longer navigates — that lets us send "ready" immediately
+    // and start streaming screenshots before the page finishes loading.
+    const result = await browserSessionManager.getOrCreatePage(companyId, platform, viewport);
+    page = result.page;
+
+    // Tell the client the browser is up — screenshot stream starts right after.
     sendJson({ type: 'status', state: 'ready', url: page.url() });
+
+    // Navigate in background for new tabs only; reconnects keep the current page.
+    if (result.isNew) {
+      void page.goto(platformUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30_000,
+      }).catch(() => { /* non-fatal — page may still load partially */ });
+    }
   } catch (err) {
     sendJson({
       type: 'error',
@@ -134,21 +142,25 @@ async function handleSession(ws: WebSocket, token: WsTokenData): Promise<void> {
   // ── Screenshot loop: ~5 fps ──────────────────────────────────────────────
   // inFlight prevents queued screenshot calls from piling up when captures
   // are slow (e.g. heavy page, CPU saturation) — we skip a tick instead.
+  //
+  // Resilience: transient errors (e.g. during page.reload() or navigation)
+  // do NOT terminate the loop. Only 5 consecutive failures do — that signals
+  // a genuinely dead page rather than a mid-navigation race condition.
   let lastUrl = '';
   let inFlight = false;
+  let consecutiveErrors = 0;
+  const MAX_CONSECUTIVE_ERRORS = 5;
 
   screenshotLoop = setInterval(async () => {
     if (ws.readyState !== WebSocket.OPEN || page.isClosed()) {
-      if (screenshotLoop) {
-        clearInterval(screenshotLoop);
-        screenshotLoop = null;
-      }
+      stop();
       return;
     }
     if (inFlight) return; // drop frame rather than queue up work
     inFlight = true;
     try {
-      const shot = await page.screenshot({ type: 'jpeg', quality: 60 });
+      const shot = await page.screenshot({ type: 'jpeg', quality: 70 });
+      consecutiveErrors = 0; // reset streak on success
       if (ws.readyState === WebSocket.OPEN) ws.send(shot);
 
       const currentUrl = page.url();
@@ -157,15 +169,15 @@ async function handleSession(ws: WebSocket, token: WsTokenData): Promise<void> {
         sendJson({ type: 'url', url: currentUrl });
       }
     } catch (err) {
-      if (screenshotLoop) {
-        clearInterval(screenshotLoop);
-        screenshotLoop = null;
+      consecutiveErrors++;
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        stop();
+        sendJson({
+          type: 'error',
+          message: `Browser session lost: ${(err as Error).message}`,
+        });
       }
-      // Emit terminal error so the client can surface a reconnect prompt.
-      sendJson({
-        type: 'error',
-        message: `Browser session lost: ${(err as Error).message}`,
-      });
+      // else: transient error (reload / navigation race) — keep looping
     } finally {
       inFlight = false;
     }

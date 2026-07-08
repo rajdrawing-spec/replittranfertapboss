@@ -22,3 +22,4 @@
 - [TBOS Vitest setup](tbos-vitest-config.md) — tapashub tests use standalone vitest.config.ts (vite.config throws without PORT/BASE_PATH); mock the @clerk/react boundary + /api/auth/me instead of real OAuth.
 - [Resend transactional email](resend-email.md) — invites send via Resend connector proxy("resend","/emails"); from must be a verified domain; best-effort (never rolls back the write); always esc() template values.
 - [TBOS browser workspace](tbos-browser-workspace.md) — Playwright streaming arch; chromium-bidi/* must be in esbuild external; URL from catalog (SSRF); inFlight backpressure; retryKey reconnect; passive wheel workaround.
+- [Replit WS proxy limitation](replit-ws-proxy.md) — Replit path-proxy handles HTTP but drops WS upgrades; fix via Vite server.proxy with ws:true pointing to localhost:API_PORT.

@@ -26,6 +26,7 @@ import documentsRouter from "./documents";
 import marketingRouter from "./marketing";
 import searchRouter from "./search";
 import storageRouter from "./storage";
+import browserRouter from "./browser";
 
 const router: IRouter = Router();
 
@@ -59,5 +60,6 @@ router.use(documentsRouter);
 router.use(marketingRouter);
 router.use(searchRouter);
 router.use(storageRouter);
+router.use(browserRouter);
 
 export default router;

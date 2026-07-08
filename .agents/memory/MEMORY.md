@@ -21,3 +21,4 @@
 - [TBOS client company scoping](tbos-client-company-scoping.md) — scoped list pages must pass activeCompany.id in BOTH params and queryKey, or they leak/never rescope.
 - [TBOS Vitest setup](tbos-vitest-config.md) — tapashub tests use standalone vitest.config.ts (vite.config throws without PORT/BASE_PATH); mock the @clerk/react boundary + /api/auth/me instead of real OAuth.
 - [Resend transactional email](resend-email.md) — invites send via Resend connector proxy("resend","/emails"); from must be a verified domain; best-effort (never rolls back the write); always esc() template values.
+- [TBOS browser workspace](tbos-browser-workspace.md) — Playwright streaming arch; chromium-bidi/* must be in esbuild external; URL from catalog (SSRF); inFlight backpressure; retryKey reconnect; passive wheel workaround.

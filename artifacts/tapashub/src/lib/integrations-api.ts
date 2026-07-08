@@ -24,6 +24,12 @@ export interface CatalogPlatform {
   syncFeatures: string[]
   secretKeys: string[]
   quickLinks: CatalogQuickLink[]
+  /**
+   * true  → platform opens as an isolated server-side browser workspace
+   *          (separate per-company Chrome profile, streamed via WebSocket)
+   * false → platform is managed via API credentials stored in the DB
+   */
+  browserWorkspace: boolean
 }
 
 export type AuthType = "oauth" | "api_key" | "webhook" | "manual"

@@ -61,10 +61,16 @@ export interface ActiveSession {
   lastActivity: number;
 }
 
+export interface SessionPage {
+  page: Page;
+  /** Current Playwright viewport dimensions for this page. */
+  viewport: { width: number; height: number };
+}
+
 interface CompanySession {
   context: BrowserContext;
-  /** One Page per platform key — like browser tabs in a profile. */
-  pages: Map<string, Page>;
+  /** One SessionPage per platform key — like browser tabs in a profile. */
+  pages: Map<string, SessionPage>;
   lastActivity: number;
   companyId: number;
 }
@@ -88,9 +94,9 @@ class BrowserSessionManager {
    * it does not exist or was closed.
    *
    * Returns { page, isNew } so callers can decide whether to navigate.
-   * Navigation is intentionally NOT done here — callers should fire it in the
-   * background after the screenshot loop has started, so the user sees the
-   * browser loading live rather than waiting for a full page load first.
+   * Navigation is NOT done here — callers should fire it in the background
+   * after the SSE stream has started, so the user sees the browser loading
+   * live rather than staring at a spinner until the page fully loads.
    */
   async getOrCreatePage(
     companyId: number,
@@ -99,26 +105,53 @@ class BrowserSessionManager {
   ): Promise<{ page: Page; isNew: boolean }> {
     const session = await this.getOrCreateSession(companyId, viewport);
 
-    let page = session.pages.get(platformKey);
-    const isNew = !page || page.isClosed();
+    const existing = session.pages.get(platformKey);
+    const isNew = !existing || existing.page.isClosed();
+
     if (isNew) {
-      page = await session.context.newPage();
+      const page = await session.context.newPage();
       await page.setViewportSize(viewport);
-      session.pages.set(platformKey, page);
+      session.pages.set(platformKey, { page, viewport: { ...viewport } });
+      session.lastActivity = Date.now();
+      return { page, isNew: true };
     }
 
     session.lastActivity = Date.now();
-    return { page: page!, isNew };
+    return { page: existing.page, isNew: false };
   }
 
-  async closePlatformPage(
+  /**
+   * Returns the existing SessionPage for input event handling, or null if
+   * no live session exists.  Does NOT create a session or page.
+   */
+  getExistingPage(companyId: number, platformKey: string): SessionPage | null {
+    const session = this.sessions.get(companyId);
+    if (!session) return null;
+    const sp = session.pages.get(platformKey);
+    if (!sp || sp.page.isClosed()) return null;
+    session.lastActivity = Date.now();
+    return sp;
+  }
+
+  /**
+   * Updates the stored viewport dimensions for a page (called on resize events).
+   */
+  updateViewport(
     companyId: number,
     platformKey: string,
-  ): Promise<void> {
+    viewport: { width: number; height: number },
+  ): void {
     const session = this.sessions.get(companyId);
     if (!session) return;
-    const page = session.pages.get(platformKey);
-    if (page && !page.isClosed()) await page.close().catch(() => void 0);
+    const sp = session.pages.get(platformKey);
+    if (sp) sp.viewport = viewport;
+  }
+
+  async closePlatformPage(companyId: number, platformKey: string): Promise<void> {
+    const session = this.sessions.get(companyId);
+    if (!session) return;
+    const sp = session.pages.get(platformKey);
+    if (sp && !sp.page.isClosed()) await sp.page.close().catch(() => void 0);
     session.pages.delete(platformKey);
   }
 

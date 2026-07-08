@@ -1,22 +1,21 @@
 /**
- * BrowserWorkspace
+ * BrowserWorkspace — SSE-based remote browser viewer
  *
- * Renders a live, interactive view of a server-side Chromium browser session.
- * Each company gets its own isolated browser profile (separate cookies, localStorage,
- * sessions) — switching companies reconnects to a completely different profile.
+ * Uses Server-Sent Events (SSE) for the JPEG screenshot stream and
+ * HTTP POST for input events.  This works through any HTTP proxy —
+ * including Replit's dev proxy — without requiring WebSocket support.
  *
  * Architecture:
- *   1. Component fetches a short-lived token from /api/browser/token
- *   2. Upgrades to a WebSocket on /api/browser/ws?token=<TOKEN>
- *   3. Server streams JPEG frames as binary WS messages (~5 fps)
- *   4. Mouse / keyboard events are forwarded back as JSON text messages
- *   5. Server applies them to the Playwright page for the company + platform
+ *   1. Component opens GET /api/browser/stream?companyId=…&platform=…
+ *      (long-lived HTTP connection with Content-Type: text/event-stream)
+ *   2. Server streams JPEG frames as base64 data events at ~5 fps
+ *   3. Mouse / keyboard events are POST-ed to /api/browser/input
+ *   4. Each company gets its own isolated Playwright browser profile
  */
 
 import * as React from "react"
 import {
-  RefreshCw, Home, ExternalLink, X, Globe, Loader2,
-  AlertCircle,
+  RefreshCw, Home, ExternalLink, X, Globe, Loader2, AlertCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,179 +24,149 @@ import type { CatalogPlatform } from "@/lib/integrations-api"
 
 /* ──────────────────────────── Types ─────────────────────────────── */
 
-type WsStatus = "idle" | "connecting" | "ready" | "error" | "closed"
-/** Granular loading phase shown inside the "connecting" overlay. */
-type LoadPhase = "handshake" | "launching"
+type ConnStatus = "idle" | "connecting" | "ready" | "error" | "closed"
+type LoadPhase  = "handshake" | "launching"
 
 interface StatusMsg { type: "status"; state: string; url?: string }
-interface UrlMsg    { type: "url"; url: string }
-interface ErrorMsg  { type: "error"; message: string }
-interface PingMsg   { type: "ping" }
-type ServerMsg = StatusMsg | UrlMsg | ErrorMsg | PingMsg
+interface UrlMsg    { type: "url";    url: string }
+interface FrameMsg  { type: "frame";  data: string }   // base64 JPEG
+interface ErrorMsg  { type: "error";  message: string }
+type ServerMsg = StatusMsg | UrlMsg | FrameMsg | ErrorMsg
 
-/** How long we wait for the browser to become ready after WS connects. */
+/** How long to wait for the browser to become ready after the SSE opens. */
 const READY_TIMEOUT_MS = 120_000
 
 /* ──────────────────────────── Props ─────────────────────────────── */
 
 export interface BrowserWorkspaceProps {
-  companyId: number
+  companyId:   number
   companyName: string
-  platform: CatalogPlatform
-  onClose: () => void
+  platform:    CatalogPlatform
+  onClose:     () => void
 }
 
 /* ──────────────────────────── Component ─────────────────────────── */
 
 export function BrowserWorkspace({
-  companyId,
-  companyName,
-  platform,
-  onClose,
+  companyId, companyName, platform, onClose,
 }: BrowserWorkspaceProps) {
-  const [status, setStatus]         = React.useState<WsStatus>("idle")
-  const [loadPhase, setLoadPhase]   = React.useState<LoadPhase>("handshake")
-  const [errorMsg, setErrorMsg]     = React.useState("")
-  const [currentUrl, setCurrentUrl] = React.useState(platform.url)
-  const [urlInput, setUrlInput]     = React.useState(platform.url)
-  const [frameSrc, setFrameSrc]     = React.useState<string | null>(null)
-  /** Incremented by Retry — re-triggers the connection effect without page reload. */
-  const [retryKey, setRetryKey]     = React.useState(0)
+  const [status,      setStatus]      = React.useState<ConnStatus>("idle")
+  const [loadPhase,   setLoadPhase]   = React.useState<LoadPhase>("handshake")
+  const [errorMsg,    setErrorMsg]    = React.useState("")
+  const [currentUrl,  setCurrentUrl]  = React.useState(platform.url)
+  const [urlInput,    setUrlInput]    = React.useState(platform.url)
+  /** True once the first screenshot frame has arrived — shows the img element. */
+  const [hasFrame,    setHasFrame]    = React.useState(false)
+  const [retryKey,    setRetryKey]    = React.useState(0)
 
-  const wsRef        = React.useRef<WebSocket | null>(null)
-  const containerRef = React.useRef<HTMLDivElement>(null)
+  const esRef        = React.useRef<EventSource | null>(null)
   const imgRef       = React.useRef<HTMLImageElement>(null)
+  const containerRef = React.useRef<HTMLDivElement>(null)
   const lastMoveRef  = React.useRef(0)
+  const statusRef    = React.useRef<ConnStatus>("idle")
 
-  /* ── Stable send ref — safe to close over in non-React event listeners ── */
-  const send = React.useCallback((msg: object) => {
-    const ws = wsRef.current
-    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg))
-  }, [])
-  const sendRef = React.useRef(send)
-  React.useLayoutEffect(() => { sendRef.current = send }, [send])
+  // Keep statusRef in sync so the timeout closure always reads the latest value.
+  React.useLayoutEffect(() => { statusRef.current = status }, [status])
 
-  /* ── Connection lifecycle ─────────────────────────────────────────── */
+  /* ── Input helper — POST to /api/browser/input ────────────────── */
+  const sendInput = React.useCallback((event: object) => {
+    // fire-and-forget: keepalive ensures delivery even if component unmounts
+    fetch("/api/browser/input", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId, platform: platform.key, event }),
+      keepalive: true,
+    }).catch(() => { /* non-fatal */ })
+  }, [companyId, platform.key])
+
+  // Stable ref so the wheel listener closure is always fresh without re-registering.
+  const sendInputRef = React.useRef(sendInput)
+  React.useLayoutEffect(() => { sendInputRef.current = sendInput }, [sendInput])
+
+  /* ── SSE connection lifecycle ─────────────────────────────────── */
   React.useEffect(() => {
-    let cancelled       = false
-    let ws: WebSocket | null = null
+    let cancelled = false
     let readyTimer: ReturnType<typeof setTimeout> | null = null
 
     const clearReadyTimer = () => {
       if (readyTimer) { clearTimeout(readyTimer); readyTimer = null }
     }
 
-    async function connect() {
-      setStatus("connecting")
-      setLoadPhase("handshake")
-      setFrameSrc(null)
+    setStatus("connecting")
+    setLoadPhase("handshake")
+    setHasFrame(false)
+    // Clear the img src on reconnect so stale frames don't linger.
+    if (imgRef.current) imgRef.current.src = ""
 
-      try {
-        const res = await fetch(
-          `/api/browser/token?companyId=${companyId}` +
-          `&platform=${encodeURIComponent(platform.key)}`,
-        )
-        if (!res.ok) {
-          const body = await res.text().catch(() => res.statusText)
-          throw new Error(body || `HTTP ${res.status}`)
-        }
-        const { token } = (await res.json()) as { token: string }
-        if (cancelled) return
+    const url = `/api/browser/stream?companyId=${companyId}&platform=${encodeURIComponent(platform.key)}`
+    const es = new EventSource(url)
+    esRef.current = es
 
-        // Use the same origin as the page — Replit's proxy routes /api/browser/ws
-        // to the API server's upgrade handler.  Avoid hardcoding wss:// because
-        // some Replit preview environments expose the app over plain http.
-        const proto = window.location.protocol === "https:" ? "wss" : "ws"
-        const wsUrl = `${proto}://${window.location.host}/api/browser/ws?token=${token}`
-        ws = new WebSocket(wsUrl)
-        ws.binaryType = "arraybuffer"
-        wsRef.current = ws
-
-        // 120 s to become ready — surfaced as an error if exceeded.
-        readyTimer = setTimeout(() => {
-          if (!cancelled && status !== "ready") {
-            setStatus("error")
-            setErrorMsg(
-              "Browser session timed out. The platform may be slow to start. Click Retry.",
-            )
-            ws?.close()
-          }
-        }, READY_TIMEOUT_MS)
-
-        ws.onmessage = (e: MessageEvent) => {
-          if (e.data instanceof ArrayBuffer) {
-            // JPEG screenshot frame — first frame clears the spinner.
-            const blob = new Blob([e.data], { type: "image/jpeg" })
-            const url  = URL.createObjectURL(blob)
-            setFrameSrc((prev) => {
-              if (prev) URL.revokeObjectURL(prev)
-              return url
-            })
-          } else {
-            try {
-              const msg = JSON.parse(e.data as string) as ServerMsg
-              if (msg.type === "ping") {
-                // Server keepalive — no UI update needed.
-              } else if (msg.type === "status") {
-                if (msg.state === "loading") {
-                  // WS is up; Playwright is now launching / navigating.
-                  setLoadPhase("launching")
-                } else if (msg.state === "ready") {
-                  clearReadyTimer()
-                  setStatus("ready")
-                  if (msg.url) { setCurrentUrl(msg.url); setUrlInput(msg.url) }
-                }
-              } else if (msg.type === "url") {
-                setCurrentUrl(msg.url)
-                setUrlInput(msg.url)
-              } else if (msg.type === "error") {
-                clearReadyTimer()
-                setStatus("error")
-                setErrorMsg(msg.message)
-              }
-            } catch { /* ignore JSON parse errors */ }
-          }
-        }
-
-        // Use functional update so onerror's "error" status isn't overwritten.
-        ws.onclose = () => {
-          clearReadyTimer()
-          if (!cancelled) setStatus((prev) => (prev === "error" ? "error" : "closed"))
-        }
-
-        ws.onerror = () => {
-          if (!cancelled) {
-            setStatus("error")
-            setErrorMsg(
-              "WebSocket connection failed. " +
-              "Check that the API server is running, then click Retry.",
-            )
-          }
-        }
-      } catch (e) {
-        clearReadyTimer()
-        if (!cancelled) {
-          setStatus("error")
-          setErrorMsg((e as Error).message)
-        }
+    // 120 s to become ready — surfaced as an error if Playwright hangs.
+    readyTimer = setTimeout(() => {
+      if (!cancelled && statusRef.current !== "ready") {
+        setStatus("error")
+        setErrorMsg("Browser session timed out. First launch can take ~30 s — click Retry.")
+        es.close()
       }
+    }, READY_TIMEOUT_MS)
+
+    es.onmessage = (e: MessageEvent<string>) => {
+      if (cancelled) return
+      try {
+        const msg = JSON.parse(e.data) as ServerMsg
+        switch (msg.type) {
+          case "frame":
+            // Write directly to the DOM — bypass React reconciliation for 5 fps updates.
+            if (imgRef.current) {
+              imgRef.current.src = `data:image/jpeg;base64,${msg.data}`
+            }
+            if (!hasFrame) setHasFrame(true)
+            break
+          case "status":
+            if (msg.state === "loading") {
+              setLoadPhase("launching")
+            } else if (msg.state === "ready") {
+              clearReadyTimer()
+              setStatus("ready")
+              if (msg.url) { setCurrentUrl(msg.url); setUrlInput(msg.url) }
+            }
+            break
+          case "url":
+            setCurrentUrl(msg.url)
+            setUrlInput(msg.url)
+            break
+          case "error":
+            clearReadyTimer()
+            setStatus("error")
+            setErrorMsg(msg.message)
+            es.close()
+            break
+        }
+      } catch { /* ignore JSON parse errors */ }
     }
 
-    void connect()
+    // onerror fires on connection failure or when the server closes the stream.
+    es.onerror = () => {
+      if (!cancelled) {
+        clearReadyTimer()
+        // Only show the error if we haven't already surfaced one.
+        setStatus((prev) => (prev === "error" ? "error" : "closed"))
+        es.close()
+      }
+    }
 
     return () => {
       cancelled = true
       clearReadyTimer()
-      ws?.close()
-      wsRef.current = null
+      es.close()
+      esRef.current = null
     }
   // retryKey intentionally included — incrementing it triggers a full reconnect.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId, platform.key, retryKey])
 
-  /* ── Non-passive wheel listener ───────────────────────────────────── */
-  // Only active when the browser view is visible (status === "ready").
-  // Uses sendRef so the closure is always fresh without re-registering constantly.
+  /* ── Non-passive wheel listener (React's onWheel is passive) ──── */
   React.useEffect(() => {
     if (status !== "ready") return
     const img = imgRef.current
@@ -206,10 +175,10 @@ export function BrowserWorkspace({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const rect = img.getBoundingClientRect()
-      sendRef.current({
+      sendInputRef.current({
         type: "wheel",
         x: (e.clientX - rect.left) / rect.width,
-        y: (e.clientY - rect.top) / rect.height,
+        y: (e.clientY - rect.top)  / rect.height,
         deltaX: e.deltaX,
         deltaY: e.deltaY,
       })
@@ -217,111 +186,96 @@ export function BrowserWorkspace({
 
     img.addEventListener("wheel", onWheel, { passive: false })
     return () => img.removeEventListener("wheel", onWheel)
-  }, [status]) // re-register only when status changes
+  }, [status])
 
-  /* ── Revoke any remaining object URL on unmount ─────────────────── */
-  React.useEffect(() => {
-    return () => {
-      setFrameSrc((prev) => {
-        if (prev) URL.revokeObjectURL(prev)
-        return null
-      })
-    }
-  }, [])
-
-  /* ── Input event helpers ──────────────────────────────────────────── */
+  /* ── Input event helpers ──────────────────────────────────────── */
 
   const getNorm = React.useCallback((e: React.MouseEvent<HTMLImageElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
     return {
       x: (e.clientX - rect.left) / rect.width,
-      y: (e.clientY - rect.top) / rect.height,
+      y: (e.clientY - rect.top)  / rect.height,
     }
   }, [])
 
   const handleClick = React.useCallback((e: React.MouseEvent<HTMLImageElement>) => {
     containerRef.current?.focus()
     const { x, y } = getNorm(e)
-    send({ type: "click", x, y, button: e.button === 2 ? "right" : "left" })
-  }, [send, getNorm])
+    sendInput({ type: "click", x, y, button: e.button === 2 ? "right" : "left" })
+  }, [sendInput, getNorm])
 
   const handleDblClick = React.useCallback((e: React.MouseEvent<HTMLImageElement>) => {
     const { x, y } = getNorm(e)
-    send({ type: "dblclick", x, y })
-  }, [send, getNorm])
+    sendInput({ type: "dblclick", x, y })
+  }, [sendInput, getNorm])
 
   const handleMouseMove = React.useCallback((e: React.MouseEvent<HTMLImageElement>) => {
     const now = Date.now()
-    if (now - lastMoveRef.current < 50) return
+    if (now - lastMoveRef.current < 100) return   // throttle to 10 fps for moves
     lastMoveRef.current = now
     const { x, y } = getNorm(e)
-    send({ type: "mousemove", x, y })
-  }, [send, getNorm])
+    sendInput({ type: "mousemove", x, y })
+  }, [sendInput, getNorm])
 
   const handleContextMenu = React.useCallback((e: React.MouseEvent<HTMLImageElement>) => {
     e.preventDefault()
     const { x, y } = getNorm(e)
-    send({ type: "rightclick", x, y })
-  }, [send, getNorm])
+    sendInput({ type: "rightclick", x, y })
+  }, [sendInput, getNorm])
 
   const handleKeyDown = React.useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    // Never intercept browser tab/window shortcuts.
     if ((e.ctrlKey || e.metaKey) && ["w", "t", "n"].includes(e.key.toLowerCase())) return
     e.preventDefault()
     if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-      send({ type: "type", text: e.key })
+      sendInput({ type: "type", text: e.key })
     } else {
-      send({ type: "keypress", key: e.key })
+      sendInput({ type: "keypress", key: e.key })
     }
-  }, [send])
+  }, [sendInput])
 
   const handleNavigate = React.useCallback(() => {
     let url = urlInput.trim()
-    if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
-      url = "https://" + url
-    }
-    if (url) send({ type: "navigate", url })
-  }, [send, urlInput])
+    if (url && !url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url
+    if (url) sendInput({ type: "navigate", url })
+  }, [sendInput, urlInput])
 
-  const handleReload = React.useCallback(() => send({ type: "reload" }), [send])
-
-  const handleHome = React.useCallback(() => {
+  const handleReload  = React.useCallback(() => sendInput({ type: "reload" }),        [sendInput])
+  const handleHome    = React.useCallback(() => {
     setUrlInput(platform.url)
-    send({ type: "navigate", url: platform.url })
-  }, [send, platform.url])
+    sendInput({ type: "navigate", url: platform.url })
+  }, [sendInput, platform.url])
 
   const handleRetry = React.useCallback(() => {
     setStatus("idle")
     setLoadPhase("handshake")
     setErrorMsg("")
-    setFrameSrc((prev) => { if (prev) URL.revokeObjectURL(prev); return null })
+    setHasFrame(false)
+    if (imgRef.current) imgRef.current.src = ""
     setRetryKey((k) => k + 1)
   }, [])
 
-  /* ── Derived render flags ─────────────────────────────────────────── */
+  /* ── Derived render flags ─────────────────────────────────────── */
 
   const isLoading   = status === "idle" || status === "connecting"
   const isError     = status === "error" || status === "closed"
-  const showBrowser = status === "ready" && frameSrc !== null
+  const showBrowser = status === "ready" && hasFrame
 
   const loadingLabel =
-    status === "idle"
-      ? "Initializing…"
-      : loadPhase === "handshake"
-        ? "Connecting to workspace server…"
-        : `Launching ${platform.name} browser…`
+    status === "idle"         ? "Initializing…" :
+    loadPhase === "handshake" ? "Connecting to workspace server…" :
+                                `Launching ${platform.name} browser…`
 
   const loadingSubLabel =
     loadPhase === "launching"
       ? `Opening ${companyName}'s isolated ${platform.name} profile. First launch may take ~30 s.`
       : `Authenticating and opening ${companyName}'s workspace`
 
-  /* ── Render ───────────────────────────────────────────────────────── */
+  /* ── Render ───────────────────────────────────────────────────── */
 
   return (
     <div className="flex flex-col h-full bg-zinc-950">
 
-      {/* ── Toolbar ─────────────────────────────────────────────────── */}
+      {/* ── Toolbar ─────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/8 bg-zinc-900/80 shrink-0">
 
         {/* Company chip */}
@@ -360,7 +314,8 @@ export function BrowserWorkspace({
           <Button
             variant="ghost" size="icon"
             className="h-7 w-7 text-zinc-500 hover:text-zinc-200"
-            onClick={handleReload} title="Reload page"
+            onClick={handleReload}
+            title="Reload page"
             disabled={!showBrowser}
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -368,7 +323,8 @@ export function BrowserWorkspace({
           <Button
             variant="ghost" size="icon"
             className="h-7 w-7 text-zinc-500 hover:text-zinc-200"
-            onClick={handleHome} title="Go to platform home"
+            onClick={handleHome}
+            title="Go to platform home"
             disabled={!showBrowser}
           >
             <Home className="w-3.5 h-3.5" />
@@ -385,44 +341,43 @@ export function BrowserWorkspace({
           <Button
             variant="ghost" size="icon"
             className="h-7 w-7 text-zinc-500 hover:text-red-400"
-            onClick={onClose} title="Close workspace"
+            onClick={onClose}
+            title="Close workspace"
           >
             <X className="w-3.5 h-3.5" />
           </Button>
         </div>
       </div>
 
-      {/* ── Browser view ─────────────────────────────────────────────── */}
+      {/* ── Browser view ─────────────────────────────────────────── */}
       <div
         ref={containerRef}
         className="flex-1 relative overflow-hidden outline-none"
         tabIndex={0}
         onKeyDown={handleKeyDown}
       >
-        {/* Loading overlay — shown during both "handshake" and "launching" phases */}
+        {/* Loading overlay */}
         {isLoading && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-zinc-950 z-10 px-8 text-center">
             <div className={`w-14 h-14 rounded-2xl ${platform.logoColor} flex items-center justify-center shadow-xl`}>
               <span className="text-white font-bold text-lg">{platform.logo}</span>
             </div>
-
             <div className="space-y-1.5">
               <p className="text-sm font-semibold">{loadingLabel}</p>
               <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
                 {loadingSubLabel}
               </p>
             </div>
-
             <div className="flex items-center gap-2 text-zinc-600">
               <Loader2 className="w-4 h-4 animate-spin" />
               {loadPhase === "launching" && (
-                <span className="text-xs">This may take up to 30 seconds on first launch</span>
+                <span className="text-xs">This may take up to 30 s on first launch</span>
               )}
             </div>
           </div>
         )}
 
-        {/* Error / disconnected state */}
+        {/* Error / disconnected overlay */}
         {isError && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-zinc-950 z-10 px-8 text-center">
             <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
@@ -437,7 +392,7 @@ export function BrowserWorkspace({
               ) : (
                 <p className="text-xs text-muted-foreground">
                   {status === "closed"
-                    ? "The browser session ended. Your login is still saved — click Retry to reconnect."
+                    ? "The stream ended. Your login is still saved — click Retry to reconnect."
                     : "Something went wrong starting the browser session."}
                 </p>
               )}
@@ -449,35 +404,34 @@ export function BrowserWorkspace({
           </div>
         )}
 
-        {/* First-frame spinner — WS says "ready" but first screenshot hasn't arrived yet */}
-        {status === "ready" && !frameSrc && (
+        {/* First-frame spinner — SSE says "ready" but screenshot hasn't arrived yet */}
+        {status === "ready" && !hasFrame && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950 z-10">
             <Loader2 className="w-5 h-5 animate-spin text-zinc-600" />
             <p className="text-xs text-muted-foreground">Loading first frame…</p>
           </div>
         )}
 
-        {/* Live browser screenshot */}
-        {showBrowser && (
-          <img
-            ref={imgRef}
-            src={frameSrc!}
-            alt={`${platform.name} workspace`}
-            draggable={false}
-            loading="eager"
-            className="w-full h-full select-none"
-            style={{
-              objectFit: "fill",
-              cursor: "default",
-              userSelect: "none",
-              WebkitUserSelect: "none",
-            }}
-            onClick={handleClick}
-            onDoubleClick={handleDblClick}
-            onMouseMove={handleMouseMove}
-            onContextMenu={handleContextMenu}
-          />
-        )}
+        {/* Live browser screenshot — src written directly to DOM for 5 fps performance */}
+        {/* Always rendered when ready so the ref is attached; hidden until hasFrame */}
+        <img
+          ref={imgRef}
+          alt={`${platform.name} workspace`}
+          draggable={false}
+          loading="eager"
+          className="w-full h-full select-none"
+          style={{
+            objectFit: "fill",
+            cursor: "default",
+            userSelect: "none",
+            WebkitUserSelect: "none",
+            display: showBrowser ? "block" : "none",
+          }}
+          onClick={handleClick}
+          onDoubleClick={handleDblClick}
+          onMouseMove={handleMouseMove}
+          onContextMenu={handleContextMenu}
+        />
 
         {/* Company isolation badge */}
         <div className="absolute bottom-3 right-3 pointer-events-none">

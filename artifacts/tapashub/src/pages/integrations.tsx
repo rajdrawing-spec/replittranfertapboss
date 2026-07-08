@@ -152,93 +152,165 @@ function CredentialForm({
   )
 }
 
-/* ── Embed / Portal Workspace Panel ── */
+/* ── Portal Launcher Drawer ── */
 
-function WorkspacePanel({ platform, companyId, onClose }: { platform: CatalogPlatform; companyId: number; onClose: () => void }) {
-  const check = useEmbedCheck(platform.url)
+function WorkspacePanel({
+  platform,
+  companyId,
+  connection,
+  onClose,
+}: {
+  platform: CatalogPlatform
+  companyId: number
+  connection?: Connection
+  onClose: () => void
+}) {
+  const { toast } = useToast()
+  const sync = useSyncNow()
+  const history = useSyncHistory(connection?.id ?? 0)
+
+  const isLive = connection?.status === "connected"
+  const recentRuns = (history.data ?? []).slice(0, 4)
+
+  function handleSync() {
+    if (!connection) return
+    sync.mutate(connection.id, {
+      onSuccess: (data) => toast({ title: "Sync complete", description: data.result.message }),
+      onError: (e: any) => toast({ title: "Sync failed", description: e?.message, variant: "destructive" }),
+    })
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background">
-      {/* Top bar */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-white/10 bg-card/80 backdrop-blur-md shrink-0">
-        <div className={`w-7 h-7 rounded-lg ${platform.logoColor} flex items-center justify-center text-white font-bold text-[10px]`}>
-          {platform.logo}
-        </div>
-        <span className="font-semibold text-sm">{platform.name}</span>
-        {check.isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
-        {check.data && (
-          <span className={`text-[10px] px-2 py-0.5 rounded-full border ${check.data.embeddable ? "border-green-500/30 text-green-400 bg-green-500/10" : "border-amber-500/30 text-amber-400 bg-amber-500/10"}`}>
-            {check.data.embeddable ? "Embedded" : "External Window"}
-          </span>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={() => openPortalWindow(platform, companyId)}>
-            <ExternalLink className="w-3.5 h-3.5" /> Open in Window
-          </Button>
-          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onClose}>✕ Close</Button>
-        </div>
-      </div>
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Body */}
-      <div className="flex-1 relative overflow-hidden">
-        {check.isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Checking embedding support…</p>
-            </div>
+      {/* Drawer */}
+      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-sm bg-card border-l border-white/10 flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
+
+        {/* Header */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10 shrink-0">
+          <div className={`w-10 h-10 rounded-xl ${platform.logoColor} flex items-center justify-center text-white font-bold text-sm shadow-lg shrink-0`}>
+            {platform.logo}
           </div>
-        )}
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-sm truncate">{platform.name}</div>
+            <div className="text-[10px] text-muted-foreground capitalize">{platform.category}</div>
+          </div>
+          {connection && (
+            <span className={`text-[10px] px-2 py-0.5 rounded-full border shrink-0 ${
+              isLive
+                ? "border-green-500/30 text-green-400 bg-green-500/10"
+                : connection.status === "error"
+                ? "border-red-500/30 text-red-400 bg-red-500/10"
+                : "border-amber-500/30 text-amber-400 bg-amber-500/10"
+            }`}>
+              {isLive ? "Live" : STATUS_META[connection.status].label}
+            </span>
+          )}
+          <button className="text-muted-foreground hover:text-foreground transition-colors shrink-0" onClick={onClose}>
+            <XCircle className="w-5 h-5" />
+          </button>
+        </div>
 
-        {check.data?.embeddable && (
-          <iframe
-            src={platform.url}
-            className="w-full h-full border-none"
-            title={platform.name}
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-          />
-        )}
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
 
-        {check.data && !check.data.embeddable && (
-          <div className="absolute inset-0 flex items-center justify-center p-8">
-            <div className="max-w-md w-full text-center space-y-5">
-              <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto">
-                <Monitor className="w-8 h-8 text-amber-400" />
+          {/* Primary CTA */}
+          <Button
+            className="w-full h-10 gap-2 font-semibold"
+            onClick={() => openPortalWindow(platform, companyId)}
+          >
+            <ExternalLink className="w-4 h-4" />
+            Open {platform.name}
+          </Button>
+
+          {/* Quick links */}
+          {platform.quickLinks.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Quick Links</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {platform.quickLinks.map((link) => (
+                  <a
+                    key={link.label}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground bg-background/40 hover:bg-background/70 px-2.5 py-2 rounded-lg transition-all border border-white/5 hover:border-white/15"
+                  >
+                    <ExternalLink className="w-3 h-3 shrink-0 text-muted-foreground/60" />
+                    {link.label}
+                  </a>
+                ))}
               </div>
-              <div>
-                <h2 className="text-lg font-bold">{platform.name} blocks embedding</h2>
-                <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
-                  {platform.name} has set <code className="text-xs bg-muted px-1 py-0.5 rounded">{check.data.xFrameOptions ?? "Content-Security-Policy"}</code> which prevents browser embedding. This is a security policy enforced by {platform.name} — it cannot be overridden in a web app.
-                </p>
-              </div>
+            </div>
+          )}
 
-              <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4 text-left space-y-3">
-                <div className="text-xs font-semibold text-blue-300 uppercase tracking-wider">What you can do</div>
-                <div className="space-y-2">
-                  <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-green-400 mt-0.5 shrink-0" />
-                    <span><strong className="text-foreground">Open in external window</strong> — {platform.name} opens in a dedicated browser window. Your session is preserved for the duration of that window.</span>
-                  </div>
-                  <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-green-400 mt-0.5 shrink-0" />
-                    <span><strong className="text-foreground">API data sync</strong> — Connect your credentials above and TapasHub automatically syncs orders, products, and analytics in the background.</span>
-                  </div>
-                  <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                    <AlertCircle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
-                    <span><strong className="text-foreground">True multi-account isolation</strong> (e.g. two companies on Shopify simultaneously) requires the TapasHub Desktop app built on Electron with partitioned browser sessions.</span>
-                  </div>
+          {/* Sync status */}
+          {connection && isLive && (
+            <div className="space-y-2">
+              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Sync</div>
+              <div className="bg-background/40 rounded-xl border border-white/5 divide-y divide-white/5">
+                <div className="flex items-center justify-between px-3 py-2.5 text-xs">
+                  <span className="text-muted-foreground">Last synced</span>
+                  <span>{connection.lastSyncAt ? fmtDate(connection.lastSyncAt) : "Never"}</span>
+                </div>
+                <div className="flex items-center justify-between px-3 py-2.5 text-xs">
+                  <span className="text-muted-foreground">Auto sync</span>
+                  <span className={connection.autoSync ? "text-green-400" : "text-muted-foreground"}>
+                    {connection.autoSync ? "Every 15 min" : "Off"}
+                  </span>
                 </div>
               </div>
-
-              <Button className="w-full" onClick={() => openPortalWindow(platform, companyId)}>
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Open {platform.name} in Dedicated Window
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full h-8 text-xs gap-1.5 border-white/10"
+                disabled={sync.isPending}
+                onClick={handleSync}
+              >
+                {sync.isPending
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Syncing…</>
+                  : <><RefreshCw className="w-3.5 h-3.5" />Sync now</>}
               </Button>
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Recent runs */}
+          {recentRuns.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Recent Activity</div>
+              <div className="space-y-1.5">
+                {recentRuns.map((h) => (
+                  <div key={h.id} className="flex items-start gap-2 text-xs bg-background/30 rounded-lg px-2.5 py-2 border border-white/5">
+                    {h.status === "success"
+                      ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500 mt-0.5 shrink-0" />
+                      : h.status === "failed"
+                      ? <XCircle className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" />
+                      : <Clock className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium capitalize truncate">
+                        {h.status}{h.recordsSynced > 0 ? ` · ${h.recordsSynced} records` : ""}
+                      </div>
+                      {h.message && <div className="text-muted-foreground truncate">{h.message}</div>}
+                    </div>
+                    <span className="text-muted-foreground shrink-0 text-[10px]">{fmtDate(h.createdAt)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Error banner */}
+          {connection?.lastError && connection.status === "error" && (
+            <div className="flex items-start gap-2 bg-red-500/5 border border-red-500/20 rounded-lg p-3 text-xs text-red-300">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>{connection.lastError}</span>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -471,7 +543,7 @@ function PlatformCard({ platform, companyId, connection }: { platform: CatalogPl
         <ActivityDrawer connection={connection} platform={platform} onClose={() => setShowActivity(false)} />
       )}
       {showWorkspace && (
-        <WorkspacePanel platform={platform} companyId={companyId} onClose={() => setShowWorkspace(false)} />
+        <WorkspacePanel platform={platform} companyId={companyId} connection={connection} onClose={() => setShowWorkspace(false)} />
       )}
 
       <Card className={`bg-card/60 border transition-all hover:shadow-lg ${isLive ? "border-green-500/20" : "border-white/10 hover:border-white/20"}`}>

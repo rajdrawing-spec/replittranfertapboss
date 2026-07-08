@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { transactionsTable, companiesTable, insertTransactionSchema } from "@workspace/db";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { transactionsTable, companiesTable, insertTransactionSchema, fundAllocationsTable } from "@workspace/db";
+import { eq, and, or, sql, desc } from "drizzle-orm";
 import { emitNotification } from "../lib/notify";
 
 const router = Router();
@@ -126,6 +126,87 @@ router.delete("/finance/transactions/:txId", async (req, res) => {
     if (!t) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ ok: true });
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to delete transaction" }); }
+});
+
+/* ── GET /finance/balance ── */
+router.get("/finance/balance", async (req, res) => {
+  try {
+    const { companyId } = req.query as Record<string, string>;
+    const u = (req as any).localUser;
+
+    // Validate and authorise. Super admins may query all companies (no cId)
+    // or any specific company. Others may only query their own companies.
+    let cId: number | null = null;
+    if (companyId !== undefined) {
+      cId = parseInt(companyId, 10);
+      if (!Number.isFinite(cId) || cId <= 0) {
+        res.status(400).json({ error: "Invalid companyId" }); return;
+      }
+      if (u?.role !== "super_admin" && !(u?.companyIds ?? []).includes(cId)) {
+        res.status(403).json({ error: "Access denied" }); return;
+      }
+    }
+
+    const txConditions = cId ? [eq(transactionsTable.companyId, cId)] : [];
+    const txWhere = txConditions.length > 0 ? and(...txConditions) : undefined;
+
+    // Transaction totals
+    const [stats] = await db
+      .select({
+        totalIncome:     sql<number>`coalesce(sum(case when type='income'  and status='completed' then amount else 0 end),0)`,
+        totalExpenses:   sql<number>`coalesce(sum(case when type='expense' and status='completed' then amount else 0 end),0)`,
+        pendingIncome:   sql<number>`coalesce(sum(case when type='income'  and status='pending'   then amount else 0 end),0)`,
+        pendingExpenses: sql<number>`coalesce(sum(case when type='expense' and status='pending'   then amount else 0 end),0)`,
+      })
+      .from(transactionsTable)
+      .where(txWhere);
+
+    // Fund allocation totals.
+    // When a specific company is requested: in = allocations sent TO it, out = sent FROM it.
+    // When all companies are requested: aggregate all executed allocations (in = total received
+    // across all, out = total sent across all — these cancel out in consolidated view but
+    // are shown separately for transparency).
+    let allocIn = 0, allocOut = 0;
+    if (cId) {
+      const [aStats] = await db
+        .select({
+          received: sql<number>`coalesce(sum(case when to_company_id=${cId}   and status='executed' then amount else 0 end),0)`,
+          sent:     sql<number>`coalesce(sum(case when from_company_id=${cId} and status='executed' then amount else 0 end),0)`,
+        })
+        .from(fundAllocationsTable)
+        .where(or(eq(fundAllocationsTable.toCompanyId, cId), eq(fundAllocationsTable.fromCompanyId, cId)));
+      allocIn  = Number(aStats?.received ?? 0);
+      allocOut = Number(aStats?.sent     ?? 0);
+    } else {
+      // All companies: sum total executed amounts in each direction
+      const [aStats] = await db
+        .select({
+          totalIn:  sql<number>`coalesce(sum(case when status='executed' then amount else 0 end),0)`,
+          totalOut: sql<number>`coalesce(sum(case when status='executed' then amount else 0 end),0)`,
+        })
+        .from(fundAllocationsTable);
+      // Both sides mirror each other in consolidated view; expose the total moved
+      allocIn  = Number(aStats?.totalIn  ?? 0);
+      allocOut = Number(aStats?.totalOut ?? 0);
+    }
+
+    const totalIncome   = Number(stats?.totalIncome   ?? 0);
+    const totalExpenses = Number(stats?.totalExpenses ?? 0);
+
+    res.json({
+      totalIncome,
+      totalExpenses,
+      netOperating:       totalIncome - totalExpenses,
+      pendingIncome:      Number(stats?.pendingIncome   ?? 0),
+      pendingExpenses:    Number(stats?.pendingExpenses ?? 0),
+      fundAllocationsIn:  allocIn,
+      fundAllocationsOut: allocOut,
+      netCashPosition:    totalIncome - totalExpenses + allocIn - allocOut,
+    });
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to get balance" });
+  }
 });
 
 router.get("/finance/cash-flow", async (req, res) => {

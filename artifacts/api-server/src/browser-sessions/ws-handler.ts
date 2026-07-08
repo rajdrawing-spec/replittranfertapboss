@@ -46,7 +46,9 @@ export function issueWsToken(
   data: Omit<WsTokenData, 'expires'>,
 ): string {
   const token = randomBytes(32).toString('hex');
-  pendingTokens.set(token, { ...data, expires: Date.now() + 30_000 });
+  // 90 s TTL — Playwright cold-start can take 10–30 s before the client
+  // even opens the WS, so 30 s was too short and caused race-condition 401s.
+  pendingTokens.set(token, { ...data, expires: Date.now() + 90_000 });
   return token;
 }
 
@@ -69,7 +71,7 @@ export function setupBrowserWebSocket(server: Server): void {
     const tokenData = pendingTokens.get(token);
 
     if (!tokenData || tokenData.expires < Date.now()) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
       socket.destroy();
       return;
     }
@@ -100,6 +102,10 @@ async function handleSession(ws: WebSocket, token: WsTokenData): Promise<void> {
   const { companyId, platform, platformUrl } = token;
   const viewport = { width: 1280, height: 800 };
   let screenshotLoop: NodeJS.Timeout | null = null;
+  // Keepalive ping every 20 s — prevents idle proxies from dropping the connection.
+  const pingLoop = setInterval(() => {
+    if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
+  }, 20_000);
 
   const sendJson = (data: object): void => {
     if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
@@ -226,10 +232,8 @@ async function handleSession(ws: WebSocket, token: WsTokenData): Promise<void> {
   });
 
   const stop = (): void => {
-    if (screenshotLoop) {
-      clearInterval(screenshotLoop);
-      screenshotLoop = null;
-    }
+    if (screenshotLoop) { clearInterval(screenshotLoop); screenshotLoop = null; }
+    clearInterval(pingLoop);
     // Page stays alive — session persists until the idle-cleanup timer fires.
   };
 

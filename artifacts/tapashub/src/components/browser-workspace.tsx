@@ -11,17 +11,12 @@
  *   3. Server streams JPEG frames as binary WS messages (~5 fps)
  *   4. Mouse / keyboard events are forwarded back as JSON text messages
  *   5. Server applies them to the Playwright page for the company + platform
- *
- * Session isolation:
- *   companyId A → Playwright BrowserContext(userDataDir=.browser-profiles/company-A/)
- *   companyId B → Playwright BrowserContext(userDataDir=.browser-profiles/company-B/)
- *   → Completely separate cookies, localStorage, sessions — like Chrome Profiles.
  */
 
 import * as React from "react"
 import {
   RefreshCw, Home, ExternalLink, X, Globe, Loader2,
-  AlertCircle, ArrowLeft, ArrowRight,
+  AlertCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,11 +26,17 @@ import type { CatalogPlatform } from "@/lib/integrations-api"
 /* ──────────────────────────── Types ─────────────────────────────── */
 
 type WsStatus = "idle" | "connecting" | "ready" | "error" | "closed"
+/** Granular loading phase shown inside the "connecting" overlay. */
+type LoadPhase = "handshake" | "launching"
 
 interface StatusMsg { type: "status"; state: string; url?: string }
 interface UrlMsg    { type: "url"; url: string }
 interface ErrorMsg  { type: "error"; message: string }
-type ServerMsg = StatusMsg | UrlMsg | ErrorMsg
+interface PingMsg   { type: "ping" }
+type ServerMsg = StatusMsg | UrlMsg | ErrorMsg | PingMsg
+
+/** How long we wait for the browser to become ready after WS connects. */
+const READY_TIMEOUT_MS = 120_000
 
 /* ──────────────────────────── Props ─────────────────────────────── */
 
@@ -54,26 +55,41 @@ export function BrowserWorkspace({
   platform,
   onClose,
 }: BrowserWorkspaceProps) {
-  const [status, setStatus] = React.useState<WsStatus>("idle")
-  const [errorMsg, setErrorMsg] = React.useState("")
+  const [status, setStatus]         = React.useState<WsStatus>("idle")
+  const [loadPhase, setLoadPhase]   = React.useState<LoadPhase>("handshake")
+  const [errorMsg, setErrorMsg]     = React.useState("")
   const [currentUrl, setCurrentUrl] = React.useState(platform.url)
-  const [urlInput, setUrlInput] = React.useState(platform.url)
-  const [frameSrc, setFrameSrc] = React.useState<string | null>(null)
-  // Incremented to trigger a reconnect without a full page reload.
-  const [retryKey, setRetryKey] = React.useState(0)
+  const [urlInput, setUrlInput]     = React.useState(platform.url)
+  const [frameSrc, setFrameSrc]     = React.useState<string | null>(null)
+  /** Incremented by Retry — re-triggers the connection effect without page reload. */
+  const [retryKey, setRetryKey]     = React.useState(0)
 
-  const wsRef = React.useRef<WebSocket | null>(null)
+  const wsRef        = React.useRef<WebSocket | null>(null)
   const containerRef = React.useRef<HTMLDivElement>(null)
-  const imgRef = React.useRef<HTMLImageElement>(null)
-  const lastMoveRef = React.useRef(0)
+  const imgRef       = React.useRef<HTMLImageElement>(null)
+  const lastMoveRef  = React.useRef(0)
 
-  /* ── Connection lifecycle ── */
+  /* ── Stable send ref — safe to close over in non-React event listeners ── */
+  const send = React.useCallback((msg: object) => {
+    const ws = wsRef.current
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg))
+  }, [])
+  const sendRef = React.useRef(send)
+  React.useLayoutEffect(() => { sendRef.current = send }, [send])
+
+  /* ── Connection lifecycle ─────────────────────────────────────────── */
   React.useEffect(() => {
-    let cancelled = false
+    let cancelled       = false
     let ws: WebSocket | null = null
+    let readyTimer: ReturnType<typeof setTimeout> | null = null
+
+    const clearReadyTimer = () => {
+      if (readyTimer) { clearTimeout(readyTimer); readyTimer = null }
+    }
 
     async function connect() {
       setStatus("connecting")
+      setLoadPhase("handshake")
       setFrameSrc(null)
 
       try {
@@ -83,7 +99,7 @@ export function BrowserWorkspace({
         )
         if (!res.ok) {
           const body = await res.text().catch(() => res.statusText)
-          throw new Error(body)
+          throw new Error(body || `HTTP ${res.status}`)
         }
         const { token } = (await res.json()) as { token: string }
         if (cancelled) return
@@ -93,11 +109,22 @@ export function BrowserWorkspace({
         ws.binaryType = "arraybuffer"
         wsRef.current = ws
 
-        ws.onmessage = (e) => {
+        // 120 s to become ready — surfaced as an error if exceeded.
+        readyTimer = setTimeout(() => {
+          if (!cancelled && status !== "ready") {
+            setStatus("error")
+            setErrorMsg(
+              "Browser session timed out. The platform may be slow to start. Click Retry.",
+            )
+            ws?.close()
+          }
+        }, READY_TIMEOUT_MS)
+
+        ws.onmessage = (e: MessageEvent) => {
           if (e.data instanceof ArrayBuffer) {
-            // JPEG screenshot frame
+            // JPEG screenshot frame — first frame clears the spinner.
             const blob = new Blob([e.data], { type: "image/jpeg" })
-            const url = URL.createObjectURL(blob)
+            const url  = URL.createObjectURL(blob)
             setFrameSrc((prev) => {
               if (prev) URL.revokeObjectURL(prev)
               return url
@@ -105,8 +132,14 @@ export function BrowserWorkspace({
           } else {
             try {
               const msg = JSON.parse(e.data as string) as ServerMsg
-              if (msg.type === "status") {
-                if (msg.state === "ready") {
+              if (msg.type === "ping") {
+                // Server keepalive — no UI update needed.
+              } else if (msg.type === "status") {
+                if (msg.state === "loading") {
+                  // WS is up; Playwright is now launching / navigating.
+                  setLoadPhase("launching")
+                } else if (msg.state === "ready") {
+                  clearReadyTimer()
                   setStatus("ready")
                   if (msg.url) { setCurrentUrl(msg.url); setUrlInput(msg.url) }
                 }
@@ -114,21 +147,31 @@ export function BrowserWorkspace({
                 setCurrentUrl(msg.url)
                 setUrlInput(msg.url)
               } else if (msg.type === "error") {
+                clearReadyTimer()
                 setStatus("error")
                 setErrorMsg(msg.message)
               }
-            } catch { /* ignore parse errors */ }
+            } catch { /* ignore JSON parse errors */ }
           }
         }
 
-        ws.onclose = () => { if (!cancelled) setStatus("closed") }
+        // Use functional update so onerror's "error" status isn't overwritten.
+        ws.onclose = () => {
+          clearReadyTimer()
+          if (!cancelled) setStatus((prev) => (prev === "error" ? "error" : "closed"))
+        }
+
         ws.onerror = () => {
           if (!cancelled) {
             setStatus("error")
-            setErrorMsg("WebSocket connection failed. The browser server may still be starting.")
+            setErrorMsg(
+              "WebSocket connection failed. " +
+              "Check that the API server is running, then click Retry.",
+            )
           }
         }
       } catch (e) {
+        clearReadyTimer()
         if (!cancelled) {
           setStatus("error")
           setErrorMsg((e as Error).message)
@@ -140,21 +183,26 @@ export function BrowserWorkspace({
 
     return () => {
       cancelled = true
+      clearReadyTimer()
       ws?.close()
       wsRef.current = null
     }
-  // retryKey is intentionally included: incrementing it re-runs this effect,
-  // reconnecting the WebSocket without a full page reload.
+  // retryKey intentionally included — incrementing it triggers a full reconnect.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId, platform.key, retryKey])
 
-  // Non-passive wheel listener (React onWheel is passive in React 19)
+  /* ── Non-passive wheel listener ───────────────────────────────────── */
+  // Only active when the browser view is visible (status === "ready").
+  // Uses sendRef so the closure is always fresh without re-registering constantly.
   React.useEffect(() => {
+    if (status !== "ready") return
     const img = imgRef.current
     if (!img) return
+
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const rect = img.getBoundingClientRect()
-      send({
+      sendRef.current({
         type: "wheel",
         x: (e.clientX - rect.left) / rect.width,
         y: (e.clientY - rect.top) / rect.height,
@@ -162,16 +210,22 @@ export function BrowserWorkspace({
         deltaY: e.deltaY,
       })
     }
+
     img.addEventListener("wheel", onWheel, { passive: false })
     return () => img.removeEventListener("wheel", onWheel)
-  })
+  }, [status]) // re-register only when status changes
 
-  /* ── Helpers ── */
-
-  const send = React.useCallback((msg: object) => {
-    const ws = wsRef.current
-    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg))
+  /* ── Revoke any remaining object URL on unmount ─────────────────── */
+  React.useEffect(() => {
+    return () => {
+      setFrameSrc((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return null
+      })
+    }
   }, [])
+
+  /* ── Input event helpers ──────────────────────────────────────────── */
 
   const getNorm = React.useCallback((e: React.MouseEvent<HTMLImageElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -180,8 +234,6 @@ export function BrowserWorkspace({
       y: (e.clientY - rect.top) / rect.height,
     }
   }, [])
-
-  /* ── Input handlers ── */
 
   const handleClick = React.useCallback((e: React.MouseEvent<HTMLImageElement>) => {
     containerRef.current?.focus()
@@ -209,7 +261,7 @@ export function BrowserWorkspace({
   }, [send, getNorm])
 
   const handleKeyDown = React.useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    // Never intercept browser tab/window shortcuts
+    // Never intercept browser tab/window shortcuts.
     if ((e.ctrlKey || e.metaKey) && ["w", "t", "n"].includes(e.key.toLowerCase())) return
     e.preventDefault()
     if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
@@ -228,30 +280,46 @@ export function BrowserWorkspace({
   }, [send, urlInput])
 
   const handleReload = React.useCallback(() => send({ type: "reload" }), [send])
-  const handleHome   = React.useCallback(() => {
+
+  const handleHome = React.useCallback(() => {
     setUrlInput(platform.url)
     send({ type: "navigate", url: platform.url })
   }, [send, platform.url])
 
   const handleRetry = React.useCallback(() => {
-    // Increment retryKey to re-trigger the connection useEffect without
-    // a full page reload — fetches a fresh token and reopens the WebSocket.
     setStatus("idle")
+    setLoadPhase("handshake")
     setErrorMsg("")
-    setFrameSrc(null)
+    setFrameSrc((prev) => { if (prev) URL.revokeObjectURL(prev); return null })
     setRetryKey((k) => k + 1)
   }, [])
 
-  /* ── Render ── */
+  /* ── Derived render flags ─────────────────────────────────────────── */
 
-  const isLoading = status === "idle" || status === "connecting"
-  const isError = status === "error" || status === "closed"
-  const showBrowser = status === "ready" && frameSrc
+  const isLoading   = status === "idle" || status === "connecting"
+  const isError     = status === "error" || status === "closed"
+  const showBrowser = status === "ready" && frameSrc !== null
+
+  const loadingLabel =
+    status === "idle"
+      ? "Initializing…"
+      : loadPhase === "handshake"
+        ? "Connecting to workspace server…"
+        : `Launching ${platform.name} browser…`
+
+  const loadingSubLabel =
+    loadPhase === "launching"
+      ? `Opening ${companyName}'s isolated ${platform.name} profile. First launch may take ~30 s.`
+      : `Authenticating and opening ${companyName}'s workspace`
+
+  /* ── Render ───────────────────────────────────────────────────────── */
 
   return (
     <div className="flex flex-col h-full bg-zinc-950">
-      {/* ── Toolbar ─────────────────────────────────────────────── */}
+
+      {/* ── Toolbar ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/8 bg-zinc-900/80 shrink-0">
+
         {/* Company chip */}
         <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/6 border border-white/10 shrink-0">
           <span className="text-[10px] font-semibold text-zinc-400 truncate max-w-[80px]">
@@ -259,14 +327,10 @@ export function BrowserWorkspace({
           </span>
         </div>
 
-        {/* Platform icon + name */}
+        {/* Platform badge */}
         <div className="flex items-center gap-1.5 shrink-0">
-          <div
-            className={`w-5 h-5 rounded-md ${platform.logoColor} flex items-center justify-center`}
-          >
-            <span className="text-white font-bold" style={{ fontSize: 8 }}>
-              {platform.logo}
-            </span>
+          <div className={`w-5 h-5 rounded-md ${platform.logoColor} flex items-center justify-center`}>
+            <span className="text-white font-bold" style={{ fontSize: 8 }}>{platform.logo}</span>
           </div>
           <span className="text-xs font-semibold hidden sm:block">{platform.name}</span>
         </div>
@@ -287,29 +351,26 @@ export function BrowserWorkspace({
           </div>
         </div>
 
-        {/* Navigation controls */}
+        {/* Controls */}
         <div className="flex items-center gap-0.5 shrink-0">
           <Button
-            variant="ghost"
-            size="icon"
+            variant="ghost" size="icon"
             className="h-7 w-7 text-zinc-500 hover:text-zinc-200"
-            onClick={handleReload}
-            title="Reload"
+            onClick={handleReload} title="Reload page"
+            disabled={!showBrowser}
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </Button>
           <Button
-            variant="ghost"
-            size="icon"
+            variant="ghost" size="icon"
             className="h-7 w-7 text-zinc-500 hover:text-zinc-200"
-            onClick={handleHome}
-            title="Go to platform home"
+            onClick={handleHome} title="Go to platform home"
+            disabled={!showBrowser}
           >
             <Home className="w-3.5 h-3.5" />
           </Button>
           <Button
-            variant="ghost"
-            size="icon"
+            variant="ghost" size="icon"
             className="h-7 w-7 text-zinc-500 hover:text-zinc-200"
             onClick={() => window.open(currentUrl, "_blank", "noopener")}
             title="Open in new browser tab"
@@ -318,42 +379,42 @@ export function BrowserWorkspace({
           </Button>
           <div className="w-px h-4 bg-white/10 mx-1" />
           <Button
-            variant="ghost"
-            size="icon"
+            variant="ghost" size="icon"
             className="h-7 w-7 text-zinc-500 hover:text-red-400"
-            onClick={onClose}
-            title="Close workspace"
+            onClick={onClose} title="Close workspace"
           >
             <X className="w-3.5 h-3.5" />
           </Button>
         </div>
       </div>
 
-      {/* ── Browser view ─────────────────────────────────────────── */}
+      {/* ── Browser view ─────────────────────────────────────────────── */}
       <div
         ref={containerRef}
         className="flex-1 relative overflow-hidden outline-none"
         tabIndex={0}
         onKeyDown={handleKeyDown}
       >
-        {/* Loading state */}
+        {/* Loading overlay — shown during both "handshake" and "launching" phases */}
         {isLoading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-zinc-950 z-10">
-            <div
-              className={`w-12 h-12 rounded-2xl ${platform.logoColor} flex items-center justify-center shadow-lg`}
-            >
-              <span className="text-white font-bold text-base">{platform.logo}</span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-zinc-950 z-10 px-8 text-center">
+            <div className={`w-14 h-14 rounded-2xl ${platform.logoColor} flex items-center justify-center shadow-xl`}>
+              <span className="text-white font-bold text-lg">{platform.logo}</span>
             </div>
-            <div className="text-center space-y-1">
-              <p className="text-sm font-semibold">
-                {status === "idle" ? "Initializing…" : "Starting browser session…"}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Loading <span className="text-zinc-300">{companyName}</span>'s{" "}
-                {platform.name} profile
+
+            <div className="space-y-1.5">
+              <p className="text-sm font-semibold">{loadingLabel}</p>
+              <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
+                {loadingSubLabel}
               </p>
             </div>
-            <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+
+            <div className="flex items-center gap-2 text-zinc-600">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              {loadPhase === "launching" && (
+                <span className="text-xs">This may take up to 30 seconds on first launch</span>
+              )}
+            </div>
           </div>
         )}
 
@@ -363,34 +424,32 @@ export function BrowserWorkspace({
             <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
               <AlertCircle className="w-5 h-5 text-red-400" />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <p className="text-sm font-semibold">
-                {status === "closed" ? "Session disconnected" : "Failed to start session"}
+                {status === "closed" ? "Session disconnected" : "Connection failed"}
               </p>
-              {errorMsg && (
-                <p className="text-xs text-red-400/80 max-w-sm">{errorMsg}</p>
-              )}
-              {!errorMsg && status === "closed" && (
+              {errorMsg ? (
+                <p className="text-xs text-red-400/80 max-w-sm leading-relaxed">{errorMsg}</p>
+              ) : (
                 <p className="text-xs text-muted-foreground">
-                  The browser session ended. Click Retry to reconnect.
+                  {status === "closed"
+                    ? "The browser session ended. Your login is still saved — click Retry to reconnect."
+                    : "Something went wrong starting the browser session."}
                 </p>
               )}
             </div>
-            <Button
-              size="sm"
-              onClick={handleRetry}
-              className="gap-2"
-            >
+            <Button size="sm" onClick={handleRetry} className="gap-2">
               <RefreshCw className="w-3.5 h-3.5" />
               Retry
             </Button>
           </div>
         )}
 
-        {/* Connecting spinner overlay (while frames haven't arrived yet) */}
+        {/* First-frame spinner — WS says "ready" but first screenshot hasn't arrived yet */}
         {status === "ready" && !frameSrc && (
-          <div className="absolute inset-0 flex items-center justify-center bg-zinc-950 z-10">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950 z-10">
             <Loader2 className="w-5 h-5 animate-spin text-zinc-600" />
+            <p className="text-xs text-muted-foreground">Loading first frame…</p>
           </div>
         )}
 
@@ -398,9 +457,10 @@ export function BrowserWorkspace({
         {showBrowser && (
           <img
             ref={imgRef}
-            src={frameSrc}
+            src={frameSrc!}
             alt={`${platform.name} workspace`}
             draggable={false}
+            loading="eager"
             className="w-full h-full select-none"
             style={{
               objectFit: "fill",

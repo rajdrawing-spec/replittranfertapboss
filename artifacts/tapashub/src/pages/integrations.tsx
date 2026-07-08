@@ -97,7 +97,7 @@ function CredentialForm({
               onChange={(e) => setFields((f) => ({ ...f, [key]: e.target.value }))}
               className="h-8 text-xs font-mono pr-8 bg-background/60"
             />
-            <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            <button type="button" aria-label={show[key] ? "Hide field" : "Show field"} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               onClick={() => setShow((s) => ({ ...s, [key]: !s[key] }))}>
               {show[key] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             </button>
@@ -192,10 +192,17 @@ function WorkspacePanel({
   const disconnect = useDisconnect()
   const update = useUpdateConnection()
 
-  const [selId, setSelId] = React.useState<number>(() => {
+  // Re-derive selection whenever the platform or connection data changes so we
+  // always default to a connected company (or the first) for the new platform.
+  const defaultSelId = React.useMemo(() => {
     const first = companies.find((c) => connByCompany.get(c.id)?.status === "connected")
     return first?.id ?? companies[0]?.id ?? 0
-  })
+  }, [companies, connByCompany, platform.key]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [selId, setSelId] = React.useState<number>(defaultSelId)
+  // Sync selection whenever the platform changes (panel reused across platforms)
+  React.useEffect(() => { setSelId(defaultSelId) }, [platform.key]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [showActivity, setShowActivity] = React.useState(false)
   const [showCred, setShowCred] = React.useState(false)
 
@@ -240,7 +247,7 @@ function WorkspacePanel({
             <div className="font-semibold text-sm truncate">{platform.name}</div>
             <div className="text-[10px] text-muted-foreground capitalize">{platform.category}</div>
           </div>
-          <button className="text-muted-foreground hover:text-foreground transition-colors shrink-0" onClick={onClose}>
+          <button aria-label="Close panel" className="text-muted-foreground hover:text-foreground transition-colors shrink-0" onClick={onClose}>
             <XCircle className="w-4.5 h-4.5" />
           </button>
         </div>
@@ -306,6 +313,7 @@ function WorkspacePanel({
               {showCred && selCompany && (
                 <div className="mt-3 p-3 bg-background/50 rounded-xl border border-white/8 space-y-3">
                   <CredentialForm
+                    key={`${platform.key}-${selCompany.id}`}
                     platform={platform}
                     company={selCompany}
                     connectionId={conn?.id ?? null}
@@ -357,7 +365,7 @@ function WorkspacePanel({
                 <Button size="sm" variant="outline" className="flex-1 h-8 text-xs gap-1.5 border-white/10" disabled={sync.isPending} onClick={handleSync}>
                   {sync.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Syncing…</> : <><RefreshCw className="w-3.5 h-3.5" />Sync now</>}
                 </Button>
-                <Button size="sm" variant="ghost" className="h-8 px-2.5 text-muted-foreground" onClick={() => setShowActivity(true)}>
+                <Button size="sm" variant="ghost" aria-label="View sync history" className="h-8 px-2.5 text-muted-foreground" onClick={() => setShowActivity(true)}>
                   <History className="w-3.5 h-3.5" />
                 </Button>
               </div>
@@ -511,11 +519,14 @@ export default function Integrations() {
   )
 
   // Map: platformKey → Map<companyId, Connection>
+  // Connections arrive newest-first (updatedAt DESC). Only keep the first
+  // entry per (platformKey, companyId) so the newest record always wins.
   const connMap = React.useMemo(() => {
     const m = new Map<string, Map<number, Connection>>()
     for (const conn of allConnections.data ?? []) {
       if (!m.has(conn.platformKey)) m.set(conn.platformKey, new Map())
-      m.get(conn.platformKey)!.set(conn.companyId, conn)
+      const inner = m.get(conn.platformKey)!
+      if (!inner.has(conn.companyId)) inner.set(conn.companyId, conn)
     }
     return m
   }, [allConnections.data])

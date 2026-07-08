@@ -60,7 +60,7 @@ export const INTEGRATION_CATALOG: CatalogPlatform[] = [
     syncFeatures: ["Orders", "Products", "Inventory", "Customers", "Finance"],
     secretKeys: ["ADMIN_API_TOKEN", "STORE_DOMAIN"],
     quickLinks: [q("Admin", "https://admin.shopify.com"), q("Orders", "https://admin.shopify.com/orders"), q("Products", "https://admin.shopify.com/products")],
-    browserWorkspace: false,
+    browserWorkspace: true,
   },
   {
     key: "shopdeck", name: "Shopdeck", shortName: "Shopdeck", category: "storefront",
@@ -70,7 +70,7 @@ export const INTEGRATION_CATALOG: CatalogPlatform[] = [
     syncFeatures: ["Orders", "Products", "Inventory", "Customers"],
     secretKeys: ["API_KEY"],
     quickLinks: [q("Dashboard", "https://app.shopdeck.com/dashboard"), q("Orders", "https://app.shopdeck.com/orders")],
-    browserWorkspace: false,
+    browserWorkspace: true,
   },
   {
     key: "amazon", name: "Amazon Seller", shortName: "Amazon", category: "marketplace",

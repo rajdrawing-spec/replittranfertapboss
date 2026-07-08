@@ -16,6 +16,8 @@
 - [Clerk prod custom-domain 401](clerk-prod-custom-domain.md) — live app with "Development mode" badge + 401s = deployment running dev keys; re-publish; custom domain must be registered with Clerk prod.
 - [TBOS analytics module](tbos-analytics.md) — a returned ratio leaks its hidden denominator (gate market-share to super admin); build date buckets from local components, not toISOString.
 - [TBOS shareholder module](tbos-shareholders.md) — cap table = derived ownership recomputed per company in-txn; mutation endpoints must canonicalize signs + validate server-side, not trust client.
+- [TBOS multi-role users](tbos-multi-role-users.md) — extra_roles json column unions permissions; requirePermission attaches resolvedPermissions to req; self-view restriction must cover ALL read routes (list, :id, cap-table), not just the list.
+- [TBOS frontend auth-mock in tests](tbos-frontend-auth-mock.md) — company-scoping tests that render admin views must vi.mock @/contexts/auth-context with hasPermission:()=>true; without it the component routes to the self-service view and tests fail silently.
 - [TBOS client company scoping](tbos-client-company-scoping.md) — scoped list pages must pass activeCompany.id in BOTH params and queryKey, or they leak/never rescope.
 - [TBOS Vitest setup](tbos-vitest-config.md) — tapashub tests use standalone vitest.config.ts (vite.config throws without PORT/BASE_PATH); mock the @clerk/react boundary + /api/auth/me instead of real OAuth.
 - [Resend transactional email](resend-email.md) — invites send via Resend connector proxy("resend","/emails"); from must be a verified domain; best-effort (never rolls back the write); always esc() template values.

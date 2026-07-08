@@ -147,12 +147,14 @@ router.patch("/users/:id", requireSuperAdmin, async (req, res) => {
       res.status(400).json({ error: "The Super Admin account cannot be modified" });
       return;
     }
-    const { name, role, department, companyIds, status } = req.body as {
-      name?: string; role?: string; department?: string; companyIds?: number[]; status?: string;
+    const { name, role, extraRoles, department, companyIds, status } = req.body as {
+      name?: string; role?: string; extraRoles?: string[];
+      department?: string; companyIds?: number[]; status?: string;
     };
     const patch: Partial<typeof usersTable.$inferInsert> = { updatedAt: new Date() };
     if (typeof name === "string") patch.name = name;
     if (typeof role === "string") patch.role = role;
+    if (Array.isArray(extraRoles)) patch.extraRoles = extraRoles.filter((r) => typeof r === "string" && r.length > 0);
     if (typeof department === "string") patch.department = department;
     if (Array.isArray(companyIds)) patch.companyIds = companyIds;
     if (status === "active" || status === "disabled" || status === "invited") patch.status = status;

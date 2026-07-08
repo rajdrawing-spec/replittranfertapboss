@@ -61,10 +61,34 @@ function validateHolder(b: Record<string, unknown>, partial: boolean): string | 
 }
 
 // GET /shareholders — list holdings the caller may see. Optional ?companyId=.
+// Special case: a user who has shareholders.view but NOT shareholders.manage (i.e. a
+// "shareholder" role user) sees only their OWN holdings matched by email, across ALL
+// companies — company-scope restrictions do not apply to their own records.
 router.get("/shareholders", requirePermission("shareholders.view"), async (req, res) => {
   try {
-    const scope = companyScope(req);
     const { companyId } = req.query as Record<string, string>;
+    const localUser = (req as any).localUser;
+    const perms: string[] = (req as any).resolvedPermissions ?? [];
+
+    // Detect shareholder-only view: has .view but not .manage, and not super admin.
+    const canManage = perms.includes("*") || perms.includes("shareholders.manage");
+
+    if (!canManage) {
+      // Shareholder self-view: return all rows where email matches, regardless of company.
+      const email = localUser?.email as string | undefined;
+      if (!email) { res.json([]); return; }
+      const rows = await db
+        .select()
+        .from(shareholdersTable)
+        .where(eq(shareholdersTable.email, email))
+        .orderBy(desc(shareholdersTable.shares));
+      const companyNames = await companyNameMap(rows.map((r) => r.companyId));
+      res.json(rows.map((r) => formatShareholder(r, companyNames)));
+      return;
+    }
+
+    // Admin / manager path: apply company scope as before.
+    const scope = companyScope(req);
     const conditions: any[] = [];
 
     if (companyId) {
@@ -91,8 +115,18 @@ router.get("/shareholders", requirePermission("shareholders.view"), async (req, 
 });
 
 // GET /shareholders/cap-table?companyId= — equity breakdown + valuation.
+// Shareholder-only users (no manage) are blocked from browsing other companies' cap tables.
 router.get("/shareholders/cap-table", requirePermission("shareholders.view"), async (req, res) => {
   try {
+    const localUser = (req as any).localUser;
+    const perms: string[] = (req as any).resolvedPermissions ?? [];
+    const canManage = perms.includes("*") || perms.includes("shareholders.manage");
+    if (!canManage) {
+      // Shareholder-only users don't get a cap table view — they use the list endpoint.
+      res.status(403).json({ error: "Cap table access requires shareholders.manage permission" });
+      return;
+    }
+
     const { companyId } = req.query as Record<string, string>;
     if (!companyId) { res.status(400).json({ error: "companyId is required" }); return; }
     const cid = parseInt(companyId);
@@ -137,12 +171,25 @@ router.get("/shareholders/cap-table", requirePermission("shareholders.view"), as
 });
 
 // GET /shareholders/:id — profile + investment history.
+// Shareholder-only users (no manage) may only fetch their own record (email match).
 router.get("/shareholders/:id", requirePermission("shareholders.view"), async (req, res) => {
   try {
+    const perms: string[] = (req as any).resolvedPermissions ?? [];
+    const canManage = perms.includes("*") || perms.includes("shareholders.manage");
+    const localUser = (req as any).localUser;
+
     const id = parseInt(String(req.params.id));
     const [h] = await db.select().from(shareholdersTable).where(eq(shareholdersTable.id, id));
     if (!h) { res.status(404).json({ error: "Not found" }); return; }
-    if (!canAccessCompany(req, h.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    if (!canManage) {
+      // Shareholder-only: must be their own record.
+      if (!localUser?.email || h.email?.toLowerCase() !== localUser.email.toLowerCase()) {
+        res.status(403).json({ error: "Forbidden" }); return;
+      }
+    } else {
+      if (!canAccessCompany(req, h.companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    }
 
     const history = await db
       .select()

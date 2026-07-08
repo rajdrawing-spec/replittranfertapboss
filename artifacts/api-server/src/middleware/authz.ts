@@ -12,7 +12,9 @@ export function requireSuperAdmin(req: Request, res: Response, next: NextFunctio
   next();
 }
 
-/** Restrict a route to users whose role grants a specific permission. */
+/** Restrict a route to users whose role grants a specific permission.
+ *  Attaches the resolved permissions array to req.resolvedPermissions so route
+ *  handlers can inspect them without a second DB round-trip. */
 export function requirePermission(perm: string) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const u = (req as any).localUser as User | undefined;
@@ -21,6 +23,7 @@ export function requirePermission(perm: string) {
       return;
     }
     const perms = await getUserPermissions(u);
+    (req as any).resolvedPermissions = perms;
     if (!hasPermission(perms, perm)) {
       res.status(403).json({ error: "Insufficient permissions" });
       return;

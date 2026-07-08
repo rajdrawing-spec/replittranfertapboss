@@ -130,6 +130,8 @@ vi.mock("drizzle-orm", () => ({
   eq: (col: string, val: any) => ({ op: "eq", col, val }),
   and: (...conds: any[]) => ({ op: "and", conds }),
   desc: (col: string) => ({ op: "desc", col }),
+  // inArray is used by getUserPermissions when a user has multiple roles
+  inArray: (col: string, vals: any[]) => ({ op: "inArray", col, vals }),
 }));
 
 vi.mock("@clerk/express", () => ({

@@ -12,6 +12,7 @@ function fmtUser(u: User) {
     name: u.name,
     email: u.email,
     role: u.role,
+    extraRoles: (u.extraRoles as string[] | undefined) ?? [],
     department: u.department,
     companyIds: u.companyIds as number[],
     avatarUrl: u.avatarUrl,

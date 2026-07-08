@@ -14,7 +14,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog"
-import { UserPlus, Trash2, ShieldCheck, Plus } from "lucide-react"
+import { UserPlus, Trash2, ShieldCheck, Plus, Pencil } from "lucide-react"
 import { useCompany } from "@/contexts/company-context"
 import {
   adminApi, type AdminUser, type AdminInvitation, type AdminRole, type PermissionDef,
@@ -25,12 +25,81 @@ function ErrorNote({ error }: { error: unknown }) {
   return <p className="text-sm text-destructive mt-2">{(error as Error).message}</p>
 }
 
+/* ───────────────── Multi-role assignment dialog ───────────────── */
+
+function RoleAssignDialog({
+  user, roles, onClose, onSaved,
+}: { user: AdminUser; roles: AdminRole[]; onClose: () => void; onSaved: () => void }) {
+  const allKeys = [user.role, ...(user.extraRoles ?? [])]
+  const [selected, setSelected] = React.useState<string[]>(allKeys)
+
+  const save = useMutation({
+    mutationFn: () => {
+      const [primary, ...extra] = selected.length > 0 ? selected : [user.role]
+      return adminApi.patch(`/users/${user.id}`, { role: primary, extraRoles: extra })
+    },
+    onSuccess: onSaved,
+  })
+
+  const toggle = (key: string) =>
+    setSelected((prev) =>
+      prev.includes(key)
+        ? prev.length === 1 ? prev // keep at least one role
+          : prev.filter((k) => k !== key)
+        : [...prev, key]
+    )
+
+  const primaryKey = selected[0] ?? user.role
+  const assignable = roles.filter((r) => r.key !== "super_admin")
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Assign roles — {user.name}</DialogTitle>
+        </DialogHeader>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Select one or more roles. The first selected role is the primary. Permissions are the union of all assigned roles.
+        </p>
+        <div className="max-h-64 overflow-y-auto space-y-1.5 rounded-md border p-3">
+          {assignable.map((r) => (
+            <label key={r.key} className="flex items-start gap-2.5 cursor-pointer">
+              <Checkbox
+                checked={selected.includes(r.key)}
+                onCheckedChange={() => toggle(r.key)}
+                className="mt-0.5"
+              />
+              <div>
+                <span className="text-sm font-medium">{r.name}</span>
+                {r.key === primaryKey && selected.length > 1 && (
+                  <Badge variant="outline" className="ml-2 text-[10px] py-0">primary</Badge>
+                )}
+                {r.description && (
+                  <p className="text-xs text-muted-foreground leading-tight">{r.description}</p>
+                )}
+              </div>
+            </label>
+          ))}
+        </div>
+        <ErrorNote error={save.error} />
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button disabled={selected.length === 0 || save.isPending} onClick={() => save.mutate()}>
+            {save.isPending ? "Saving…" : "Save roles"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 /* ───────────────── Users tab ───────────────── */
 
 function UsersTab({ roles }: { roles: AdminRole[] }) {
   const qc = useQueryClient()
   const { companies } = useCompany()
   const { data: users = [] } = useQuery<AdminUser[]>({ queryKey: ["/api/users"], queryFn: () => adminApi.get("/users") })
+  const [editingRoles, setEditingRoles] = React.useState<AdminUser | null>(null)
 
   const patchUser = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) => adminApi.patch(`/users/${id}`, body),
@@ -43,6 +112,7 @@ function UsersTab({ roles }: { roles: AdminRole[] }) {
 
   const roleName = (key: string) => roles.find((r) => r.key === key)?.name ?? key
   const companyName = (id: number) => companies.find((c) => c.id === id)?.name ?? `#${id}`
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/users"] })
 
   return (
     <Card>
@@ -55,55 +125,66 @@ function UsersTab({ roles }: { roles: AdminRole[] }) {
           <TableHeader>
             <TableRow>
               <TableHead>User</TableHead>
-              <TableHead>Role</TableHead>
+              <TableHead>Roles</TableHead>
               <TableHead>Companies</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users.map((u) => (
-              <TableRow key={u.id}>
-                <TableCell>
-                  <div className="font-medium">{u.name}</div>
-                  <div className="text-xs text-muted-foreground">{u.email}</div>
-                </TableCell>
-                <TableCell>
-                  <Select value={u.role} onValueChange={(role) => patchUser.mutate({ id: u.id, body: { role } })}>
-                    <SelectTrigger className="w-[180px] h-8"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {roles.map((r) => (
-                        <SelectItem key={r.key} value={r.key}>{r.name}</SelectItem>
+            {users.map((u) => {
+              const allRoles = [u.role, ...(u.extraRoles ?? [])]
+              return (
+                <TableRow key={u.id}>
+                  <TableCell>
+                    <div className="font-medium">{u.name}</div>
+                    <div className="text-xs text-muted-foreground">{u.email}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {allRoles.map((rk, i) => (
+                        <Badge key={rk} variant={i === 0 ? "default" : "secondary"} className="text-xs">
+                          {roleName(rk)}
+                        </Badge>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell className="max-w-[220px]">
-                  <span className="text-xs text-muted-foreground">
-                    {u.companyIds.length === 0 ? "All / none" : u.companyIds.map(companyName).join(", ")}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={u.status === "active" ? "default" : u.status === "disabled" ? "destructive" : "secondary"}>
-                    {u.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right space-x-2 whitespace-nowrap">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      patchUser.mutate({ id: u.id, body: { status: u.status === "disabled" ? "active" : "disabled" } })
-                    }
-                  >
-                    {u.status === "disabled" ? "Enable" : "Disable"}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => { if (confirm(`Remove ${u.email}?`)) deleteUser.mutate(u.id) }}>
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-5 w-5 ml-0.5"
+                        title="Edit roles"
+                        onClick={() => setEditingRoles(u)}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                  <TableCell className="max-w-[220px]">
+                    <span className="text-xs text-muted-foreground">
+                      {u.companyIds.length === 0 ? "All / none" : u.companyIds.map(companyName).join(", ")}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={u.status === "active" ? "default" : u.status === "disabled" ? "destructive" : "secondary"}>
+                      {u.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right space-x-2 whitespace-nowrap">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        patchUser.mutate({ id: u.id, body: { status: u.status === "disabled" ? "active" : "disabled" } })
+                      }
+                    >
+                      {u.status === "disabled" ? "Enable" : "Disable"}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => { if (confirm(`Remove ${u.email}?`)) deleteUser.mutate(u.id) }}>
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
             {users.length === 0 && (
               <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No users yet.</TableCell></TableRow>
             )}
@@ -111,6 +192,14 @@ function UsersTab({ roles }: { roles: AdminRole[] }) {
         </Table>
         <ErrorNote error={patchUser.error || deleteUser.error} />
       </CardContent>
+      {editingRoles && (
+        <RoleAssignDialog
+          user={editingRoles}
+          roles={roles}
+          onClose={() => setEditingRoles(null)}
+          onSaved={() => { invalidate(); setEditingRoles(null) }}
+        />
+      )}
     </Card>
   )
 }

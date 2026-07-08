@@ -1,0 +1,52 @@
+Build a **Multi-Account Workspace** inside TapasHub that allows me to manage multiple business accounts from one application.
+
+### Goal
+
+I want TapasHub to work as a business operating dashboard where I can open multiple websites (such as ShopDeck, Shopify, Amazon Seller, Flipkart Seller, Myntra Seller, etc.) and keep different accounts logged in at the same time.
+
+### Requirements
+
+1. Create a **Workspace** page with tabs or cards for each company:
+
+   * HugFAB
+   * TottoToy
+   * TikkaTails
+   * Pepalworks
+   * Any future company
+
+2. Each company should have its own **isolated browser session**.
+
+   * Cookies, local storage, and sessions must be completely separate.
+   * Logging into HugFAB must not affect TottoToy or any other company.
+   * Each company should remain logged in until the session expires or the user logs out.
+
+3. Allow adding multiple websites for each company, such as:
+
+   * ShopDeck
+   * Shopify
+   * Amazon Seller
+   * Flipkart Seller
+   * Myntra Seller
+   * Any custom URL
+
+4. Create a browser-like interface with:
+
+   * Tabs
+   * Back
+   * Forward
+   * Refresh
+   * Open in new tab
+   * Full-screen mode
+   * Bookmark/Favorite websites
+
+5. If a website allows embedding, display it inside the application. If it blocks embedding because of browser security policies, automatically open it in an isolated browser window while keeping it connected to the selected company workspace.
+
+6. Save each company's workspace configuration so that after restarting the application, all websites and login sessions are restored automatically.
+
+7. Design the UI to match the TapasHub branding and support future integration with dashboards, analytics, inventory, and AI tools.
+
+### Important
+
+Do **not** try to bypass website security, authentication, or browser protections. Use supported browser technologies and isolated browser sessions. The application must simply let the user manage multiple legitimate accounts in one place while respecting each website's security policies.
+
+Please recommend the best technical approach (for example, Electron or another suitable desktop framework if a web application cannot provide isolated sessions) and implement the most reliable production-ready solution.

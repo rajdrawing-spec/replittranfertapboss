@@ -28,6 +28,22 @@ vi.mock("wouter", () => ({
   useLocation: () => ["/", () => {}],
 }))
 
+// Give every test a logged-in admin user so the Shareholders page shows the
+// admin/manage view rather than the shareholder self-service view.
+vi.mock("@/contexts/auth-context", () => ({
+  useAuth: () => ({
+    user: { id: 1, name: "Admin", email: "admin@test.com", role: "company_admin", companyIds: [], permissions: ["shareholders.manage", "shareholders.view"] },
+    hasPermission: () => true,
+    isSuperAdmin: false,
+    loading: false,
+    accessError: null,
+    accessMessage: null,
+    loadError: false,
+    logout: async () => {},
+    refetch: async () => {},
+  }),
+}))
+
 vi.mock("@/hooks/use-toast", () => ({
   useToast: () => ({ toast: () => {} }),
 }))

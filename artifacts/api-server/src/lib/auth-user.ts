@@ -139,6 +139,24 @@ export function hasPermission(perms: string[], perm: string): boolean {
 
 export async function getUserPermissions(user: User): Promise<string[]> {
   if (isSuperAdmin(user)) return ["*"];
-  const role = await db.select().from(rolesTable).where(eq(rolesTable.key, user.role)).limit(1);
-  return role[0]?.permissions ?? [];
+
+  // Collect all role keys: primary role + any extra roles.
+  const allRoleKeys = [user.role, ...((user.extraRoles as string[] | undefined) ?? [])].filter(Boolean);
+  const unique = [...new Set(allRoleKeys)];
+
+  if (unique.length === 0) return [];
+
+  // Load all matching roles in one query.
+  const { inArray: inArr } = await import("drizzle-orm");
+  const rows = await db.select().from(rolesTable).where(inArr(rolesTable.key, unique));
+
+  // Union permissions across all roles.
+  const all: string[] = [];
+  for (const r of rows) {
+    for (const p of (r.permissions as string[] | null) ?? []) {
+      if (p === "*") return ["*"]; // any role with wildcard → full access
+      if (!all.includes(p)) all.push(p);
+    }
+  }
+  return all;
 }

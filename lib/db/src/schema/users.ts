@@ -7,7 +7,8 @@ export const usersTable = pgTable("users", {
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   clerkUserId: text("clerk_user_id").unique(), // linked on first Clerk sign-in
-  role: text("role").notNull().default("customer_support"), // role key -> rolesTable.key
+  role: text("role").notNull().default("customer_support"), // primary role key -> rolesTable.key
+  extraRoles: json("extra_roles").$type<string[]>().notNull().default([]), // additional role keys
   department: text("department"),
   companyIds: json("company_ids").$type<number[]>().notNull().default([]),
   avatarUrl: text("avatar_url"),

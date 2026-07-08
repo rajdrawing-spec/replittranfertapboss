@@ -63,7 +63,84 @@ const emptyForm = (companyId = ""): Form => ({
 interface TxForm { type: string; shares: string; pricePerShare: string; amount: string; date: string; note: string }
 const emptyTxForm = (): TxForm => ({ type: "purchase", shares: "", pricePerShare: "", amount: "", date: new Date().toISOString().slice(0, 10), note: "" })
 
-export default function Shareholders() {
+/** Self-service view for users who can only view their own holdings (no manage permission). */
+function MyHoldingsView() {
+  const { data: holdings, isLoading } = useQuery<Shareholder[]>({
+    queryKey: ["/api/shareholders", "self"],
+    queryFn: () => adminApi.get("/shareholders"),
+  })
+
+  const totalInvested = (holdings ?? []).reduce((s, h) => s + (h.investmentAmount ?? 0), 0)
+  const totalShares   = (holdings ?? []).reduce((s, h) => s + (h.shares ?? 0), 0)
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">My Shareholdings</h1>
+        <p className="text-muted-foreground">Your equity holdings across all group companies.</p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <SummaryCard icon={Users}     label="Companies" value={String(new Set((holdings ?? []).map((h) => h.companyId)).size)} loading={isLoading} accent="text-purple-400" />
+        <SummaryCard icon={PieChart}  label="Total Shares" value={isLoading ? "—" : num(totalShares)}     loading={isLoading} accent="text-blue-400" />
+        <SummaryCard icon={Wallet}    label="Total Invested" value={isLoading ? "—" : inr(totalInvested)} loading={isLoading} accent="text-amber-400" />
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Holdings</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Company</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead className="text-right">Shares</TableHead>
+                <TableHead className="text-right">Ownership</TableHead>
+                <TableHead className="text-right">Invested</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-6 w-full" /></TableCell></TableRow>
+                ))
+              ) : !holdings || holdings.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                    <PieChart className="mx-auto mb-2 h-8 w-8 opacity-40" />
+                    No shareholdings recorded for your email address yet.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                holdings.map((h) => (
+                  <TableRow key={h.id}>
+                    <TableCell>
+                      <div className="font-medium">{h.companyName}</div>
+                      <div className="text-xs text-muted-foreground">{h.name}</div>
+                    </TableCell>
+                    <TableCell><Badge variant="outline" className={ROLE_STYLES[h.role] ?? ""}>{ROLE_LABELS[h.role] ?? h.role}</Badge></TableCell>
+                    <TableCell className="text-right">{num(h.shares)}</TableCell>
+                    <TableCell className="text-right font-semibold">{h.ownershipPercent.toFixed(2)}%</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{inr(h.investmentAmount)}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={h.status === "active" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-muted text-muted-foreground"}>
+                        {h.status === "active" ? "Active" : "Exited"}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+/** Admin / manager view — all hooks declared unconditionally. */
+function AdminShareholdersView() {
   const { toast } = useToast()
   const { hasPermission } = useAuth()
   const qc = useQueryClient()
@@ -363,6 +440,13 @@ export default function Shareholders() {
       />
     </div>
   )
+}
+
+/** Route-level component: delegates to the right view based on permissions.
+ *  Each child component owns all its own hooks, avoiding conditional-hook violations. */
+export default function Shareholders() {
+  const { hasPermission } = useAuth()
+  return hasPermission("shareholders.manage") ? <AdminShareholdersView /> : <MyHoldingsView />
 }
 
 function SummaryCard({ icon: Icon, label, value, loading, accent }: { icon: React.ElementType; label: string; value: string; loading: boolean; accent: string }) {

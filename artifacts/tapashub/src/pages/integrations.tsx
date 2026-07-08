@@ -183,10 +183,10 @@ function WorkspacePanel({
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-40" onClick={onClose} />
 
-      {/* Drawer */}
-      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-sm bg-card border-l border-white/10 flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
+      {/* Floating panel */}
+      <div className="fixed right-4 top-20 z-50 w-80 bg-card/95 backdrop-blur-xl border border-white/10 rounded-2xl flex flex-col shadow-2xl animate-in slide-in-from-right-4 fade-in duration-200 max-h-[calc(100vh-6rem)] overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10 shrink-0">

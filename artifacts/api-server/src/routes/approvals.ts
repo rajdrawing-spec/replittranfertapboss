@@ -229,18 +229,28 @@ router.patch("/approvals/:approvalId/action", async (req, res) => {
     }
 
     const required = (existing.requiredApprovers ?? []) as RequiredApprover[];
-    const isRequiredApprover = required.length === 0 || required.some((r) => r.email === voterEmail);
+    const normalizedVoterEmail = voterEmail.trim().toLowerCase();
     const isAdmin = isSuperAdmin || isCompanyAdmin;
 
-    if (!isRequiredApprover && !isAdmin) {
-      res.status(403).json({
-        error: "You are not listed as a required approver for this request",
-      }); return;
+    // When a required-approver list exists the voter must be on it (or be admin).
+    // When the list is empty:
+    //   - fund_allocation → admin-only (no list = no directors/shareholders found at
+    //     creation time; only a super_admin or company_admin may override)
+    //   - all other types → any company member may vote (legacy behaviour)
+    let isRequiredApprover: boolean;
+    if (required.length > 0) {
+      isRequiredApprover = required.some(
+        (r) => r.email.trim().toLowerCase() === normalizedVoterEmail,
+      );
+    } else {
+      isRequiredApprover = existing.type !== "fund_allocation";
     }
 
-    // Fund allocations additionally require super_admin or company_admin.
-    if (existing.type === "fund_allocation" && !isAdmin) {
-      res.status(403).json({ error: "Only a Super Admin or Company Admin can approve fund allocations" }); return;
+    if (!isRequiredApprover && !isAdmin) {
+      const msg = required.length > 0
+        ? "You are not listed as a required approver for this request"
+        : "Only a Super Admin or Company Admin can approve this fund allocation";
+      res.status(403).json({ error: msg }); return;
     }
 
     const decision: VoteDecision = action === "approve" ? "approved" : "rejected";
@@ -267,7 +277,10 @@ router.patch("/approvals/:approvalId/action", async (req, res) => {
       .from(approvalVotesTable)
       .where(eq(approvalVotesTable.approvalId, id));
 
-    const voteByEmail = new Map(allVotes.map((v) => [v.voterEmail, v.decision as VoteDecision]));
+    // Normalize email keys so case variants never cause a missed lookup.
+    const voteByEmail = new Map(
+      allVotes.map((v) => [v.voterEmail.trim().toLowerCase(), v.decision as VoteDecision]),
+    );
 
     let newStatus: ApprovalStatus = "pending";
     let newStep = existing.currentStep;
@@ -276,10 +289,14 @@ router.patch("/approvals/:approvalId/action", async (req, res) => {
       // Legacy: single-voter approval — the acting voter's decision is final.
       newStatus = decision === "approved" ? "approved" : "rejected";
     } else {
-      const anyRequiredRejected = required.some(
+      const normalizedRequired = required.map((r) => ({
+        ...r,
+        email: r.email.trim().toLowerCase(),
+      }));
+      const anyRequiredRejected = normalizedRequired.some(
         (r) => voteByEmail.get(r.email) === "rejected",
       );
-      const allRequiredApproved = required.every(
+      const allRequiredApproved = normalizedRequired.every(
         (r) => voteByEmail.get(r.email) === "approved",
       );
       if (anyRequiredRejected) {
@@ -288,7 +305,7 @@ router.patch("/approvals/:approvalId/action", async (req, res) => {
         newStatus = "approved";
       } else {
         // Still pending — update step counter to reflect progress.
-        const approvedSoFar = required.filter(
+        const approvedSoFar = normalizedRequired.filter(
           (r) => voteByEmail.get(r.email) === "approved",
         ).length;
         newStep = Math.min(approvedSoFar + 1, existing.totalSteps);

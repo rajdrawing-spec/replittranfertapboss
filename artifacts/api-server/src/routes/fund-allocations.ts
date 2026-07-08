@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { db, fundAllocationsTable, companiesTable, approvalsTable } from "@workspace/db";
-import type { User } from "@workspace/db";
-import { eq, and, or, inArray, desc, sql } from "drizzle-orm";
+import { db, fundAllocationsTable, companiesTable, approvalsTable, usersTable, shareholdersTable } from "@workspace/db";
+import type { User, RequiredApprover } from "@workspace/db";
+import { eq, and, or, inArray, desc, sql, isNotNull } from "drizzle-orm";
 import { requireSuperAdmin } from "../middleware/authz";
 import { companyScope } from "../lib/company-scope";
 import { executeFundAllocation } from "../lib/fund-allocation";
@@ -91,6 +91,54 @@ router.post("/fund-allocations", requireSuperAdmin, async (req, res) => {
     const nameMap = { [from]: fromCo.name, [to]: toCo.name };
 
     if (requiresApproval) {
+      // Build required-approver list: ALL directors with access to the recipient
+      // company + ALL active shareholders of that company who have an email.
+      // Every person in this list must approve before the allocation is executed.
+      const [directors, rawShareholders] = await Promise.all([
+        db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email })
+          .from(usersTable)
+          .where(
+            and(
+              eq(usersTable.status, "active"),
+              // Primary role OR extra_roles contains "director"
+              or(
+                eq(usersTable.role, "director"),
+                sql`${usersTable.extraRoles}::jsonb @> '["director"]'::jsonb`,
+              ),
+              // Must have access to the recipient company
+              sql`${usersTable.companyIds}::jsonb @> ${JSON.stringify([to])}::jsonb`,
+            ),
+          ),
+        db.select({ name: shareholdersTable.name, email: shareholdersTable.email })
+          .from(shareholdersTable)
+          .where(
+            and(
+              eq(shareholdersTable.companyId, to),
+              eq(shareholdersTable.status, "active"),
+              isNotNull(shareholdersTable.email),
+            ),
+          ),
+      ]);
+
+      // Normalize emails (lowercase + trim) before deduplicating so that
+      // "User@Co.com" and "user@co.com" are treated as the same approver.
+      const seen = new Set<string>();
+      const requiredApprovers: RequiredApprover[] = [];
+      for (const d of directors) {
+        const email = d.email?.trim().toLowerCase();
+        if (email && !seen.has(email)) {
+          seen.add(email);
+          requiredApprovers.push({ name: d.name, email, role: "director" });
+        }
+      }
+      for (const s of rawShareholders) {
+        const email = s.email?.trim().toLowerCase();
+        if (email && !seen.has(email)) {
+          seen.add(email);
+          requiredApprovers.push({ name: s.name, email, role: "shareholder" });
+        }
+      }
+
       const [appr] = await db.insert(approvalsTable).values({
         companyId: to,
         type: "fund_allocation",
@@ -99,9 +147,22 @@ router.post("/fund-allocations", requireSuperAdmin, async (req, res) => {
         requestedBy: u.name,
         amount: amt,
         currentStep: 1,
-        totalSteps: 1,
+        totalSteps: requiredApprovers.length || 1,
         status: "pending",
+        requiredApprovers,
       }).returning();
+
+      // Seed individual vote rows so the UI can show who is pending/approved.
+      if (requiredApprovers.length > 0) {
+        await db.execute(sql`
+          INSERT INTO approval_votes (approval_id, voter_name, voter_email, voter_role, decision)
+          SELECT ${appr.id}, v.name, v.email, v.role, 'pending'
+          FROM jsonb_to_recordset(${JSON.stringify(requiredApprovers)}::jsonb)
+            AS v(name text, email text, role text)
+          ON CONFLICT (approval_id, voter_email) DO NOTHING
+        `);
+      }
+
       const [updated] = await db.update(fundAllocationsTable).set({ approvalId: appr.id, updatedAt: new Date() }).where(eq(fundAllocationsTable.id, alloc.id)).returning();
 
       void writeAudit({

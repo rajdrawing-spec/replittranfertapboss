@@ -7,11 +7,29 @@ import {
 } from "@workspace/db";
 import { and, eq, lt, or, isNull } from "drizzle-orm";
 import { getAdapter, type AdapterContext } from "./integration-adapters";
+import { loadCredentials } from "./credential-store";
 import { logger } from "./logger";
 
-function resolveSecrets(refs: string[]): Record<string, string | undefined> {
+/**
+ * Resolve secrets for a connection: DB-stored credentials (entered via UI)
+ * take priority over process.env (manually set Replit Secrets), so moving a
+ * credential from env to the UI doesn't require a server restart.
+ */
+async function resolveSecrets(
+  connectionId: number,
+  refs: string[],
+): Promise<Record<string, string | undefined>> {
+  // Start with env vars (legacy path — still works for secrets set manually)
   const out: Record<string, string | undefined> = {};
   for (const r of refs) out[r] = process.env[r];
+
+  // Overlay with DB-stored credentials (from the Connect modal UI)
+  try {
+    const dbCreds = await loadCredentials(connectionId);
+    for (const [k, v] of Object.entries(dbCreds)) out[k] = v;
+  } catch (e) {
+    logger.warn({ err: e, connectionId }, "Failed to load DB credentials for connection");
+  }
   return out;
 }
 
@@ -24,7 +42,8 @@ export async function runSync(
   trigger: "manual" | "scheduled",
 ): Promise<{ status: string; recordsSynced: number; message: string }> {
   const started = Date.now();
-  const ctx: AdapterContext = { connection, secrets: resolveSecrets(connection.secretRefs ?? []) };
+  const secrets = await resolveSecrets(connection.id, connection.secretRefs ?? []);
+  const ctx: AdapterContext = { connection, secrets };
   const adapter = getAdapter(connection.platformKey);
 
   let status = "failed";
@@ -74,12 +93,36 @@ export async function runSync(
   return { status, recordsSynced, message };
 }
 
+/** Re-test a connection using the latest credentials (env + DB). */
+export async function retestConnection(connection: IntegrationConnection): Promise<{
+  status: string; health: string; lastError: string | null;
+}> {
+  const refs = connection.secretRefs ?? [];
+  const secrets = await resolveSecrets(connection.id, refs);
+  const adapter = getAdapter(connection.platformKey);
+
+  // Check if any credential at all is present
+  const hasAnyCred = Object.values(secrets).some(Boolean);
+  if (refs.length > 0 && !hasAnyCred) {
+    return { status: "pending", health: "unknown", lastError: "No credentials configured. Enter your API credentials to activate this connection." };
+  }
+
+  try {
+    const test = await adapter.testConnection({ connection, secrets });
+    if (test.ok) return { status: "connected", health: test.health, lastError: null };
+    return { status: "error", health: test.health, lastError: test.message };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Connection test failed";
+    return { status: "error", health: "down", lastError: msg };
+  }
+}
+
 const AUTO_SYNC_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 let schedulerHandle: NodeJS.Timeout | null = null;
 let running = false;
 
 async function tick(): Promise<void> {
-  if (running) return; // never overlap runs
+  if (running) return;
   running = true;
   try {
     const cutoff = new Date(Date.now() - AUTO_SYNC_INTERVAL_MS);
@@ -92,11 +135,8 @@ async function tick(): Promise<void> {
         or(isNull(integrationConnectionsTable.lastSyncAt), lt(integrationConnectionsTable.lastSyncAt, cutoff)),
       ));
     for (const conn of due) {
-      try {
-        await runSync(conn, "scheduled");
-      } catch (e) {
-        logger.error({ err: e, connectionId: conn.id }, "Scheduled integration sync failed");
-      }
+      try { await runSync(conn, "scheduled"); }
+      catch (e) { logger.error({ err: e, connectionId: conn.id }, "Scheduled integration sync failed"); }
     }
   } catch (e) {
     logger.error({ err: e }, "Integration scheduler tick failed");
@@ -108,7 +148,6 @@ async function tick(): Promise<void> {
 /** Start the background auto-sync scheduler (idempotent). */
 export function startIntegrationScheduler(): void {
   if (schedulerHandle) return;
-  // Check every 5 minutes for connections due for their 15-minute auto-sync.
   schedulerHandle = setInterval(() => { void tick(); }, 5 * 60 * 1000);
   logger.info("Integration auto-sync scheduler started");
 }

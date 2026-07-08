@@ -1,0 +1,40 @@
+The Integrations module is still **not working**. Please stop creating demo screens and implement a real, production-ready solution.
+
+### Current Issues
+
+* Integrations do not open correctly.
+* Connected websites are not loading.
+* Login sessions are not being maintained.
+* Multiple company accounts cannot be managed.
+* Some integrations appear to be placeholders instead of working features.
+
+### What I Need
+
+1. Audit the entire Integrations module and identify every broken feature.
+2. Fix all runtime errors, console errors, API errors, routing issues, and database issues.
+3. Make every integration fully functional instead of using mock or demo data.
+4. If a website supports an official API or webhook, use the official integration.
+5. If a website does not support embedding because of browser security (X-Frame-Options or Content Security Policy), detect this automatically and provide the best supported alternative instead of showing a blank page.
+6. Maintain login sessions securely so users do not have to sign in repeatedly whenever possible.
+7. Show clear connection status for every integration:
+
+   * Connected
+   * Authentication Required
+   * Connection Failed
+   * API Not Available
+   * Website Blocks Embedding
+8. Display meaningful error messages instead of leaving the page blank.
+9. Add detailed logging so every failed integration can be diagnosed quickly.
+10. Test every integration end-to-end and verify that it actually works before marking it as complete.
+
+### Expected Result
+
+The Integrations section should be a real production feature that works with supported services, handles unsupported services gracefully, and provides reliable status and error reporting. Do not leave any placeholder buttons, fake success messages, or unfinished functionality.
+
+Before finishing, provide a report listing:
+
+* Which integrations are fully working.
+* Which require official APIs.
+* Which websites block embedding.
+* Which features cannot be implemented because of browser or third-party security restrictions.
+* What alternative solution was implemented for each unsupported case.

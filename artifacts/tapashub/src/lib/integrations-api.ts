@@ -67,6 +67,13 @@ export interface ErrorLogEntry {
   createdAt: string
 }
 
+export interface EmbedCheckResult {
+  embeddable: boolean
+  reason: string
+  xFrameOptions: string | null
+  csp: string | null
+}
+
 /* ── Queries ── */
 
 export function useCatalog() {
@@ -101,6 +108,16 @@ export function useErrorLogs(connectionId: number | null) {
   })
 }
 
+export function useEmbedCheck(url: string | null) {
+  return useQuery<EmbedCheckResult>({
+    queryKey: ["/api/integrations/embed-check", url],
+    queryFn: () => adminApi.get(`/integrations/embed-check?url=${encodeURIComponent(url!)}`),
+    enabled: !!url,
+    staleTime: 1000 * 60 * 5, // cache 5 min
+    retry: false,
+  })
+}
+
 /* ── Mutations ── */
 
 function useInvalidateConnections() {
@@ -111,8 +128,31 @@ function useInvalidateConnections() {
 export function useConnect() {
   const invalidate = useInvalidateConnections()
   return useMutation({
-    mutationFn: (body: { companyId: number; platformKey: string; authType: AuthType; accountHandle?: string }) =>
-      adminApi.post("/integrations/connections", body) as Promise<Connection>,
+    mutationFn: (body: {
+      companyId: number
+      platformKey: string
+      authType: AuthType
+      accountHandle?: string
+      credentials?: Record<string, string>
+    }) => adminApi.post("/integrations/connections", body) as Promise<Connection>,
+    onSuccess: invalidate,
+  })
+}
+
+export function useSaveCredentials() {
+  const invalidate = useInvalidateConnections()
+  return useMutation({
+    mutationFn: ({ id, credentials }: { id: number; credentials: Record<string, string> }) =>
+      adminApi.post(`/integrations/connections/${id}/credentials`, credentials) as Promise<Connection>,
+    onSuccess: invalidate,
+  })
+}
+
+export function useRetestConnection() {
+  const invalidate = useInvalidateConnections()
+  return useMutation({
+    mutationFn: (id: number) =>
+      adminApi.post(`/integrations/connections/${id}/retest`) as Promise<Connection>,
     onSuccess: invalidate,
   })
 }

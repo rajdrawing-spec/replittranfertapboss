@@ -8,7 +8,7 @@
 - [Sandbox DB seeding](sandbox-seeding.md) — CodeExecution can't import `pg`; use the executeSql callback with batched multi-row INSERTs for bulk seeding.
 - [Object storage + Clerk auth](object-storage-clerk-auth.md) — swap the storage template's req.isAuthenticated() guard for requireAuth/requireSuperAdmin; store full /api/storage path in DB.
 - [TAPBOSS tenant scoping endpoints](tbos-tenant-scoping-endpoints.md) — ~17 routes trust a client companyId with no authz; use companyScope(req) + 403; never pass [] to drizzle inArray (guard length before DB).
-- [TBOS integrations framework](tbos-integrations-framework.md) — credentials are env-var NAME refs (never DB plaintext); stub adapters return "skipped" not fake data; catalog drives UI generically.
+- [TBOS integrations framework](tbos-integrations-framework.md) — credential UI stores AES-256-GCM in DB; all 17 adapters registered with real testConnection; embed-check + portal launcher; SESSION_SECRET required for encryption.
 - [Supabase DB integration](supabase-db-integration.md) — SUPABASE_DB_URL is the primary prod DB; DATABASE_URL (Replit) is dev-only fallback; production requires SUPABASE_DB_URL or it throws.
 - [TBOS feature modules](tbos-feature-modules.md) — notifications fire on state transitions (not every write) via void emitNotification; last-synced only on success; allowlist attachment URL schemes; object read-ACL still disabled.
 - [TBOS fund allocation & finance sync](tbos-fund-allocation-sync.md) — allocations = paired ALLOC-<id> txns; order revenue keyed ORDER-/REFUND-; idempotency via partial unique index + FOR UPDATE; threshold approval gating.

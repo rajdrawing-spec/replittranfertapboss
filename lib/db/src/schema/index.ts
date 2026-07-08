@@ -17,6 +17,7 @@ export * from "./approvals";
 export * from "./activity";
 export * from "./platforms";
 export * from "./integrations";
+export * from "./integration-credentials";
 export * from "./account-directory";
 export * from "./shipments";
 export * from "./documents";

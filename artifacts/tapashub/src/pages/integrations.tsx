@@ -20,7 +20,7 @@
 import * as React from "react"
 import {
   ArrowLeft, ArrowRight, RefreshCw, Home, ExternalLink,
-  LogOut, Globe, Loader2, Search, Monitor, Wifi, WifiOff,
+  LogOut, Globe, Loader2, Search, Monitor, Wifi, WifiOff, ShieldOff,
   ChevronDown,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -262,19 +262,32 @@ function EmbedBlockedCard({
   platform,
   url,
   reason,
+  kind = "blocked",
 }: {
   platform: CatalogPlatform
   url: string
   reason: string
+  kind?: "blocked" | "refused"
 }) {
+  const isRefused = kind === "refused"
   return (
     <div className="flex flex-col items-center justify-center h-full gap-6 px-8 text-center">
-      <PlatformIcon platform={platform} size="lg" />
+      <div className="relative">
+        <PlatformIcon platform={platform} size="lg" />
+        <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center">
+          {isRefused
+            ? <WifiOff className="w-3 h-3 text-amber-400" />
+            : <ShieldOff className="w-3 h-3 text-red-400" />
+          }
+        </span>
+      </div>
       <div className="space-y-2 max-w-md">
         <h3 className="text-xl font-bold">{platform.name}</h3>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          {platform.name} blocks embedding inside other applications for
-          security reasons.
+          {isRefused
+            ? `Could not connect to ${platform.name}. The site may be temporarily down, or it can only be used in a separate window.`
+            : `${platform.name} blocks embedding inside other applications for security reasons.`
+          }
         </p>
         <p className="text-xs text-muted-foreground/50">{reason}</p>
       </div>
@@ -293,7 +306,10 @@ function EmbedBlockedCard({
           Open {platform.name} in new window
         </Button>
         <p className="text-[11px] text-muted-foreground/40">
-          Your session will remain connected in this workspace
+          {isRefused
+            ? "Log in there, then come back — your session will persist"
+            : "Your session will remain connected in this workspace"
+          }
         </p>
       </div>
     </div>
@@ -333,6 +349,13 @@ function BrowserPanel({
   const embedCheck = useEmbedCheck(platform.url)
   const blocked =
     embedCheck.data != null && !embedCheck.data.embeddable
+
+  // Track iframe-level load failures (connection refused, DNS failure, SSL
+  // error). These are separate from X-Frame-Options blocks — the browser fires
+  // onError on the iframe element when it can't fetch the resource at all.
+  // Reset whenever the user navigates to a new URL (iframeKey increments).
+  const [iframeError, setIframeError] = React.useState(false)
+  React.useEffect(() => { setIframeError(false) }, [iframeKey])
 
   return (
     <div className="flex flex-col h-full bg-zinc-950">
@@ -433,23 +456,38 @@ function BrowserPanel({
           </div>
         )}
 
-        {/* Blocked fallback */}
-        {blocked && (
+        {/* Blocked by X-Frame-Options / CSP */}
+        {blocked && !iframeError && (
           <EmbedBlockedCard
             platform={platform}
             url={currentUrl || platform.url}
             reason={embedCheck.data?.reason ?? "X-Frame-Options or CSP restriction"}
+            kind="blocked"
           />
         )}
 
-        {/* Iframe — rendered (but hidden) even during loading so it starts preloading */}
+        {/* Connection refused / DNS failure / SSL error */}
+        {iframeError && (
+          <EmbedBlockedCard
+            platform={platform}
+            url={currentUrl || platform.url}
+            reason="The site refused the connection or could not be reached"
+            kind="refused"
+          />
+        )}
+
+        {/* Iframe — hidden while embed check is in flight; also hidden when
+            there is a load error so the broken-page chrome doesn't flash */}
         {!blocked && (
           <iframe
             key={iframeKey}
-            ref={iframeRef as React.RefObject<HTMLIFrameElement>}
+            ref={iframeRef}
             src={currentUrl || platform.url}
             title={platform.name}
-            className={`w-full h-full border-none ${embedCheck.isLoading ? "opacity-0" : "opacity-100"} transition-opacity duration-300`}
+            onError={() => setIframeError(true)}
+            className={`w-full h-full border-none ${
+              embedCheck.isLoading || iframeError ? "opacity-0 pointer-events-none absolute" : "opacity-100"
+            } transition-opacity duration-300`}
           />
         )}
       </div>

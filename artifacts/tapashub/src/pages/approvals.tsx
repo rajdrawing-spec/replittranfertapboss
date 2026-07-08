@@ -196,7 +196,7 @@ function ApprovalCard({
   const [note, setNote] = React.useState("")
   const [showVotes, setShowVotes] = React.useState(false)
 
-  const hasVoters = approval.votes.length > 0 || approval.requiredApprovers.length > 0
+  const hasVoters = (approval.votes?.length ?? 0) > 0 || (approval.requiredApprovers?.length ?? 0) > 0
   const isPending = approval.status === "pending"
 
   async function act(action: "approve" | "reject") {

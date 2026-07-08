@@ -1,0 +1,48 @@
+New UI/UX Requirements
+On the left sidebar, display all 17 platforms with their icons.
+Each platform should have:
+Connect / Login button
+Logout button
+Connection status (Connected / Not Connected)
+Login Experience
+
+When I click Login on any platform:
+
+Do not open a new browser window or tab.
+The selected platform should expand on the right side of the same page.
+It should behave like an embedded Google Chrome browser (webview simulation) inside TapBoss.
+Load the platform's official login page directly in that panel.
+After I log in, keep the session active until:
+I manually click Logout, or
+The website itself expires the session.
+No API Required
+
+This is the most important point:
+
+❌ No API integration.
+❌ No data synchronization.
+❌ No OAuth development.
+❌ No fetching orders or analytics.
+
+I simply want TapBoss to remember login sessions and let me use each website from one workspace.
+
+Layout Example
+---------------------------------------------------------------
+| Left Sidebar            | Right Workspace                  |
+|-------------------------|----------------------------------|
+| Shopify      Connected  |                                 |
+| Amazon       Login      |                                 |
+| Myntra       Login      |   Embedded Browser / WebView     |
+| Flipkart     Connected  |                                 |
+| Meta Ads     Login      |   Official Website Opens Here    |
+| Google Ads   Connected  |                                 |
+| Instagram    Login      |                                 |
+| ...17 Apps...           |                                 |
+---------------------------------------------------------------
+User Experience
+Only one platform should be open at a time in the workspace.
+Switching platforms should instantly load that website in the right panel.
+Each platform should maintain its own independent login session.
+Add Back, Forward, Refresh, and Home buttons like a browser.
+Allow multiple businesses (HugFAB, TikkaTails, Pepalworks, etc.) to use separate saved sessions if needed.
+The application should feel like a business operating system, not an integrations dashboard.

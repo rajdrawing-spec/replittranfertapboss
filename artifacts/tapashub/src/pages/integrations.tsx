@@ -1,503 +1,184 @@
+/**
+ * TAPBOSS — Business Workspace
+ *
+ * Left sidebar: all 17 platforms with icon, status, Login / Logout.
+ * Right panel: embedded browser (iframe) that loads the platform's
+ * official website. Sessions live in browser cookies (per-domain) and
+ * are NOT cleared when you switch platforms, so logging in once keeps
+ * you in until you click Logout or the site itself expires the session.
+ *
+ * Browser controls (Back / Forward / Refresh / Home) are implemented
+ * via a manual per-platform URL-history stack because cross-origin
+ * iframes cannot expose their internal navigation to the parent frame.
+ *
+ * When a platform sets X-Frame-Options / CSP frame-ancestors, the
+ * embed-check endpoint detects it and a fallback card replaces the
+ * iframe — the user can then pop it into a separate window (which
+ * still counts as a "connected" session for the workspace).
+ */
+
 import * as React from "react"
 import {
-  ExternalLink, RefreshCw, PlugZap, Eye, EyeOff, ShieldAlert,
-  CheckCircle2, XCircle, Clock, AlertCircle, Loader2, History,
-  Settings2, LogOut, ChevronDown, Globe,
+  ArrowLeft, ArrowRight, RefreshCw, Home, ExternalLink,
+  LogOut, Globe, Loader2, Search, Monitor, Wifi, WifiOff,
+  ChevronDown,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
-import { useCompany } from "@/contexts/company-context"
-import type { ActiveCompany } from "@/contexts/company-context"
-import {
-  useCatalog, useConnections, useConnect, useSaveCredentials,
-  useRetestConnection, useDisconnect, useUpdateConnection,
-  useSyncNow, useSyncHistory, useErrorLogs,
-} from "@/lib/integrations-api"
-import type { CatalogPlatform, Connection, AuthType } from "@/lib/integrations-api"
+import { useCatalog, useEmbedCheck } from "@/lib/integrations-api"
+import type { CatalogPlatform } from "@/lib/integrations-api"
 
-/* ── helpers ── */
+/* ─────────────────────────── helpers ─────────────────────────── */
 
-function fmtDate(s: string | null | undefined) {
-  if (!s) return "—"
-  const d = new Date(s)
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
-}
-
-const STATUS_META: Record<Connection["status"], { label: string; dot: string; text: string; ring: string }> = {
-  connected:    { label: "Live",         dot: "bg-green-500",  text: "text-green-400",  ring: "ring-green-500/40" },
-  pending:      { label: "Pending",      dot: "bg-amber-400",  text: "text-amber-400",  ring: "ring-amber-400/40" },
-  error:        { label: "Error",        dot: "bg-red-500",    text: "text-red-400",    ring: "ring-red-500/40"   },
-  disconnected: { label: "Disconnected", dot: "bg-zinc-600",   text: "text-zinc-500",   ring: "ring-zinc-600/30"  },
-}
-
-const CATEGORY_ORDER = ["storefront", "marketplace", "social", "ads", "analytics", "payments", "shipping", "accounting", "messaging"]
-const CATEGORY_LABEL: Record<string, string> = {
-  storefront: "Storefronts", marketplace: "Marketplaces", social: "Social", ads: "Advertising",
-  analytics: "Analytics", payments: "Payments", shipping: "Logistics", accounting: "Accounting", messaging: "Messaging",
-}
-
-function openPortalWindow(platform: CatalogPlatform, companyId: number) {
-  window.open(platform.url, `tapashub-portal-${platform.key}-c${companyId}`, "width=1400,height=900,noopener,noreferrer")
-}
-
-/* ── Credential form (per-company, inside panel) ── */
-
-function CredentialForm({
-  platform, company, connectionId, onSaved,
-}: {
-  platform: CatalogPlatform
-  company: ActiveCompany
-  connectionId: number | null
-  onSaved: (conn: Connection) => void
-}) {
-  const { toast } = useToast()
-  const connect = useConnect()
-  const save = useSaveCredentials()
-  const [fields, setFields] = React.useState<Record<string, string>>(() =>
-    Object.fromEntries(platform.secretKeys.map((k) => [k, ""]))
-  )
-  const [show, setShow] = React.useState<Record<string, boolean>>({})
-  const ok = platform.secretKeys.every((k) => fields[k]?.trim())
-  const busy = connect.isPending || save.isPending
-
-  async function submit() {
-    const creds = Object.fromEntries(Object.entries(fields).filter(([, v]) => v.trim()).map(([k, v]) => [k, v.trim()]))
+function useLocalStorage<T>(
+  key: string,
+  init: T,
+): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [val, setVal] = React.useState<T>(() => {
     try {
-      const conn = connectionId
-        ? await save.mutateAsync({ id: connectionId, credentials: creds })
-        : await connect.mutateAsync({ companyId: company.id, platformKey: platform.key, authType: "api_key", credentials: creds })
-      onSaved(conn)
-      toast({ title: conn.status === "connected" ? "Connected!" : "Credentials saved", description: conn.status === "connected" ? `${platform.name} is now live for ${company.name}.` : (conn.lastError ?? "Saved.") })
-    } catch (e: any) {
-      toast({ title: "Failed", description: e?.message ?? "Could not save", variant: "destructive" })
+      const s = localStorage.getItem(key)
+      return s ? (JSON.parse(s) as T) : init
+    } catch {
+      return init
     }
+  })
+  const set: React.Dispatch<React.SetStateAction<T>> = React.useCallback(
+    (action) =>
+      setVal((prev) => {
+        const next =
+          typeof action === "function"
+            ? (action as (p: T) => T)(prev)
+            : action
+        try {
+          localStorage.setItem(key, JSON.stringify(next))
+        } catch {}
+        return next
+      }),
+    [key],
+  )
+  return [val, set]
+}
+
+function faviconUrl(platformUrl: string): string {
+  try {
+    const { hostname } = new URL(platformUrl)
+    return `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`
+  } catch {
+    return ""
   }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-300">
-        <ShieldAlert className="w-3.5 h-3.5" /> Enter {platform.name} credentials for {company.name}
-      </div>
-      <p className="text-[11px] text-muted-foreground leading-relaxed">
-        Encrypted with AES-256. Stored per-company and never shared.
-      </p>
-      {platform.secretKeys.map((key) => (
-        <div key={key} className="space-y-1">
-          <Label className="text-[11px] font-mono text-muted-foreground">{key}</Label>
-          <div className="relative">
-            <Input
-              type={show[key] ? "text" : "password"}
-              placeholder={`Enter ${key}`}
-              value={fields[key] ?? ""}
-              onChange={(e) => setFields((f) => ({ ...f, [key]: e.target.value }))}
-              className="h-8 text-xs font-mono pr-8 bg-background/60"
-            />
-            <button type="button" aria-label={show[key] ? "Hide field" : "Show field"} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              onClick={() => setShow((s) => ({ ...s, [key]: !s[key] }))}>
-              {show[key] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            </button>
-          </div>
-        </div>
-      ))}
-      <Button size="sm" className="w-full gap-1.5" disabled={!ok || busy} onClick={submit}>
-        {busy ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Verifying…</> : <><PlugZap className="w-3.5 h-3.5" />Connect & Verify</>}
-      </Button>
-    </div>
-  )
 }
 
-/* ── Activity drawer ── */
-
-function ActivityDrawer({ connection, platform, onClose }: { connection: Connection; platform: CatalogPlatform; onClose: () => void }) {
-  const [tab, setTab] = React.useState<"history" | "errors">("history")
-  const history = useSyncHistory(connection.id)
-  const errors = useErrorLogs(connection.id)
-
-  return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-card border rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4 max-h-[85vh] overflow-y-auto z-10">
-        <div className="flex items-center gap-3">
-          <div className={`w-9 h-9 rounded-lg ${platform.logoColor} flex items-center justify-center text-white font-bold text-xs shrink-0`}>{platform.logo}</div>
-          <div className="font-semibold">{platform.name} — Activity</div>
-          <button className="ml-auto text-muted-foreground hover:text-foreground" onClick={onClose}><XCircle className="w-5 h-5" /></button>
-        </div>
-        <div className="flex gap-1 border-b border-white/10">
-          {(["history", "errors"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`px-3 py-2 text-sm border-b-2 -mb-px capitalize ${tab === t ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`}>
-              {t === "history" ? "Sync History" : "Error Log"}
-            </button>
-          ))}
-        </div>
-        {tab === "history" && (
-          <div className="space-y-2">
-            {history.isLoading && <p className="text-xs text-muted-foreground">Loading…</p>}
-            {history.data?.length === 0 && <p className="text-xs text-muted-foreground py-4 text-center">No sync runs yet.</p>}
-            {history.data?.map((h) => (
-              <div key={h.id} className="flex items-start justify-between gap-3 text-xs bg-background/40 rounded-lg p-2.5 border border-white/5">
-                <div className="flex items-start gap-2">
-                  {h.status === "success" ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500 mt-0.5" /> : h.status === "failed" ? <XCircle className="w-3.5 h-3.5 text-red-500 mt-0.5" /> : <Clock className="w-3.5 h-3.5 text-muted-foreground mt-0.5" />}
-                  <div>
-                    <div className="font-medium capitalize">{h.status} · {h.trigger}{h.recordsSynced > 0 ? ` · ${h.recordsSynced} records` : ""}</div>
-                    {h.message && <div className="text-muted-foreground mt-0.5">{h.message}</div>}
-                  </div>
-                </div>
-                <span className="text-muted-foreground shrink-0">{fmtDate(h.createdAt)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        {tab === "errors" && (
-          <div className="space-y-2">
-            {errors.isLoading && <p className="text-xs text-muted-foreground">Loading…</p>}
-            {errors.data?.length === 0 && <p className="text-xs text-muted-foreground py-4 text-center">No errors logged.</p>}
-            {errors.data?.map((e) => (
-              <div key={e.id} className="flex items-start justify-between gap-3 text-xs bg-background/40 rounded-lg p-2.5 border border-white/5">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className={`w-3.5 h-3.5 mt-0.5 ${e.level === "error" ? "text-red-500" : "text-amber-500"}`} />
-                  <div>
-                    <div className="font-medium">{e.message}</div>
-                    {e.detail && <div className="text-muted-foreground mt-0.5">{e.detail}</div>}
-                  </div>
-                </div>
-                <span className="text-muted-foreground shrink-0">{fmtDate(e.createdAt)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
+const CATEGORY_LABEL: Record<string, string> = {
+  storefront: "Storefronts",
+  marketplace: "Marketplaces",
+  social: "Social",
+  ads: "Advertising",
+  analytics: "Analytics",
+  payments: "Payments",
+  shipping: "Logistics",
+  accounting: "Accounting",
+  messaging: "Messaging",
 }
+const CATEGORY_ORDER = [
+  "storefront","marketplace","social","ads",
+  "analytics","payments","shipping","accounting","messaging",
+]
 
-/* ── Portal side panel (multi-company) ── */
+/* ─────────────────────────── PlatformIcon ─────────────────────── */
 
-function WorkspacePanel({
-  platform, companies, connByCompany, onClose, onConnect,
+function PlatformIcon({
+  platform,
+  size = "md",
 }: {
   platform: CatalogPlatform
-  companies: ActiveCompany[]
-  connByCompany: Map<number, Connection>
-  onClose: () => void
-  onConnect: (companyId: number, conn: Connection) => void
+  size?: "sm" | "md" | "lg"
 }) {
-  const { toast } = useToast()
-  const sync = useSyncNow()
-  const retest = useRetestConnection()
-  const disconnect = useDisconnect()
-  const update = useUpdateConnection()
-
-  // Re-derive selection whenever the platform or connection data changes so we
-  // always default to a connected company (or the first) for the new platform.
-  const defaultSelId = React.useMemo(() => {
-    const first = companies.find((c) => connByCompany.get(c.id)?.status === "connected")
-    return first?.id ?? companies[0]?.id ?? 0
-  }, [companies, connByCompany, platform.key]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const [selId, setSelId] = React.useState<number>(defaultSelId)
-  // Sync selection whenever the platform changes (panel reused across platforms)
-  React.useEffect(() => { setSelId(defaultSelId) }, [platform.key]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const [showActivity, setShowActivity] = React.useState(false)
-  const [showCred, setShowCred] = React.useState(false)
-
-  const selCompany = companies.find((c) => c.id === selId)
-  const conn = selId ? connByCompany.get(selId) : undefined
-  const isLive = conn?.status === "connected"
-  const history = useSyncHistory(conn?.id ?? null)
-  const recentRuns = (history.data ?? []).slice(0, 3)
-
-  React.useEffect(() => { setShowCred(false) }, [selId])
-
-  function handleSync() {
-    if (!conn) return
-    sync.mutate(conn.id, {
-      onSuccess: (d) => toast({ title: "Sync complete", description: d.result.message }),
-      onError: (e: any) => toast({ title: "Sync failed", description: e?.message, variant: "destructive" }),
-    })
-  }
-
-  function handleDisconnect() {
-    if (!conn) return
-    disconnect.mutate(conn.id, {
-      onSuccess: () => toast({ title: "Disconnected", description: `${platform.name} disconnected from ${selCompany?.name}.` }),
-    })
-  }
-
-  if (showActivity && conn && selCompany) {
-    return <ActivityDrawer connection={conn} platform={platform} onClose={() => setShowActivity(false)} />
-  }
+  const [loaded, setLoaded] = React.useState(false)
+  const [err, setErr] = React.useState(false)
+  const fav = React.useMemo(() => faviconUrl(platform.url), [platform.url])
+  const dim =
+    size === "sm" ? "w-8 h-8" : size === "lg" ? "w-14 h-14" : "w-10 h-10"
+  const imgDim = size === "sm" ? "w-4 h-4" : size === "lg" ? "w-8 h-8" : "w-5 h-5"
 
   return (
-    <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="fixed right-4 top-20 z-50 w-80 bg-card/95 backdrop-blur-xl border border-white/10 rounded-2xl flex flex-col shadow-2xl animate-in slide-in-from-right-4 fade-in duration-200 max-h-[calc(100vh-6rem)] overflow-hidden">
-
-        {/* Header */}
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/10 shrink-0">
-          <div className={`w-9 h-9 rounded-xl ${platform.logoColor} flex items-center justify-center text-white font-bold text-xs shadow-lg shrink-0`}>
-            {platform.logo}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-semibold text-sm truncate">{platform.name}</div>
-            <div className="text-[10px] text-muted-foreground capitalize">{platform.category}</div>
-          </div>
-          <button aria-label="Close panel" className="text-muted-foreground hover:text-foreground transition-colors shrink-0" onClick={onClose}>
-            <XCircle className="w-4.5 h-4.5" />
-          </button>
-        </div>
-
-        {/* Company tabs */}
-        <div className="flex gap-1 px-3 pt-3 pb-1 shrink-0 overflow-x-auto scrollbar-none">
-          {companies.map((c) => {
-            const co = connByCompany.get(c.id)
-            const st = co?.status ?? "disconnected"
-            const meta = STATUS_META[st]
-            const active = selId === c.id
-            return (
-              <button
-                key={c.id}
-                onClick={() => setSelId(c.id)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 border ${
-                  active
-                    ? "bg-white/10 border-white/20 text-foreground"
-                    : "border-transparent text-muted-foreground hover:bg-white/5 hover:text-foreground"
-                }`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
-                {c.name.length > 8 ? c.name.split(" ")[0] : c.name}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-
-          {/* Status banner */}
-          {conn ? (
-            <div className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs border ${
-              isLive ? "bg-green-500/8 border-green-500/20 text-green-300"
-              : conn.status === "error" ? "bg-red-500/8 border-red-500/20 text-red-300"
-              : "bg-amber-500/8 border-amber-500/20 text-amber-300"
-            }`}>
-              {isLive ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : conn.status === "error" ? <XCircle className="w-3.5 h-3.5 shrink-0" /> : <Clock className="w-3.5 h-3.5 shrink-0" />}
-              <span className="flex-1">{isLive ? `Connected · ${selCompany?.name}` : (conn.lastError ?? STATUS_META[conn.status].label)}</span>
-              <button className="underline opacity-60 hover:opacity-100 shrink-0" onClick={() => retest.mutate(conn!.id)} disabled={retest.isPending}>
-                {retest.isPending ? "Testing…" : "Re-test"}
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs border border-white/8 bg-white/3 text-muted-foreground">
-              <Globe className="w-3.5 h-3.5 shrink-0" />
-              {selCompany?.name} is not connected to {platform.name}
-            </div>
-          )}
-
-          {/* Connect form toggle */}
-          {(!conn || conn.status !== "connected") && platform.secretKeys.length > 0 && (
-            <div>
-              <button
-                onClick={() => setShowCred((v) => !v)}
-                className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium"
-              >
-                <PlugZap className="w-3.5 h-3.5" />
-                {conn ? "Update credentials" : `Connect ${selCompany?.name}`}
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showCred ? "rotate-180" : ""}`} />
-              </button>
-              {showCred && selCompany && (
-                <div className="mt-3 p-3 bg-background/50 rounded-xl border border-white/8 space-y-3">
-                  <CredentialForm
-                    key={`${platform.key}-${selCompany.id}`}
-                    platform={platform}
-                    company={selCompany}
-                    connectionId={conn?.id ?? null}
-                    onSaved={(c) => { onConnect(selCompany.id, c); setShowCred(false) }}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Open portal CTA */}
-          {isLive && (
-            <Button className="w-full h-9 gap-2 font-semibold" onClick={() => openPortalWindow(platform, selId)}>
-              <ExternalLink className="w-4 h-4" />
-              Open {platform.name}
-            </Button>
-          )}
-
-          {/* Quick links */}
-          {platform.quickLinks.length > 0 && (
-            <div className="space-y-2">
-              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Quick Links</div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {platform.quickLinks.map((link) => (
-                  <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground bg-background/40 hover:bg-background/70 px-2.5 py-2 rounded-lg transition-all border border-white/5 hover:border-white/15">
-                    <ExternalLink className="w-3 h-3 shrink-0 opacity-50" />{link.label}
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Sync status */}
-          {isLive && conn && (
-            <div className="space-y-2">
-              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Sync</div>
-              <div className="bg-background/40 rounded-xl border border-white/5 divide-y divide-white/5 text-xs">
-                <div className="flex items-center justify-between px-3 py-2.5">
-                  <span className="text-muted-foreground">Last synced</span>
-                  <span>{fmtDate(conn.lastSyncAt)}</span>
-                </div>
-                <div className="flex items-center justify-between px-3 py-2.5">
-                  <span className="text-muted-foreground">Auto sync</span>
-                  <Switch checked={conn.autoSync} onCheckedChange={(v) => update.mutate({ id: conn!.id, autoSync: v })} />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" className="flex-1 h-8 text-xs gap-1.5 border-white/10" disabled={sync.isPending} onClick={handleSync}>
-                  {sync.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Syncing…</> : <><RefreshCw className="w-3.5 h-3.5" />Sync now</>}
-                </Button>
-                <Button size="sm" variant="ghost" aria-label="View sync history" className="h-8 px-2.5 text-muted-foreground" onClick={() => setShowActivity(true)}>
-                  <History className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Recent runs */}
-          {recentRuns.length > 0 && (
-            <div className="space-y-1.5">
-              {recentRuns.map((h) => (
-                <div key={h.id} className="flex items-center gap-2 text-xs bg-background/30 rounded-lg px-2.5 py-2 border border-white/5">
-                  {h.status === "success" ? <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" /> : h.status === "failed" ? <XCircle className="w-3 h-3 text-red-500 shrink-0" /> : <Clock className="w-3 h-3 text-muted-foreground shrink-0" />}
-                  <span className="flex-1 truncate capitalize">{h.status}{h.recordsSynced > 0 ? ` · ${h.recordsSynced}` : ""}</span>
-                  <span className="text-muted-foreground text-[10px] shrink-0">{fmtDate(h.createdAt)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Settings (for connected) */}
-          {isLive && conn && platform.syncFeatures.length > 0 && (
-            <details className="group">
-              <summary className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer list-none">
-                <Settings2 className="w-3.5 h-3.5" />
-                Sync settings
-                <ChevronDown className="w-3.5 h-3.5 ml-auto group-open:rotate-180 transition-transform" />
-              </summary>
-              <div className="mt-2 space-y-1.5">
-                {platform.syncFeatures.map((f) => (
-                  <div key={f} className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">{f}</span>
-                    <Switch checked={conn.syncSettings?.[f] ?? true} onCheckedChange={(v) => update.mutate({ id: conn!.id, syncSettings: { ...conn!.syncSettings, [f]: v } })} />
-                  </div>
-                ))}
-              </div>
-            </details>
-          )}
-
-          {/* Disconnect */}
-          {conn && conn.status !== "disconnected" && (
-            <button onClick={handleDisconnect} disabled={disconnect.isPending} className="w-full text-xs text-muted-foreground hover:text-red-400 transition-colors text-left py-1">
-              {disconnect.isPending ? "Disconnecting…" : `Disconnect ${selCompany?.name}`}
-            </button>
-          )}
-        </div>
-      </div>
-    </>
-  )
-}
-
-/* ── Platform card ── */
-
-function PlatformCard({
-  platform, companies, connByCompany, onClick,
-}: {
-  platform: CatalogPlatform
-  companies: ActiveCompany[]
-  connByCompany: Map<number, Connection>
-  onClick: () => void
-}) {
-  const liveCount = companies.filter((c) => connByCompany.get(c.id)?.status === "connected").length
-  const anyConnected = liveCount > 0
-
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full text-left group bg-card/50 hover:bg-card/80 border rounded-2xl p-4 transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 ${
-        anyConnected ? "border-white/15 hover:border-white/25" : "border-white/8 hover:border-white/15"
-      }`}
+    <div
+      className={`${dim} rounded-xl ${platform.logoColor} flex items-center justify-center shrink-0 relative overflow-hidden shadow-md`}
     >
-      {/* Top row */}
-      <div className="flex items-start gap-3 mb-3">
-        <div className={`w-11 h-11 rounded-xl ${platform.logoColor} flex items-center justify-center text-white font-bold text-sm shadow-lg shrink-0`}>
-          {platform.logo}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm leading-tight truncate">{platform.name}</div>
-          <div className="text-[10px] text-muted-foreground capitalize mt-0.5">{platform.category}</div>
-        </div>
-        {anyConnected && (
-          <span className="text-[10px] font-medium text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full shrink-0">
-            {liveCount}/{companies.length}
-          </span>
-        )}
-      </div>
-
-      {/* Company status dots */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {companies.map((c) => {
-          const co = connByCompany.get(c.id)
-          const st = co?.status ?? "disconnected"
-          const meta = STATUS_META[st]
-          return (
-            <div key={c.id} className="flex items-center gap-1.5" title={`${c.name}: ${meta.label}`}>
-              <span className={`w-2 h-2 rounded-full shrink-0 ${st === "disconnected" ? "bg-transparent border border-zinc-600" : meta.dot}`} />
-              <span className={`text-[10px] font-medium ${st === "disconnected" ? "text-zinc-600" : meta.text}`}>
-                {c.name.split(" ")[0]}
-              </span>
-            </div>
-          )
-        })}
-      </div>
-    </button>
+      {fav && !err && (
+        <img
+          src={fav}
+          alt={platform.name}
+          className={`${imgDim} object-contain transition-opacity ${loaded ? "opacity-100" : "opacity-0"} absolute`}
+          onLoad={() => setLoaded(true)}
+          onError={() => setErr(true)}
+        />
+      )}
+      <span
+        className={`text-white font-bold select-none transition-opacity ${loaded && !err ? "opacity-0" : "opacity-100"}`}
+        style={{ fontSize: size === "lg" ? 16 : size === "sm" ? 10 : 11 }}
+      >
+        {platform.logo}
+      </span>
+    </div>
   )
 }
 
-/* ── Minimal top bar ── */
+/* ─────────────────────────── TopBar ───────────────────────────── */
 
-function IntegrationsTopBar() {
-  const { user: authUser, logout } = useAuth()
+function TopBar({
+  connectedCount,
+  totalCount,
+}: {
+  connectedCount: number
+  totalCount: number
+}) {
+  const { user, logout } = useAuth()
   return (
-    <header className="h-14 flex items-center justify-between px-6 border-b border-white/8 bg-card/80 backdrop-blur-md shrink-0 z-30">
-      <div className="flex items-center gap-2.5">
+    <header className="h-14 flex items-center justify-between px-5 border-b border-white/8 bg-card/80 backdrop-blur-md shrink-0 z-30">
+      <div className="flex items-center gap-3">
         <div className="bg-white rounded-lg p-0.5 shadow-sm shrink-0">
-          <img src="/tapashub-logo.png" alt="TAPBOSS" className="w-7 h-7 object-contain" />
+          <img
+            src="/tapashub-logo.png"
+            alt="TAPBOSS"
+            className="w-7 h-7 object-contain"
+          />
         </div>
         <div>
           <div className="font-bold text-sm leading-tight">TAPBOSS</div>
-          <div className="text-[10px] text-muted-foreground leading-tight">Platform Integrations</div>
+          <div className="text-[10px] text-muted-foreground leading-tight">
+            Business Workspace
+          </div>
+        </div>
+        <div className="ml-4 hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground border-l border-white/10 pl-4">
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${connectedCount > 0 ? "bg-green-500" : "bg-zinc-600"}`}
+          />
+          {connectedCount} / {totalCount} platforms connected
         </div>
       </div>
       <div className="flex items-center gap-2">
         <div className="hidden sm:block text-right mr-1">
-          <div className="text-xs font-semibold leading-tight">{authUser?.name || "User"}</div>
-          <div className="text-[10px] text-muted-foreground leading-tight capitalize">{authUser?.role?.replace(/_/g, " ") || ""}</div>
+          <div className="text-xs font-semibold leading-tight">
+            {user?.name || "User"}
+          </div>
+          <div className="text-[10px] text-muted-foreground leading-tight capitalize">
+            {user?.role?.replace(/_/g, " ") || ""}
+          </div>
         </div>
         <Avatar className="w-8 h-8 ring-2 ring-white/10">
           <AvatarFallback className="text-xs font-bold bg-primary text-primary-foreground">
-            {authUser?.name?.substring(0, 2)?.toUpperCase() || "U"}
+            {user?.name?.substring(0, 2)?.toUpperCase() || "U"}
           </AvatarFallback>
         </Avatar>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-400 hover:bg-red-500/10" onClick={() => logout()} title="Sign out">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Sign out"
+          className="h-8 w-8 text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
+          onClick={() => logout()}
+        >
           <LogOut className="w-4 h-4" />
         </Button>
       </div>
@@ -505,52 +186,420 @@ function IntegrationsTopBar() {
   )
 }
 
-/* ── Main page ── */
+/* ─────────────────────────── Sidebar row ──────────────────────── */
+
+function PlatformRow({
+  platform,
+  active,
+  connected,
+  onOpen,
+  onLogout,
+}: {
+  platform: CatalogPlatform
+  active: boolean
+  connected: boolean
+  onOpen: () => void
+  onLogout: (e: React.MouseEvent) => void
+}) {
+  // Use a div + two independent buttons so we never have a button inside a button.
+  return (
+    <div
+      className={`flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-all group ${
+        active
+          ? "bg-white/10 border border-white/15"
+          : "hover:bg-white/5 border border-transparent"
+      }`}
+    >
+      {/* Clicking the icon/name area opens the platform */}
+      <button
+        onClick={onOpen}
+        className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
+        aria-label={`Open ${platform.name}`}
+      >
+        <PlatformIcon platform={platform} size="sm" />
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-semibold leading-tight truncate">
+            {platform.name}
+          </div>
+          <div className="flex items-center gap-1 mt-0.5">
+            <span
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                connected ? "bg-green-500" : "bg-zinc-600"
+              }`}
+            />
+            <span
+              className={`text-[9px] font-medium ${
+                connected ? "text-green-400" : "text-zinc-500"
+              }`}
+            >
+              {connected ? "Connected" : "Login"}
+            </span>
+          </div>
+        </div>
+      </button>
+
+      {/* Logout — separate button, only visible on hover when connected */}
+      {connected ? (
+        <button
+          aria-label={`Logout from ${platform.name}`}
+          onClick={onLogout}
+          className="text-[9px] text-muted-foreground hover:text-red-400 px-1.5 py-0.5 rounded hover:bg-red-500/10 transition-all font-medium opacity-0 group-hover:opacity-100 shrink-0"
+        >
+          Logout
+        </button>
+      ) : (
+        <span className="text-[9px] text-primary border border-primary/30 px-1.5 py-0.5 rounded font-medium shrink-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          Login
+        </span>
+      )}
+    </div>
+  )
+}
+
+/* ─────────────────────────── Browser panel ───────────────────── */
+
+function EmbedBlockedCard({
+  platform,
+  url,
+  reason,
+}: {
+  platform: CatalogPlatform
+  url: string
+  reason: string
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-6 px-8 text-center">
+      <PlatformIcon platform={platform} size="lg" />
+      <div className="space-y-2 max-w-md">
+        <h3 className="text-xl font-bold">{platform.name}</h3>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          {platform.name} blocks embedding inside other applications for
+          security reasons.
+        </p>
+        <p className="text-xs text-muted-foreground/50">{reason}</p>
+      </div>
+      <div className="flex flex-col items-center gap-2">
+        <Button
+          className="gap-2"
+          onClick={() =>
+            window.open(
+              url,
+              `tapboss-${platform.key}`,
+              "width=1400,height=900,noopener",
+            )
+          }
+        >
+          <ExternalLink className="w-4 h-4" />
+          Open {platform.name} in new window
+        </Button>
+        <p className="text-[11px] text-muted-foreground/40">
+          Your session will remain connected in this workspace
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function BrowserPanel({
+  platform,
+  iframeRef,
+  iframeKey,
+  currentUrl,
+  urlInput,
+  canGoBack,
+  canGoForward,
+  onUrlChange,
+  onUrlSubmit,
+  onBack,
+  onForward,
+  onRefresh,
+  onHome,
+}: {
+  platform: CatalogPlatform
+  iframeRef: React.MutableRefObject<HTMLIFrameElement | null>
+  iframeKey: number
+  currentUrl: string
+  urlInput: string
+  canGoBack: boolean
+  canGoForward: boolean
+  onUrlChange: (v: string) => void
+  onUrlSubmit: () => void
+  onBack: () => void
+  onForward: () => void
+  onRefresh: () => void
+  onHome: () => void
+}) {
+  // Only check the platform home URL — not every URL the user navigates to.
+  const embedCheck = useEmbedCheck(platform.url)
+  const blocked =
+    embedCheck.data != null && !embedCheck.data.embeddable
+
+  return (
+    <div className="flex flex-col h-full bg-zinc-950">
+      {/* ── Browser toolbar ── */}
+      <div className="h-12 border-b border-white/8 bg-zinc-900/80 flex items-center gap-1.5 px-3 shrink-0">
+        {/* Nav buttons */}
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          disabled={!canGoBack}
+          onClick={onBack}
+          aria-label="Back"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          disabled={!canGoForward}
+          onClick={onForward}
+          aria-label="Forward"
+        >
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          onClick={onRefresh}
+          aria-label="Refresh"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          onClick={onHome}
+          aria-label="Home"
+        >
+          <Home className="w-3.5 h-3.5" />
+        </Button>
+
+        {/* Address bar */}
+        <div className="flex-1 flex items-center gap-2 bg-zinc-800/70 hover:bg-zinc-800 border border-white/8 rounded-lg h-8 px-3 transition-colors">
+          <Globe className="w-3 h-3 text-zinc-500 shrink-0" />
+          <input
+            type="text"
+            value={urlInput}
+            onChange={(e) => onUrlChange(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && onUrlSubmit()}
+            onFocus={(e) => e.target.select()}
+            className="flex-1 bg-transparent text-xs text-zinc-200 outline-none font-mono placeholder:text-zinc-600 min-w-0"
+            placeholder="https://…"
+            spellCheck={false}
+            autoComplete="off"
+          />
+        </div>
+
+        {/* Platform badge */}
+        <div className="flex items-center gap-1.5 border border-white/8 rounded-lg px-2.5 h-8 shrink-0">
+          <PlatformIcon platform={platform} size="sm" />
+          <span className="text-xs font-medium text-zinc-300 hidden sm:block">
+            {platform.shortName}
+          </span>
+        </div>
+
+        {/* Open externally */}
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-zinc-500 hover:text-zinc-200"
+          onClick={() =>
+            window.open(
+              currentUrl || platform.url,
+              `tapboss-ext-${platform.key}`,
+              "noopener",
+            )
+          }
+          aria-label="Open in new tab"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+
+      {/* ── Content ── */}
+      <div className="flex-1 relative overflow-hidden">
+        {/* Loading overlay while embed check runs */}
+        {embedCheck.isLoading && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-zinc-950">
+            <PlatformIcon platform={platform} size="lg" />
+            <div className="flex items-center gap-2 text-sm text-zinc-500">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading {platform.name}…
+            </div>
+          </div>
+        )}
+
+        {/* Blocked fallback */}
+        {blocked && (
+          <EmbedBlockedCard
+            platform={platform}
+            url={currentUrl || platform.url}
+            reason={embedCheck.data?.reason ?? "X-Frame-Options or CSP restriction"}
+          />
+        )}
+
+        {/* Iframe — rendered (but hidden) even during loading so it starts preloading */}
+        {!blocked && (
+          <iframe
+            key={iframeKey}
+            ref={iframeRef as React.RefObject<HTMLIFrameElement>}
+            src={currentUrl || platform.url}
+            title={platform.name}
+            className={`w-full h-full border-none ${embedCheck.isLoading ? "opacity-0" : "opacity-100"} transition-opacity duration-300`}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────── Empty state ──────────────────────── */
+
+function EmptyState({
+  platforms,
+  sessions,
+  onOpen,
+}: {
+  platforms: CatalogPlatform[]
+  sessions: Record<string, boolean>
+  onOpen: (p: CatalogPlatform) => void
+}) {
+  const connected = platforms.filter((p) => sessions[p.key])
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-8 px-8 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+        <Monitor className="w-7 h-7 text-zinc-600" />
+      </div>
+      <div className="space-y-2 max-w-sm">
+        <h3 className="text-xl font-bold">Business Workspace</h3>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Select any platform from the sidebar to open its website here.
+          Log in once and your session stays active — no separate browser tabs needed.
+        </p>
+      </div>
+
+      {/* Connected platforms quick launch */}
+      {connected.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground/60 uppercase tracking-wider font-semibold">
+            Your sessions
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {connected.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => onOpen(p)}
+                className="flex items-center gap-2 pl-2 pr-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all"
+              >
+                <PlatformIcon platform={p} size="sm" />
+                <span className="text-xs font-medium">{p.shortName}</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 ml-0.5" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* All platforms quick grid */}
+      {connected.length === 0 && (
+        <div className="grid grid-cols-4 gap-2 max-w-xs">
+          {platforms.slice(0, 8).map((p) => (
+            <button
+              key={p.key}
+              onClick={() => onOpen(p)}
+              className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl hover:bg-white/5 transition-colors group"
+            >
+              <PlatformIcon platform={p} size="sm" />
+              <span className="text-[10px] text-zinc-500 group-hover:text-zinc-300 transition-colors truncate w-full text-center">
+                {p.shortName}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─────────────────────────── Main page ────────────────────────── */
 
 export default function Integrations() {
-  const { companies } = useCompany()
   const catalog = useCatalog()
-  const allConnections = useConnections(null)
+  const platforms = catalog.data ?? []
 
-  // Only subsidiaries matter for integrations
-  const subsidiaries = React.useMemo(
-    () => companies.filter((c) => c.mode === "subsidiary"),
-    [companies]
+  // Which platform is open in the workspace
+  const [activePlatformKey, setActivePlatformKey] = React.useState<
+    string | null
+  >(null)
+
+  // Per-platform "logged in" flag — persisted in localStorage
+  const [sessions, setSessions] = useLocalStorage<Record<string, boolean>>(
+    "tapboss-ws-sessions-v2",
+    {},
   )
 
-  // Map: platformKey → Map<companyId, Connection>
-  // Connections arrive newest-first (updatedAt DESC). Only keep the first
-  // entry per (platformKey, companyId) so the newest record always wins.
-  const connMap = React.useMemo(() => {
-    const m = new Map<string, Map<number, Connection>>()
-    for (const conn of allConnections.data ?? []) {
-      if (!m.has(conn.platformKey)) m.set(conn.platformKey, new Map())
-      const inner = m.get(conn.platformKey)!
-      if (!inner.has(conn.companyId)) inner.set(conn.companyId, conn)
-    }
-    return m
-  }, [allConnections.data])
+  // Sidebar search
+  const [search, setSearch] = React.useState("")
+  const [collapsedCats, setCollapsedCats] = React.useState<Set<string>>(
+    new Set(),
+  )
 
-  const [openPlatformKey, setOpenPlatformKey] = React.useState<string | null>(null)
-  const openPlatform = catalog.data?.find((p) => p.key === openPlatformKey)
+  // Per-platform URL history  
+  // stacks[key] = [url0, url1, …], pointers[key] = current index
+  const [stacks, setStacks] = React.useState<Record<string, string[]>>({})
+  const [pointers, setPointers] = React.useState<Record<string, number>>({})
+  const [urlInput, setUrlInput] = React.useState("")
+  const [iframeKey, setIframeKey] = React.useState(0)
+  const iframeRef = React.useRef<HTMLIFrameElement | null>(null)
 
-  // Handle a newly saved connection coming back from the panel
-  function handleConnect(_companyId: number, _conn: Connection) {
-    // react-query invalidation via useSaveCredentials/useConnect handles refetch
-  }
+  /* ── Derived ── */
+  const activePlatform =
+    platforms.find((p) => p.key === activePlatformKey) ?? null
 
-  const platforms = catalog.data ?? []
-  const totalConnected = (allConnections.data ?? []).filter((c) => c.status === "connected").length
-  const totalPlatforms = platforms.length
+  const currentUrl = React.useMemo(() => {
+    if (!activePlatformKey) return ""
+    const s = stacks[activePlatformKey] ?? []
+    const p = pointers[activePlatformKey] ?? -1
+    return p >= 0 ? (s[p] ?? "") : (activePlatform?.url ?? "")
+  }, [activePlatformKey, stacks, pointers, activePlatform])
 
-  // Group by category in order
-  const byCategory = React.useMemo(() => {
+  const canGoBack = React.useMemo(
+    () => (activePlatformKey ? (pointers[activePlatformKey] ?? 0) > 0 : false),
+    [activePlatformKey, pointers],
+  )
+  const canGoForward = React.useMemo(() => {
+    if (!activePlatformKey) return false
+    const s = stacks[activePlatformKey] ?? []
+    const p = pointers[activePlatformKey] ?? -1
+    return p < s.length - 1
+  }, [activePlatformKey, stacks, pointers])
+
+  const filteredPlatforms = React.useMemo(() => {
+    if (!search.trim()) return platforms
+    const q = search.toLowerCase()
+    return platforms.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.shortName.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q),
+    )
+  }, [platforms, search])
+
+  const grouped = React.useMemo(() => {
     const m = new Map<string, CatalogPlatform[]>()
+    if (search.trim()) {
+      m.set("results", filteredPlatforms)
+      return m
+    }
     for (const cat of CATEGORY_ORDER) {
       const ps = platforms.filter((p) => p.category === cat)
       if (ps.length > 0) m.set(cat, ps)
     }
-    // Add any uncategorised ones at end
+    // Unknown categories at end
     for (const p of platforms) {
       if (!CATEGORY_ORDER.includes(p.category)) {
         const arr = m.get(p.category) ?? []
@@ -559,99 +608,243 @@ export default function Integrations() {
       }
     }
     return m
-  }, [platforms])
+  }, [platforms, filteredPlatforms, search])
 
-  const isLoading = catalog.isLoading || allConnections.isLoading
+  const connectedCount = platforms.filter((p) => sessions[p.key]).length
 
+  /* ── Navigation helpers ── */
+
+  function pushUrl(key: string, url: string) {
+    const s = stacks[key] ?? []
+    const p = pointers[key] ?? -1
+    const newStack = [...s.slice(0, p + 1), url]
+    setStacks((prev) => ({ ...prev, [key]: newStack }))
+    setPointers((prev) => ({ ...prev, [key]: newStack.length - 1 }))
+  }
+
+  function openPlatform(platform: CatalogPlatform) {
+    const key = platform.key
+    const existing = stacks[key] ?? []
+    const url =
+      existing.length > 0
+        ? existing[pointers[key] ?? existing.length - 1] ?? platform.url
+        : platform.url
+
+    setActivePlatformKey(key)
+    setUrlInput(url)
+
+    if (existing.length === 0) {
+      setStacks((prev) => ({ ...prev, [key]: [platform.url] }))
+      setPointers((prev) => ({ ...prev, [key]: 0 }))
+    }
+
+    // Force iframe reload when switching platforms so the correct session loads
+    setIframeKey((k) => k + 1)
+  }
+
+  function handleLogin(platform: CatalogPlatform) {
+    setSessions((prev) => ({ ...prev, [platform.key]: true }))
+    openPlatform(platform)
+  }
+
+  function handleLogout(e: React.MouseEvent, platformKey: string) {
+    e.stopPropagation()
+    setSessions((prev) => ({ ...prev, [platformKey]: false }))
+
+    const homeUrl =
+      platforms.find((x) => x.key === platformKey)?.url ?? ""
+    const isActive = activePlatformKey === platformKey
+
+    // Single atomic update per store: if this is the active platform reset
+    // history to the home URL; otherwise wipe the stored history entirely.
+    setStacks((prev) => {
+      const n = { ...prev }
+      if (isActive && homeUrl) {
+        n[platformKey] = [homeUrl]
+      } else {
+        delete n[platformKey]
+      }
+      return n
+    })
+    setPointers((prev) => {
+      const n = { ...prev }
+      if (isActive) {
+        n[platformKey] = 0
+      } else {
+        delete n[platformKey]
+      }
+      return n
+    })
+
+    if (isActive && homeUrl) {
+      setUrlInput(homeUrl)
+      setIframeKey((k) => k + 1)
+    }
+  }
+
+  function handleUrlSubmit() {
+    if (!activePlatformKey) return
+    let url = urlInput.trim()
+    if (!url) return
+    if (!url.startsWith("http://") && !url.startsWith("https://"))
+      url = "https://" + url
+    pushUrl(activePlatformKey, url)
+    setUrlInput(url)
+    if (iframeRef.current) iframeRef.current.src = url
+  }
+
+  function handleBack() {
+    if (!activePlatformKey) return
+    const p = pointers[activePlatformKey] ?? 0
+    if (p > 0) {
+      const newP = p - 1
+      setPointers((prev) => ({ ...prev, [activePlatformKey]: newP }))
+      const url = stacks[activePlatformKey]?.[newP] ?? activePlatform?.url ?? ""
+      setUrlInput(url)
+      if (iframeRef.current) iframeRef.current.src = url
+    }
+  }
+
+  function handleForward() {
+    if (!activePlatformKey) return
+    const s = stacks[activePlatformKey] ?? []
+    const p = pointers[activePlatformKey] ?? 0
+    if (p < s.length - 1) {
+      const newP = p + 1
+      setPointers((prev) => ({ ...prev, [activePlatformKey]: newP }))
+      const url = s[newP] ?? activePlatform?.url ?? ""
+      setUrlInput(url)
+      if (iframeRef.current) iframeRef.current.src = url
+    }
+  }
+
+  function handleRefresh() {
+    setIframeKey((k) => k + 1)
+  }
+
+  function handleHome() {
+    if (!activePlatform || !activePlatformKey) return
+    const url = activePlatform.url
+    pushUrl(activePlatformKey, url)
+    setUrlInput(url)
+    setIframeKey((k) => k + 1)
+  }
+
+  function toggleCat(cat: string) {
+    setCollapsedCats((prev) => {
+      const n = new Set(prev)
+      n.has(cat) ? n.delete(cat) : n.add(cat)
+      return n
+    })
+  }
+
+  /* ─── Render ─── */
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <IntegrationsTopBar />
+    <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
+      <TopBar connectedCount={connectedCount} totalCount={platforms.length} />
 
-      {/* Stats bar */}
-      <div className="border-b border-white/8 bg-card/30 px-6 py-3 flex items-center gap-6 shrink-0">
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-2xl font-bold text-green-400">{totalConnected}</span>
-          <span className="text-muted-foreground text-xs">live connections</span>
-        </div>
-        <div className="w-px h-5 bg-white/10" />
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-2xl font-bold">{totalPlatforms}</span>
-          <span className="text-muted-foreground text-xs">platforms</span>
-        </div>
-        <div className="w-px h-5 bg-white/10" />
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-2xl font-bold">{subsidiaries.length}</span>
-          <span className="text-muted-foreground text-xs">businesses</span>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          {subsidiaries.map((c) => (
-            <div key={c.id} className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full" style={{ background: c.color ?? "#64748B" }} />
-              <span className="text-[11px] text-muted-foreground hidden sm:block">{c.name.split(" ")[0]}</span>
+      <div className="flex flex-1 overflow-hidden">
+        {/* ════════════════════════ Sidebar ════════════════════════ */}
+        <aside className="w-60 shrink-0 border-r border-white/8 bg-card/20 flex flex-col overflow-hidden">
+          {/* Sidebar header */}
+          <div className="px-3 pt-3 pb-2 shrink-0 space-y-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500 pointer-events-none" />
+              <Input
+                placeholder="Search…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-7 text-xs pl-7 bg-zinc-900/60 border-white/8 placeholder:text-zinc-600"
+              />
             </div>
-          ))}
-        </div>
+          </div>
+
+          {/* Platform list */}
+          <div className="flex-1 overflow-y-auto px-1.5 pb-4">
+            {catalog.isLoading && (
+              <div className="flex justify-center py-10">
+                <Loader2 className="w-5 h-5 animate-spin text-zinc-600" />
+              </div>
+            )}
+
+            {Array.from(grouped.entries()).map(([cat, ps]) => {
+              const collapsed = collapsedCats.has(cat)
+              const label = search.trim()
+                ? `${filteredPlatforms.length} result${filteredPlatforms.length !== 1 ? "s" : ""}`
+                : (CATEGORY_LABEL[cat] ?? cat)
+
+              return (
+                <div key={cat} className="mb-1">
+                  {/* Category header (not shown for search results) */}
+                  {!search.trim() && (
+                    <button
+                      onClick={() => toggleCat(cat)}
+                      className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[9px] font-semibold text-zinc-600 uppercase tracking-widest hover:text-zinc-400 transition-colors"
+                    >
+                      <span className="flex-1 text-left">{label}</span>
+                      <ChevronDown
+                        className={`w-3 h-3 transition-transform ${collapsed ? "-rotate-90" : ""}`}
+                      />
+                    </button>
+                  )}
+                  {search.trim() && (
+                    <div className="px-2 py-1.5 text-[9px] font-semibold text-zinc-600 uppercase tracking-widest">
+                      {label}
+                    </div>
+                  )}
+
+                  {!collapsed &&
+                    ps.map((p) => (
+                      <PlatformRow
+                        key={p.key}
+                        platform={p}
+                        active={activePlatformKey === p.key}
+                        connected={!!sessions[p.key]}
+                        onOpen={() => handleLogin(p)}
+                        onLogout={(e) => handleLogout(e, p.key)}
+                      />
+                    ))}
+                </div>
+              )
+            })}
+
+            {!catalog.isLoading &&
+              search.trim() &&
+              filteredPlatforms.length === 0 && (
+                <p className="text-xs text-zinc-600 text-center py-6">
+                  No platforms match "{search}"
+                </p>
+              )}
+          </div>
+        </aside>
+
+        {/* ════════════════════════ Workspace ══════════════════════ */}
+        <main className="flex-1 overflow-hidden">
+          {activePlatform ? (
+            <BrowserPanel
+              platform={activePlatform}
+              iframeRef={iframeRef}
+              iframeKey={iframeKey}
+              currentUrl={currentUrl}
+              urlInput={urlInput}
+              canGoBack={canGoBack}
+              canGoForward={canGoForward}
+              onUrlChange={setUrlInput}
+              onUrlSubmit={handleUrlSubmit}
+              onBack={handleBack}
+              onForward={handleForward}
+              onRefresh={handleRefresh}
+              onHome={handleHome}
+            />
+          ) : (
+            <EmptyState
+              platforms={platforms}
+              sessions={sessions}
+              onOpen={handleLogin}
+            />
+          )}
+        </main>
       </div>
-
-      {/* Content */}
-      <main className="flex-1 overflow-auto p-6">
-        <div className="max-w-6xl mx-auto space-y-8">
-
-          {isLoading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-12 justify-center">
-              <Loader2 className="w-5 h-5 animate-spin" /> Loading platforms…
-            </div>
-          )}
-
-          {catalog.isError && (
-            <div className="text-sm text-red-400 py-8 text-center">Failed to load platforms.</div>
-          )}
-
-          {!isLoading && subsidiaries.length === 0 && (
-            <div className="py-16 text-center space-y-2">
-              <div className="text-muted-foreground text-sm">No subsidiary companies found.</div>
-              <div className="text-xs text-muted-foreground/60">Add subsidiary companies in the main dashboard first.</div>
-            </div>
-          )}
-
-          {Array.from(byCategory.entries()).map(([cat, ps]) => (
-            <section key={cat}>
-              {/* Category header */}
-              <div className="flex items-center gap-3 mb-4">
-                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  {CATEGORY_LABEL[cat] ?? cat}
-                </h2>
-                <div className="flex-1 h-px bg-white/8" />
-                <span className="text-[10px] text-muted-foreground/50">{ps.length}</span>
-              </div>
-
-              {/* Platform grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                {ps.map((platform) => (
-                  <PlatformCard
-                    key={platform.key}
-                    platform={platform}
-                    companies={subsidiaries}
-                    connByCompany={connMap.get(platform.key) ?? new Map()}
-                    onClick={() => setOpenPlatformKey(platform.key)}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      </main>
-
-      {/* Side panel */}
-      {openPlatformKey && openPlatform && (
-        <WorkspacePanel
-          platform={openPlatform}
-          companies={subsidiaries}
-          connByCompany={connMap.get(openPlatformKey) ?? new Map()}
-          onClose={() => setOpenPlatformKey(null)}
-          onConnect={handleConnect}
-        />
-      )}
     </div>
   )
 }

@@ -199,45 +199,52 @@ function AuthedApp() {
 
   return (
     <CompanyProvider>
-      <Layout>
-        <React.Suspense fallback={<PageFallback />}>
+      <React.Suspense fallback={<PageFallback />}>
         <Switch>
-          <Route path="/" component={Dashboard} />
-          <Route path="/companies" component={Companies} />
-          <Route path="/companies/:id" component={CompanyDetail} />
-          <Route path="/orders" component={Orders} />
-          <Route path="/inventory" component={Inventory} />
-          <Route path="/finance" component={Finance} />
-          <Route path="/fund-allocation" component={FundAllocations} />
-          <Route path="/shareholders" component={Shareholders} />
-          <Route path="/hr" component={HR} />
-          <Route path="/crm" component={CRM} />
-          <Route path="/approvals" component={Approvals} />
-          <Route path="/notifications" component={Notifications} />
-          <Route path="/ai-assistant" component={AiAssistant} />
+          {/* Integrations has its own minimal layout (no sidebar) */}
           <Route path="/integrations" component={Integrations} />
-          <Route path="/director" component={DirectorPortal} />
-          <Route path="/settings" component={Settings} />
-          <Route path="/accounts" component={AccountDirectory} />
-          <Route path="/shipping" component={Shipping} />
-          <Route path="/documents" component={Documents} />
-          <Route path="/marketing" component={Marketing} />
           <Route path="/platforms" component={Integrations} />
-          <Route path="/admin/access" component={AccessControl} />
-          <Route path="/admin/audit" component={AuditLogs} />
-          {/* Subsidiary-specific stubs */}
-          <Route path="/reports" component={Finance} />
-          <Route path="/analytics" component={Analytics} />
-          <Route path="/veterinary" component={HR} />
-          <Route path="/community" component={CRM} />
-          <Route path="/collections" component={Inventory} />
-          <Route path="/lookbook" component={Inventory} />
-          <Route path="/catalog" component={Inventory} />
-          <Route path="/services" component={Orders} />
-          <Route component={NotFound} />
+          {/* All other pages use the full sidebar layout */}
+          <Route>
+            <Layout>
+              <React.Suspense fallback={<PageFallback />}>
+                <Switch>
+                  <Route path="/" component={Dashboard} />
+                  <Route path="/companies" component={Companies} />
+                  <Route path="/companies/:id" component={CompanyDetail} />
+                  <Route path="/orders" component={Orders} />
+                  <Route path="/inventory" component={Inventory} />
+                  <Route path="/finance" component={Finance} />
+                  <Route path="/fund-allocation" component={FundAllocations} />
+                  <Route path="/shareholders" component={Shareholders} />
+                  <Route path="/hr" component={HR} />
+                  <Route path="/crm" component={CRM} />
+                  <Route path="/approvals" component={Approvals} />
+                  <Route path="/notifications" component={Notifications} />
+                  <Route path="/ai-assistant" component={AiAssistant} />
+                  <Route path="/director" component={DirectorPortal} />
+                  <Route path="/settings" component={Settings} />
+                  <Route path="/accounts" component={AccountDirectory} />
+                  <Route path="/shipping" component={Shipping} />
+                  <Route path="/documents" component={Documents} />
+                  <Route path="/marketing" component={Marketing} />
+                  <Route path="/admin/access" component={AccessControl} />
+                  <Route path="/admin/audit" component={AuditLogs} />
+                  <Route path="/reports" component={Finance} />
+                  <Route path="/analytics" component={Analytics} />
+                  <Route path="/veterinary" component={HR} />
+                  <Route path="/community" component={CRM} />
+                  <Route path="/collections" component={Inventory} />
+                  <Route path="/lookbook" component={Inventory} />
+                  <Route path="/catalog" component={Inventory} />
+                  <Route path="/services" component={Orders} />
+                  <Route component={NotFound} />
+                </Switch>
+              </React.Suspense>
+            </Layout>
+          </Route>
         </Switch>
-        </React.Suspense>
-      </Layout>
+      </React.Suspense>
     </CompanyProvider>
   );
 }

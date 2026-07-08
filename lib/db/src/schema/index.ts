@@ -14,6 +14,7 @@ export * from "./leads";
 export * from "./vendors";
 export * from "./notifications";
 export * from "./approvals";
+export * from "./approval-votes";
 export * from "./activity";
 export * from "./platforms";
 export * from "./integrations";

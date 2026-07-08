@@ -1,0 +1,121 @@
+Design and build a premium **Integrations Workspace** for TapasHub. This module is **not** for API integrations or data synchronization. Its purpose is to provide one place where users can launch and manage multiple business websites.
+
+## Design Goals
+
+* Modern, premium, enterprise-quality UI.
+* Fast and clean interface inspired by business tools such as Slack, Notion, Arc Browser, and Linear.
+* Responsive for desktop and tablet.
+* Smooth animations and professional micro-interactions.
+
+## Dashboard Layout
+
+### Left Sidebar
+
+* Dashboard
+* Companies
+* Integrations
+* Analytics
+* Settings
+
+### Integrations Workspace
+
+Display websites as modern cards with:
+
+* Website logo
+* Website name
+* Company name
+* Connection status
+* Last opened
+* Favorite icon
+* Login/Connect button
+* Logout button
+* Open Workspace button
+
+Example:
+
+HugFAB
+
+* ShopDeck
+* Shopify
+* Amazon Seller
+* Flipkart Seller
+
+TottoToy
+
+* ShopDeck
+* Shopify
+* Myntra
+
+TikkaTails
+
+* Shopify
+* Meta Business
+* Google Merchant
+
+## Workspace Experience
+
+When clicking **Open Workspace**:
+
+* Open the website inside the TapasHub workspace if embedding is supported.
+* If embedding is blocked by browser security, automatically open it in a separate browser window or embedded browser view.
+* Never show a blank page.
+* Display a helpful message explaining why the site opened separately.
+
+## Multi-Company Support
+
+Support multiple companies, each with isolated login sessions:
+
+* HugFAB
+* TottoToy
+* TikkaTails
+* Pepalworks
+
+Each company should have independent login and logout controls.
+
+## Login Experience
+
+Each website card should include:
+
+* Connect
+* Connected
+* Disconnect
+* Reconnect
+* Open Workspace
+
+Show connection status with badges:
+
+* Connected
+* Login Required
+* Session Expired
+* Embedding Supported
+* External Window Required
+
+## User Experience
+
+* Search integrations
+* Filter by company
+* Favorites
+* Recently opened
+* Pin favorite integrations
+* Drag-and-drop card ordering
+* Dark and light themes
+* Keyboard shortcuts
+* Smooth loading animations
+* Skeleton loaders while opening
+* Empty state illustrations
+* Professional icons
+
+## Session Management
+
+Save website sessions securely until:
+
+* The user logs out.
+* The website expires the session.
+
+Do not ask the user to log in repeatedly unless required by the website.
+
+## Important
+
+This module is **not** an API integration system and does **not** synchronize data. It is a professional business workspace that helps users access multiple business websites from one interface while respecting browser security restrictions and each website's authentication requirements.
+
+The UI should feel polished, modern, and production-ready, suitable for enterprise users managing multiple businesses.

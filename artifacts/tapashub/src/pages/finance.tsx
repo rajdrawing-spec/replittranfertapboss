@@ -14,10 +14,10 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import {
-  Plus, TrendingUp, TrendingDown, Wallet, Pencil, Ban,
+  Plus, TrendingUp, TrendingDown, Wallet, Pencil, Trash2,
   Download, Scale, ArrowDownLeft, ArrowUpRight, Clock,
   Building2, PieChart,
 } from "lucide-react"
@@ -173,6 +173,7 @@ export default function Finance() {
   const [form, setForm] = React.useState<TxForm>(emptyForm())
   const [saving, setSaving] = React.useState(false)
   const [deleting, setDeleting] = React.useState<number | null>(null)
+  const [deleteTarget, setDeleteTarget] = React.useState<{ id: number; description: string } | null>(null)
   const [exporting, setExporting] = React.useState(false)
 
   const { data: companies } = useListCompanies({ query: { enabled: true, queryKey: ["/api/companies"] } })
@@ -237,16 +238,21 @@ export default function Finance() {
     } finally { setSaving(false) }
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm("Cancel this transaction? The record will be preserved with status 'cancelled'.")) return
-    setDeleting(id)
+  function handleDelete(id: number, description: string) {
+    setDeleteTarget({ id, description })
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    setDeleting(deleteTarget.id)
     try {
-      const res = await fetch(`${API_BASE}/api/finance/transactions/${id}`, { method: "DELETE", credentials: "include" })
+      const res = await fetch(`${API_BASE}/api/finance/transactions/${deleteTarget.id}`, { method: "DELETE", credentials: "include" })
       if (!res.ok) throw new Error()
-      toast({ title: "Transaction cancelled", description: "The record has been marked as cancelled." })
+      toast({ title: "Transaction deleted", description: "The record has been removed." })
+      setDeleteTarget(null)
       refetch()
     } catch {
-      toast({ title: "Error", description: "Could not cancel transaction", variant: "destructive" })
+      toast({ title: "Error", description: "Could not delete transaction", variant: "destructive" })
     } finally { setDeleting(null) }
   }
 
@@ -567,9 +573,9 @@ export default function Finance() {
                             </Button>
                             <Button
                               size="icon" variant="ghost" className="w-7 h-7 text-destructive hover:text-destructive"
-                              disabled={deleting === t.id} onClick={() => handleDelete(t.id)}
+                              disabled={deleting === t.id} onClick={() => handleDelete(t.id, t.description)}
                             >
-                              <Ban className="w-3.5 h-3.5" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </Button>
                           </div>
                         </TableCell>
@@ -682,6 +688,37 @@ export default function Finance() {
               disabled={saving || !form.amount || !form.description || !form.companyId}
             >
               {saving ? "Saving…" : editing ? "Save Changes" : "Record Transaction"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-4 h-4" /> Delete Transaction
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this transaction? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTarget && (
+            <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-muted-foreground">
+              {deleteTarget.description}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={!!deleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={!!deleting}
+            >
+              {deleting ? "Deleting…" : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

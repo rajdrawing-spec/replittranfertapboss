@@ -11,8 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { Separator } from "@/components/ui/separator"
-import { ArrowRight, Ban, Landmark, Pencil, ShieldCheck, Wallet, AlertCircle, TrendingUp, Building2 } from "lucide-react"
+import { ArrowRight, Trash2, Landmark, Pencil, ShieldCheck, Wallet, TrendingUp, Building2 } from "lucide-react"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
@@ -33,13 +32,11 @@ const STATUS_STYLES: Record<string, string> = {
   executed:         "bg-green-500/10 text-green-400 border-green-500/20",
   pending_approval: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   rejected:         "bg-red-500/10  text-red-400  border-red-500/20",
-  cancelled:        "bg-muted text-muted-foreground border-border",
 }
 const STATUS_LABELS: Record<string, string> = {
   executed:         "Executed",
   pending_approval: "Awaiting approval",
   rejected:         "Rejected",
-  cancelled:        "Cancelled",
 }
 const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`
 
@@ -73,9 +70,8 @@ export default function FundAllocations() {
   const qc = useQueryClient()
   const [statusFilter, setStatusFilter] = React.useState("all")
   const [showDialog, setShowDialog] = React.useState(false)
-  const [showCancelDialog, setShowCancelDialog] = React.useState(false)
-  const [cancelTarget, setCancelTarget] = React.useState<Allocation | null>(null)
-  const [cancelReason, setCancelReason] = React.useState("")
+  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false)
+  const [deleteTarget, setDeleteTarget] = React.useState<Allocation | null>(null)
   const [form, setForm] = React.useState<Form>(emptyForm())
 
   const isEditing = form.id !== null
@@ -126,7 +122,7 @@ export default function FundAllocations() {
   }
   function openEdit(a: Allocation) { setForm(allocToForm(a)); setShowDialog(true) }
   function closeDialog() { setShowDialog(false); setForm(emptyForm(parent ? String(parent.id) : "")) }
-  function openCancel(a: Allocation) { setCancelTarget(a); setCancelReason(""); setShowCancelDialog(true) }
+  function openDelete(a: Allocation) { setDeleteTarget(a); setShowDeleteDialog(true) }
 
   /**
    * Invalidate every query that depends on fund-allocation data so all finance
@@ -169,20 +165,18 @@ export default function FundAllocations() {
     onError: (e: Error) => toast({ title: "Couldn't update allocation", description: e.message, variant: "destructive" }),
   })
 
-  const cancel = useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
-      adminApi.post(`/fund-allocations/${id}/cancel`, { reason }),
-    onSuccess: (_data: Allocation, { id }) => {
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => adminApi.del(`/fund-allocations/${id}`),
+    onSuccess: (_data, id) => {
       invalidateAll()
-      setShowCancelDialog(false)
-      setCancelTarget(null)
-      setCancelReason("")
+      setShowDeleteDialog(false)
+      setDeleteTarget(null)
       toast({
-        title: "Allocation cancelled",
-        description: `Allocation #${id} has been cancelled and linked transactions reversed. All balances updated.`,
+        title: "Allocation deleted",
+        description: `Allocation #${id} and its linked transactions have been permanently removed.`,
       })
     },
-    onError: (e: Error) => toast({ title: "Couldn't cancel allocation", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: "Couldn't delete allocation", description: e.message, variant: "destructive" }),
   })
 
   const isPending = create.isPending || update.isPending
@@ -325,7 +319,6 @@ export default function FundAllocations() {
             <SelectItem value="pending_approval">Awaiting approval</SelectItem>
             <SelectItem value="executed">Executed</SelectItem>
             <SelectItem value="rejected">Rejected</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -359,7 +352,7 @@ export default function FundAllocations() {
                 </TableRow>
               ) : (
                 items.map((a) => (
-                  <TableRow key={a.id} className={a.status === "cancelled" ? "opacity-50" : ""}>
+                  <TableRow key={a.id}>
                     <TableCell>
                       <div className="flex items-center gap-2 font-medium">
                         <span className={a.fromCompanyName === "Unknown" ? "text-amber-400" : ""}>{a.fromCompanyName}</span>
@@ -372,11 +365,7 @@ export default function FundAllocations() {
                         <HoverCardTrigger asChild>
                           <button
                             type="button"
-                            className={
-                              a.status === "cancelled"
-                                ? "line-through text-muted-foreground focus:outline-none"
-                                : "font-semibold underline decoration-dotted decoration-muted-foreground/40 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded"
-                            }
+                            className="font-semibold underline decoration-dotted decoration-muted-foreground/40 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded"
                           >
                             {inr(a.amount)}
                           </button>
@@ -453,17 +442,15 @@ export default function FundAllocations() {
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          {/* Cancel: available for all non-cancelled allocations */}
-                          {a.status !== "cancelled" && (
-                            <Button
-                              size="icon" variant="ghost"
-                              className="h-7 w-7 text-amber-400 hover:text-amber-300"
-                              title="Cancel allocation"
-                              onClick={() => openCancel(a)}
-                            >
-                              <Ban className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
+                          {/* Delete: available for all allocations */}
+                          <Button
+                            size="icon" variant="ghost"
+                            className="h-7 w-7 text-red-400 hover:text-red-300"
+                            title="Delete allocation"
+                            onClick={() => openDelete(a)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </TableCell>
                     )}
@@ -482,7 +469,7 @@ export default function FundAllocations() {
             <DialogTitle>{isEditing ? "Edit allocation" : "Allocate funds"}</DialogTitle>
             <DialogDescription>
               {isEditing
-                ? "Update the amount, purpose, or note. Source and recipient cannot be changed — cancel this allocation and create a new one if you need different companies."
+                ? "Update the amount, purpose, or note. Source and recipient cannot be changed — delete this allocation and create a new one if you need different companies."
                 : "Records a transfer out of the source company and matching capital into the recipient."}
             </DialogDescription>
           </DialogHeader>
@@ -555,62 +542,49 @@ export default function FundAllocations() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Cancel confirmation dialog ────────────────────────────────── */}
-      <Dialog open={showCancelDialog} onOpenChange={(open) => { if (!open) { setShowCancelDialog(false); setCancelTarget(null) } }}>
+      {/* ── Delete confirmation dialog ────────────────────────────────── */}
+      <Dialog open={showDeleteDialog} onOpenChange={(open) => { if (!open) { setShowDeleteDialog(false); setDeleteTarget(null) } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-amber-400" />
-              Cancel Fund Allocation
+              <Trash2 className="h-5 w-5 text-red-400" />
+              Delete Fund Allocation
             </DialogTitle>
             <DialogDescription>
-              This will soft-cancel the allocation and reverse any linked finance transactions.
-              The original record is preserved in the audit trail for compliance purposes.
-              All related balances update automatically.
+              This will permanently remove the allocation and its linked finance transactions.
+              All related balances will update automatically. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          {cancelTarget && (
+          {deleteTarget && (
             <div className="space-y-4 py-2">
-              <div className="rounded-lg border border-amber-500/20 bg-amber-500/8 px-4 py-3 space-y-1">
+              <div className="rounded-lg border border-red-500/20 bg-red-500/8 px-4 py-3 space-y-1">
                 <div className="flex items-center gap-2 font-medium text-sm">
-                  <span>{cancelTarget.fromCompanyName}</span>
+                  <span>{deleteTarget.fromCompanyName}</span>
                   <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                  <span>{cancelTarget.toCompanyName}</span>
+                  <span>{deleteTarget.toCompanyName}</span>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {inr(cancelTarget.amount)} · {cancelTarget.purpose} · {STATUS_LABELS[cancelTarget.status] ?? cancelTarget.status}
+                  {inr(deleteTarget.amount)} · {deleteTarget.purpose} · {STATUS_LABELS[deleteTarget.status] ?? deleteTarget.status}
                 </div>
               </div>
 
-              {cancelTarget.status === "executed" && (
+              {deleteTarget.status === "executed" && (
                 <div className="rounded-md border border-red-500/20 bg-red-500/8 px-3 py-2 text-xs text-red-400">
-                  This allocation has already been executed. Cancelling will reverse both the outgoing and incoming finance transactions, correcting subsidiary balances.
+                  This allocation has already been executed. Deleting it will also remove the outgoing and incoming finance transactions, correcting subsidiary balances.
                 </div>
               )}
-
-              <Separator className="opacity-30" />
-
-              <div className="space-y-1.5">
-                <Label>Reason for cancellation *</Label>
-                <Textarea
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  rows={2}
-                  placeholder="Incorrect amount, wrong subsidiary, duplicate entry, etc."
-                />
-              </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowCancelDialog(false); setCancelTarget(null) }}>
+            <Button variant="outline" onClick={() => { setShowDeleteDialog(false); setDeleteTarget(null) }}>
               Keep allocation
             </Button>
             <Button
               variant="destructive"
-              onClick={() => cancelTarget && cancel.mutate({ id: cancelTarget.id, reason: cancelReason })}
-              disabled={cancel.isPending || !cancelReason.trim()}
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+              disabled={deleteMutation.isPending}
             >
-              {cancel.isPending ? "Cancelling…" : "Confirm cancellation"}
+              {deleteMutation.isPending ? "Deleting…" : "Delete permanently"}
             </Button>
           </DialogFooter>
         </DialogContent>

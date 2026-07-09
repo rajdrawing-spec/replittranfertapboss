@@ -263,26 +263,20 @@ router.patch("/fund-allocations/:id", requireSuperAdmin, async (req, res) => {
   }
 });
 
-// POST /fund-allocations/:id/cancel
-// Atomic soft-cancel of a fund allocation.
+// DELETE /fund-allocations/:id
+// Hard-deletes a fund allocation and its linked finance transactions atomically.
 //
-// Uses a database transaction with SELECT ... FOR UPDATE to prevent a race
-// between this cancellation and a concurrent approval-execution that might be
-// populating the linked transaction IDs at the same moment.  All state changes
-// (allocation status + linked transaction statuses) commit together or not at all.
-router.post("/fund-allocations/:id/cancel", requireSuperAdmin, async (req, res) => {
+// Uses SELECT … FOR UPDATE to prevent a race with concurrent approval-execution.
+router.delete("/fund-allocations/:id", requireSuperAdmin, async (req, res) => {
   const id = parseInt(String(req.params.id));
   const u = (req as any).localUser as User;
-  const { reason } = req.body ?? {};
 
-  let cancelledRow: typeof fundAllocationsTable.$inferSelect | undefined;
   let previousStatus = "";
   let previousAmount = 0;
 
   try {
     await db.transaction(async (tx) => {
-      // Lock the allocation row so concurrent approval-execution cannot modify it
-      // between our read and our write.
+      // Lock the row to prevent concurrent mutation
       const locked = await tx.execute<{
         id: number; status: string;
         from_transaction_id: number | null;
@@ -296,48 +290,39 @@ router.post("/fund-allocations/:id/cancel", requireSuperAdmin, async (req, res) 
       `);
       const existing = locked.rows[0];
       if (!existing) throw Object.assign(new Error("Not found"), { code: 404 });
-      if (existing.status === "cancelled") throw Object.assign(new Error("Allocation is already cancelled"), { code: 400 });
 
       previousStatus = existing.status;
       previousAmount = existing.amount;
 
-      // Atomically set status to 'cancelled' (extra guard: only if not already cancelled)
-      const [cancelled] = await tx
-        .update(fundAllocationsTable)
-        .set({ status: "cancelled", updatedAt: new Date() })
-        .where(and(eq(fundAllocationsTable.id, id), ne(fundAllocationsTable.status, "cancelled")))
-        .returning();
-      if (!cancelled) throw Object.assign(new Error("Allocation was already cancelled"), { code: 409 });
-      cancelledRow = cancelled;
-
-      // Re-read linked TX IDs from the locked row (they may have been set by a
-      // concurrent execution that ran between our outer SELECT and this point).
+      // Delete linked finance transactions first (FK safe — no FK constraint, but
+      // deleting them keeps Finance balances consistent)
       const txIds = [existing.from_transaction_id, existing.to_transaction_id]
         .filter((x): x is number => x != null);
       if (txIds.length > 0) {
-        await tx
-          .update(transactionsTable)
-          .set({ status: "cancelled" })
-          .where(inArray(transactionsTable.id, txIds));
+        await tx.delete(transactionsTable).where(inArray(transactionsTable.id, txIds));
       }
+
+      // Hard-delete the allocation
+      const deleted = await tx.delete(fundAllocationsTable)
+        .where(eq(fundAllocationsTable.id, id))
+        .returning();
+      if (!deleted.length) throw Object.assign(new Error("Allocation not found"), { code: 404 });
     });
   } catch (e: any) {
-    const status = e?.code === 404 ? 404 : e?.code === 400 ? 400 : e?.code === 409 ? 409 : 500;
+    const status = e?.code === 404 ? 404 : 500;
     if (status === 500) req.log.error(e);
-    res.status(status).json({ error: e.message ?? "Failed to cancel fund allocation" });
+    res.status(status).json({ error: e.message ?? "Failed to delete fund allocation" });
     return;
   }
 
   void writeAudit({
     userId: u.id, userEmail: u.email,
-    action: "fund_allocation.cancelled", targetType: "fund_allocation", targetId: String(id),
-    description: `Cancelled fund allocation #${id}: ₹${Math.round(previousAmount).toLocaleString("en-IN")}. Reason: ${reason?.trim() || "None provided"}`,
-    metadata: { amount: previousAmount, previousStatus, reason: reason || null },
+    action: "fund_allocation.deleted", targetType: "fund_allocation", targetId: String(id),
+    description: `Deleted fund allocation #${id}: ₹${Math.round(previousAmount).toLocaleString("en-IN")} (was ${previousStatus})`,
+    metadata: { amount: previousAmount, previousStatus },
   });
 
-  const companies = await db.select({ id: companiesTable.id, name: companiesTable.name }).from(companiesTable);
-  const m = Object.fromEntries(companies.map(c => [c.id, c.name]));
-  res.json(fmt(cancelledRow!, m));
+  res.status(204).end();
 });
 
 function fmt(a: typeof fundAllocationsTable.$inferSelect, m: Record<number, string>) {

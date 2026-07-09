@@ -211,16 +211,12 @@ router.get("/finance/balance", async (req, res) => {
       allocIn  = Number(aStats?.received ?? 0);
       allocOut = Number(aStats?.sent     ?? 0);
     } else {
-      // All companies: sum total executed amounts in each direction
-      const [aStats] = await db
-        .select({
-          totalIn:  sql<number>`coalesce(sum(case when status='executed' then amount else 0 end),0)`,
-          totalOut: sql<number>`coalesce(sum(case when status='executed' then amount else 0 end),0)`,
-        })
-        .from(fundAllocationsTable);
-      // Both sides mirror each other in consolidated view; expose the total moved
-      allocIn  = Number(aStats?.totalIn  ?? 0);
-      allocOut = Number(aStats?.totalOut ?? 0);
+      // All companies (consolidated view): internal transfers between subsidiaries
+      // net to exactly zero — showing equal in/out numbers is misleading and
+      // implies phantom external capital flows. Set both to 0 so the net cash
+      // position only reflects real income and expenses.
+      allocIn  = 0;
+      allocOut = 0;
     }
 
     const totalIncome   = Number(stats?.totalIncome   ?? 0);

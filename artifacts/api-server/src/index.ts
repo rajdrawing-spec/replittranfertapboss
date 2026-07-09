@@ -4,6 +4,7 @@ import { ensureSystemRoles } from "./lib/seed-roles";
 import { ensureStarterCompanies } from "./lib/seed-companies";
 import { startIntegrationScheduler } from "./lib/integration-sync";
 import { registerAdapters } from "./lib/adapters";
+import { applyMigrations, repairOrphanedAllocations } from "./lib/migrations";
 
 const rawPort = process.env["PORT"];
 
@@ -27,8 +28,13 @@ if (Number.isNaN(port) || port <= 0) {
 // so a plain app.listen() is sufficient — no http.createServer() needed.
 app.listen(port, () => {
   logger.info({ port }, "Server listening");
-  void ensureSystemRoles();
-  void ensureStarterCompanies();
+  // 1. Schema migrations — create any missing tables before seeders run.
+  // 2. Seed system data (roles + starter companies).
+  // 3. Repair orphaned company IDs in fund_allocations AFTER companies exist,
+  //    so first-boot seeding doesn't leave the repair as a no-op.
+  void applyMigrations()
+    .then(() => Promise.all([ensureSystemRoles(), ensureStarterCompanies()]))
+    .then(() => repairOrphanedAllocations());
   registerAdapters();
   startIntegrationScheduler();
 }).on('error', (err: Error) => {

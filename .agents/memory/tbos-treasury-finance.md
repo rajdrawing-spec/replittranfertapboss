@@ -20,6 +20,27 @@ description: Treasury module design (parent-only ledger, no companyId), soft-can
 - Expense categories expanded to 17 (added: Marketing, Technology, Office, Operations, Manufacturing, Shipping, Legal, Miscellaneous)
 - Subsidiary finance overview section: shows when `activeCompany.mode === "subsidiary"` using balance API's `fundAllocationsIn` field
 
+## Startup migrations (critical pattern)
+
+`applyMigrations()` runs BEFORE seeders to create tables. `repairOrphanedAllocations()` runs AFTER seeders so companies exist on first boot. Order in index.ts:
+1. `applyMigrations()` — schema DDL (CREATE TABLE IF NOT EXISTS)
+2. `ensureSystemRoles()` + `ensureStarterCompanies()` — in parallel
+3. `repairOrphanedAllocations()` — fixes stale fund_allocation company IDs
+
+The `treasury_entries` table is not in the original Supabase schema — it was added post-deployment. The startup migration creates it if missing (idempotent).
+
+## Fund allocation cancel (atomic)
+
+`POST /fund-allocations/:id/cancel` uses `db.transaction` + `SELECT ... FOR UPDATE` to prevent race with concurrent approval execution:
+- Locks the row first
+- Re-reads linked tx IDs inside the lock (they may be set by concurrent executor)
+- Cancels allocation + linked transactions atomically
+- Error codes thrown as `{ code: 404/400/409 }` objects for the outer catch
+
+## Finance balance "all companies" view
+
+Setting allocIn = allocOut = 0 in consolidated view is intentional: internal transfers net to zero so showing both as equal numbers was misleading. Per-company view (with companyId param) still computes real in/out correctly.
+
 ## Finance security fix (important)
 
 **Before:** Finance transaction routes had NO company-scope authorization — any authenticated user could read/edit/cancel any company's transactions by ID.

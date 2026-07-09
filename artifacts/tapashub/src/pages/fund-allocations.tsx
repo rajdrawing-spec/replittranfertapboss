@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { ArrowRight, Landmark, Pencil, ShieldCheck, Wallet } from "lucide-react"
+import { Separator } from "@/components/ui/separator"
+import { ArrowRight, Ban, Landmark, Pencil, ShieldCheck, Wallet, AlertCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 
@@ -28,21 +29,20 @@ interface Allocation {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  executed: "bg-green-500/10 text-green-400 border-green-500/20",
+  executed:         "bg-green-500/10 text-green-400 border-green-500/20",
   pending_approval: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  rejected: "bg-red-500/10 text-red-400 border-red-500/20",
-  cancelled: "bg-muted text-muted-foreground border-border",
+  rejected:         "bg-red-500/10  text-red-400  border-red-500/20",
+  cancelled:        "bg-muted text-muted-foreground border-border",
 }
 const STATUS_LABELS: Record<string, string> = {
-  executed: "Executed",
+  executed:         "Executed",
   pending_approval: "Awaiting approval",
-  rejected: "Rejected",
-  cancelled: "Cancelled",
+  rejected:         "Rejected",
+  cancelled:        "Cancelled",
 }
 const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`
 
 interface Form {
-  /** Set when editing an existing allocation; null when creating a new one. */
   id: number | null
   fromCompanyId: string; fromCompanyName: string
   toCompanyId: string; toCompanyName: string
@@ -72,6 +72,9 @@ export default function FundAllocations() {
   const qc = useQueryClient()
   const [statusFilter, setStatusFilter] = React.useState("all")
   const [showDialog, setShowDialog] = React.useState(false)
+  const [showCancelDialog, setShowCancelDialog] = React.useState(false)
+  const [cancelTarget, setCancelTarget] = React.useState<Allocation | null>(null)
+  const [cancelReason, setCancelReason] = React.useState("")
   const [form, setForm] = React.useState<Form>(emptyForm())
 
   const isEditing = form.id !== null
@@ -97,7 +100,6 @@ export default function FundAllocations() {
   const subsidiaries = (companies ?? []).filter((c) => c.type !== "parent")
 
   React.useEffect(() => {
-    // Default the source to the parent company when opening the create dialog.
     if (parent && !form.fromCompanyId && !isEditing) {
       setForm((f) => ({ ...f, fromCompanyId: String(parent.id), fromCompanyName: parent.name }))
     }
@@ -107,26 +109,32 @@ export default function FundAllocations() {
     setForm(emptyForm(parent ? String(parent.id) : ""))
     setShowDialog(true)
   }
+  function openEdit(a: Allocation) { setForm(allocToForm(a)); setShowDialog(true) }
+  function closeDialog() { setShowDialog(false); setForm(emptyForm(parent ? String(parent.id) : "")) }
+  function openCancel(a: Allocation) { setCancelTarget(a); setCancelReason(""); setShowCancelDialog(true) }
 
-  function openEdit(a: Allocation) {
-    setForm(allocToForm(a))
-    setShowDialog(true)
-  }
-
-  function closeDialog() {
-    setShowDialog(false)
-    setForm(emptyForm(parent ? String(parent.id) : ""))
-  }
-
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["/api/fund-allocations"] })
-    qc.invalidateQueries({ queryKey: ["/api/companies"] })
+  /**
+   * Invalidate every query that depends on fund-allocation data so all finance
+   * modules update automatically: treasury balance, subsidiary balances, the
+   * Finance P&L, cash-flow chart, and the allocation list itself.
+   */
+  function invalidateAll() {
+    void qc.invalidateQueries({ queryKey: ["/api/fund-allocations"] })
+    void qc.invalidateQueries({ queryKey: ["/api/companies"] })
+    void qc.invalidateQueries({ queryKey: ["/api/finance/balance"] })
+    void qc.invalidateQueries({ queryKey: ["/api/finance/transactions"] })
+    void qc.invalidateQueries({ queryKey: ["/api/finance/cash-flow"] })
+    void qc.invalidateQueries({ queryKey: ["/api/finance/pnl-summary"] })
+    void qc.invalidateQueries({ queryKey: ["/api/treasury/summary"] })
+    void qc.invalidateQueries({ queryKey: ["/api/treasury/entries"] })
+    void qc.invalidateQueries({ queryKey: ["/api/dashboard/executive-summary"] })
+    void qc.invalidateQueries({ queryKey: ["/api/analytics"] })
   }
 
   const create = useMutation({
     mutationFn: (body: Record<string, unknown>) => adminApi.post("/fund-allocations", body),
     onSuccess: (res: Allocation) => {
-      invalidate()
+      invalidateAll()
       closeDialog()
       toast({
         title: res.status === "executed" ? "Funds allocated" : "Sent for approval",
@@ -141,12 +149,24 @@ export default function FundAllocations() {
   const update = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
       adminApi.patch(`/fund-allocations/${id}`, body),
-    onSuccess: () => {
-      invalidate()
-      closeDialog()
-      toast({ title: "Allocation updated" })
-    },
+    onSuccess: () => { invalidateAll(); closeDialog(); toast({ title: "Allocation updated" }) },
     onError: (e: Error) => toast({ title: "Couldn't update allocation", description: e.message, variant: "destructive" }),
+  })
+
+  const cancel = useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      adminApi.post(`/fund-allocations/${id}/cancel`, { reason }),
+    onSuccess: (_data: Allocation, { id }) => {
+      invalidateAll()
+      setShowCancelDialog(false)
+      setCancelTarget(null)
+      setCancelReason("")
+      toast({
+        title: "Allocation cancelled",
+        description: `Allocation #${id} has been cancelled and linked transactions reversed. All balances updated.`,
+      })
+    },
+    onError: (e: Error) => toast({ title: "Couldn't cancel allocation", description: e.message, variant: "destructive" }),
   })
 
   const isPending = create.isPending || update.isPending
@@ -154,7 +174,6 @@ export default function FundAllocations() {
   function submit() {
     const amt = Number(form.amount)
     if (!Number.isFinite(amt) || amt <= 0) { toast({ title: "Enter a valid amount", variant: "destructive" }); return }
-
     if (isEditing) {
       update.mutate({
         id: form.id!,
@@ -167,7 +186,6 @@ export default function FundAllocations() {
       })
       return
     }
-
     if (!form.fromCompanyId || !form.toCompanyId) { toast({ title: "Pick both companies", variant: "destructive" }); return }
     if (form.fromCompanyId === form.toCompanyId) { toast({ title: "Source and recipient must differ", variant: "destructive" }); return }
     create.mutate({
@@ -187,11 +205,11 @@ export default function FundAllocations() {
   })()
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Fund Allocation</h1>
-          <p className="text-muted-foreground">Move capital from Tapas Hub into a sub-brand. Each allocation is recorded in finance on both sides.</p>
+          <p className="text-muted-foreground text-sm">Move capital from Tapas Hub into a sub-brand. Each allocation is recorded in finance on both sides.</p>
         </div>
         {isSuperAdmin && (
           <Button onClick={openCreate}>
@@ -202,7 +220,7 @@ export default function FundAllocations() {
 
       <Card>
         <CardHeader className="flex flex-row items-center gap-3 space-y-0">
-          <ShieldCheck className="h-5 w-5 text-amber-400" />
+          <ShieldCheck className="h-5 w-5 text-amber-400 shrink-0" />
           <div>
             <CardTitle className="text-base">Approval threshold</CardTitle>
             <CardDescription>
@@ -220,6 +238,7 @@ export default function FundAllocations() {
             <SelectItem value="pending_approval">Awaiting approval</SelectItem>
             <SelectItem value="executed">Executed</SelectItem>
             <SelectItem value="rejected">Rejected</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -236,7 +255,7 @@ export default function FundAllocations() {
                 <TableHead>Status</TableHead>
                 <TableHead>Requested by</TableHead>
                 <TableHead>Date</TableHead>
-                {isSuperAdmin && <TableHead className="w-12" />}
+                {isSuperAdmin && <TableHead className="w-20" />}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -253,32 +272,49 @@ export default function FundAllocations() {
                 </TableRow>
               ) : (
                 items.map((a) => (
-                  <TableRow key={a.id}>
+                  <TableRow key={a.id} className={a.status === "cancelled" ? "opacity-50" : ""}>
                     <TableCell>
                       <div className="flex items-center gap-2 font-medium">
-                        <span>{a.fromCompanyName}</span>
+                        <span className={a.fromCompanyName === "Unknown" ? "text-amber-400" : ""}>{a.fromCompanyName}</span>
                         <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>{a.toCompanyName}</span>
+                        <span className={a.toCompanyName === "Unknown" ? "text-amber-400" : ""}>{a.toCompanyName}</span>
                       </div>
                     </TableCell>
                     <TableCell className="font-semibold">{inr(a.amount)}</TableCell>
                     <TableCell className="max-w-[220px] truncate text-muted-foreground">{a.purpose}</TableCell>
-                    <TableCell>{a.equityChangePercent ? <span className="text-blue-400">+{a.equityChangePercent}%</span> : <span className="text-muted-foreground">—</span>}</TableCell>
-                    <TableCell><Badge variant="outline" className={STATUS_STYLES[a.status] ?? ""}>{STATUS_LABELS[a.status] ?? a.status}</Badge></TableCell>
-                    <TableCell className="text-muted-foreground">{a.requestedByName}</TableCell>
-                    <TableCell className="text-muted-foreground">{new Date(a.createdAt).toLocaleDateString("en-IN")}</TableCell>
+                    <TableCell>
+                      {a.equityChangePercent
+                        ? <span className="text-blue-400">+{a.equityChangePercent}%</span>
+                        : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={STATUS_STYLES[a.status] ?? ""}>
+                        {STATUS_LABELS[a.status] ?? a.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{a.requestedByName}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{new Date(a.createdAt).toLocaleDateString("en-IN")}</TableCell>
                     {isSuperAdmin && (
                       <TableCell>
-                        {a.status === "pending_approval" && (
-                          <Button
-                            size="icon" variant="ghost"
-                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                            title="Edit allocation"
-                            onClick={() => openEdit(a)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {/* Edit: only for pending allocations */}
+                          {a.status === "pending_approval" && (
+                            <Button size="icon" variant="ghost" className="h-7 w-7" title="Edit allocation" onClick={() => openEdit(a)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {/* Cancel: available for all non-cancelled allocations */}
+                          {a.status !== "cancelled" && (
+                            <Button
+                              size="icon" variant="ghost"
+                              className="h-7 w-7 text-amber-400 hover:text-amber-300"
+                              title="Cancel allocation"
+                              onClick={() => openCancel(a)}
+                            >
+                              <Ban className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
@@ -289,24 +325,24 @@ export default function FundAllocations() {
         </CardContent>
       </Card>
 
+      {/* ── Create / Edit dialog ──────────────────────────────────────── */}
       <Dialog open={showDialog} onOpenChange={(open) => { if (!open) closeDialog() }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{isEditing ? "Edit allocation" : "Allocate funds"}</DialogTitle>
             <DialogDescription>
               {isEditing
-                ? "Update the amount, purpose, or note. The source and recipient companies cannot be changed — cancel and create a new allocation if you need different companies."
+                ? "Update the amount, purpose, or note. Source and recipient cannot be changed — cancel this allocation and create a new one if you need different companies."
                 : "Records a transfer out of the source company and matching capital into the recipient."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            {/* Company selectors (create) or read-only display (edit) */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>From (source)</Label>
                 {isEditing ? (
                   <div className="flex h-9 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground">
-                    {form.fromCompanyName}
+                    {form.fromCompanyName || "—"}
                   </div>
                 ) : (
                   <Select value={form.fromCompanyId} onValueChange={(v) => setForm({ ...form, fromCompanyId: v })}>
@@ -321,7 +357,7 @@ export default function FundAllocations() {
                 <Label>To (sub-brand)</Label>
                 {isEditing ? (
                   <div className="flex h-9 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground">
-                    {form.toCompanyName}
+                    {form.toCompanyName || "—"}
                   </div>
                 ) : (
                   <Select value={form.toCompanyId} onValueChange={(v) => setForm({ ...form, toCompanyId: v })}>
@@ -334,8 +370,9 @@ export default function FundAllocations() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Amount (₹)</Label>
-              <Input type="number" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0" />
+              <Label>Amount (₹) *</Label>
+              <Input type="number" min="0" value={form.amount}
+                onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0" />
             </div>
             <div className="space-y-1.5">
               <Label>Purpose</Label>
@@ -343,7 +380,10 @@ export default function FundAllocations() {
             </div>
             <div className="space-y-1.5">
               <Label>Equity change for source (optional %)</Label>
-              <Input type="number" min="0" max="100" step="0.1" value={form.equityChangePercent} onChange={(e) => setForm({ ...form, equityChangePercent: e.target.value })} placeholder="e.g. 5" />
+              <Input type="number" min="0" max="100" step="0.1"
+                value={form.equityChangePercent}
+                onChange={(e) => setForm({ ...form, equityChangePercent: e.target.value })}
+                placeholder="e.g. 5" />
               <p className="text-xs text-muted-foreground">Increases the source company's recorded stake in the recipient. Always requires approval.</p>
             </div>
             <div className="space-y-1.5">
@@ -360,6 +400,67 @@ export default function FundAllocations() {
             <Button variant="outline" onClick={closeDialog}>Cancel</Button>
             <Button onClick={submit} disabled={isPending}>
               {isPending ? (isEditing ? "Saving…" : "Submitting…") : (isEditing ? "Save changes" : "Allocate")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Cancel confirmation dialog ────────────────────────────────── */}
+      <Dialog open={showCancelDialog} onOpenChange={(open) => { if (!open) { setShowCancelDialog(false); setCancelTarget(null) } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-400" />
+              Cancel Fund Allocation
+            </DialogTitle>
+            <DialogDescription>
+              This will soft-cancel the allocation and reverse any linked finance transactions.
+              The original record is preserved in the audit trail for compliance purposes.
+              All related balances update automatically.
+            </DialogDescription>
+          </DialogHeader>
+          {cancelTarget && (
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/8 px-4 py-3 space-y-1">
+                <div className="flex items-center gap-2 font-medium text-sm">
+                  <span>{cancelTarget.fromCompanyName}</span>
+                  <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                  <span>{cancelTarget.toCompanyName}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {inr(cancelTarget.amount)} · {cancelTarget.purpose} · {STATUS_LABELS[cancelTarget.status] ?? cancelTarget.status}
+                </div>
+              </div>
+
+              {cancelTarget.status === "executed" && (
+                <div className="rounded-md border border-red-500/20 bg-red-500/8 px-3 py-2 text-xs text-red-400">
+                  This allocation has already been executed. Cancelling will reverse both the outgoing and incoming finance transactions, correcting subsidiary balances.
+                </div>
+              )}
+
+              <Separator className="opacity-30" />
+
+              <div className="space-y-1.5">
+                <Label>Reason for cancellation *</Label>
+                <Textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  rows={2}
+                  placeholder="Incorrect amount, wrong subsidiary, duplicate entry, etc."
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowCancelDialog(false); setCancelTarget(null) }}>
+              Keep allocation
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => cancelTarget && cancel.mutate({ id: cancelTarget.id, reason: cancelReason })}
+              disabled={cancel.isPending || !cancelReason.trim()}
+            >
+              {cancel.isPending ? "Cancelling…" : "Confirm cancellation"}
             </Button>
           </DialogFooter>
         </DialogContent>

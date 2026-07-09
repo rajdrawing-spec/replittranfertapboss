@@ -304,14 +304,6 @@ export default function FundAllocations() {
                       <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                         <div className="h-full rounded-full" style={{ width: `${pct}%`, background: co.color }} />
                       </div>
-                      {co.income > 0 && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-muted-foreground flex items-center gap-1">
-                            <TrendingUp className="w-3 h-3 text-emerald-400" />Income generated
-                          </span>
-                          <span className="text-emerald-400 font-medium">{inr(co.income)}</span>
-                        </div>
-                      )}
                     </div>
                   </div>
                 )
@@ -320,9 +312,6 @@ export default function FundAllocations() {
             <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground pt-2 border-t">
               <span>Available: <span className="text-green-400 font-medium">{inr(wcData.available)}</span></span>
               <span>Deployed: <span className="text-amber-400 font-medium">{wcData.utilizationPercent}%</span></span>
-              {wcData.groupRevenue > 0 && (
-                <span>Group Revenue: <span className="text-emerald-400 font-medium">{inr(wcData.groupRevenue)}</span></span>
-              )}
             </div>
           </CardContent>
         </Card>

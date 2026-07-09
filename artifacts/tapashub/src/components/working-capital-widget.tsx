@@ -13,7 +13,7 @@
 import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { adminApi } from "@/lib/admin-api"
-import { ChevronDown, Landmark, TrendingUp } from "lucide-react"
+import { ChevronDown, Landmark } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -101,17 +101,6 @@ export function WorkingCapitalWidget() {
                 </div>
               </div>
 
-              {/* Group revenue row */}
-              {data.groupRevenue > 0 && (
-                <div className="flex items-center justify-between border-t border-border/40 pt-2 text-xs">
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <TrendingUp className="w-3 h-3 text-emerald-400" />
-                    <span>Group Revenue</span>
-                  </div>
-                  <span className="text-emerald-400 font-medium tabular-nums">{compact(data.groupRevenue)}</span>
-                </div>
-              )}
-
               {/* Per-company allocation bars */}
               {data.byCompany.length > 0 && (
                 <div className="space-y-1.5 border-t border-border/40 pt-2">
@@ -134,11 +123,6 @@ export function WorkingCapitalWidget() {
                         <div className="h-1 bg-muted rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: `${pct}%`, background: co.color, opacity: 0.7 }} />
                         </div>
-                        {co.income > 0 && (
-                          <div className="text-[9px] text-emerald-400/80 text-right">
-                            +{compact(co.income)} revenue
-                          </div>
-                        )}
                       </div>
                     )
                   })}

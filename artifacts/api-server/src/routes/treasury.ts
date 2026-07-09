@@ -33,8 +33,11 @@ async function companyMap() {
   return { rows, map: Object.fromEntries(rows.map(c => [c.id, c])) };
 }
 
-/** Sum of all completed income transactions for a set of company IDs.
- *  Returns a map from companyId → total income. */
+/** Sum of all completed operational income transactions for a set of company IDs.
+ *  Excludes "Capital Injection" category — those are fund allocations from the
+ *  parent treasury (type=transfer), not revenue. Belt-and-suspenders: even if
+ *  legacy rows still have type=income with category=Capital Injection, they are
+ *  excluded here so they never inflate group revenue figures. */
 async function subsidiaryIncomeMap(subsidiaryIds: number[]): Promise<Record<number, number>> {
   if (!subsidiaryIds.length) return {};
   const rows = await db
@@ -48,6 +51,7 @@ async function subsidiaryIncomeMap(subsidiaryIds: number[]): Promise<Record<numb
         eq(transactionsTable.type, "income"),
         eq(transactionsTable.status, "completed"),
         inArray(transactionsTable.companyId, subsidiaryIds),
+        ne(transactionsTable.category, "Capital Injection"),
       ),
     )
     .groupBy(transactionsTable.companyId);
@@ -168,6 +172,7 @@ router.get("/treasury/summary", requireSuperAdmin, async (req, res) => {
             eq(transactionsTable.type, "income"),
             eq(transactionsTable.status, "completed"),
             inArray(transactionsTable.companyId, subIds),
+            ne(transactionsTable.category, "Capital Injection"),
             sql`created_at >= ${d.toISOString()}`,
             sql`created_at <  ${nextD.toISOString()}`,
           ));

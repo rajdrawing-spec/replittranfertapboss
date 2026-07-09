@@ -28,9 +28,10 @@ import { useToast } from "@/hooks/use-toast"
 const API_BASE = ""
 
 const TYPE_COLORS: Record<string, string> = {
-  income:   "bg-green-500/10 text-green-400 border-green-500/20",
-  expense:  "bg-red-500/10  text-red-400   border-red-500/20",
-  transfer: "bg-blue-500/10 text-blue-400  border-blue-500/20",
+  income:            "bg-green-500/10  text-green-400  border-green-500/20",
+  expense:           "bg-red-500/10    text-red-400    border-red-500/20",
+  transfer:          "bg-blue-500/10   text-blue-400   border-blue-500/20",
+  capital_injection: "bg-violet-500/10 text-violet-400 border-violet-500/20",
 }
 const CATEGORIES_INCOME  = ["Sales Revenue","Service Income","Consulting","Royalties","Investment Returns","Other Income"]
 const CATEGORIES_EXPENSE = [
@@ -541,11 +542,17 @@ export default function Finance() {
                         <TableCell className="text-sm">{t.category}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{t.companyName}</TableCell>
                         <TableCell>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium capitalize ${TYPE_COLORS[t.type] ?? ""}`}>
-                            {t.type}
-                          </span>
+                          {t.category === "Capital Injection" ? (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium ${TYPE_COLORS.capital_injection}`}>
+                              Capital Injection
+                            </span>
+                          ) : (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium capitalize ${TYPE_COLORS[t.type] ?? ""}`}>
+                              {t.type}
+                            </span>
+                          )}
                         </TableCell>
-                        <TableCell className={`font-semibold ${t.type === "income" ? "text-green-400" : t.type === "expense" ? "text-red-400" : ""}`}>
+                        <TableCell className={`font-semibold ${t.category === "Capital Injection" ? "text-violet-400" : t.type === "income" ? "text-green-400" : t.type === "expense" ? "text-red-400" : ""}`}>
                           {t.type === "expense" ? "−" : "+"}₹{Number(t.amount).toLocaleString("en-IN")}
                         </TableCell>
                         <TableCell>

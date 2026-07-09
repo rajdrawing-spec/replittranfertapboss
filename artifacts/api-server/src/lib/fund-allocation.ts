@@ -44,9 +44,13 @@ export async function executeFundAllocation(allocationId: number, actor?: Actor)
       date: today,
     }).returning();
 
+    // type = "transfer" (not "income") — capital from the parent is NOT operational
+    // revenue. Using "income" caused it to appear in group-revenue figures and
+    // Finance P&L. The fund-allocation balance is already tracked via allocIn/allocOut
+    // in the Finance balance endpoint, so there is no double-counting risk.
     const [inTx] = await tx.insert(transactionsTable).values({
       companyId: alloc.toCompanyId,
-      type: "income",
+      type: "transfer",
       category: "Capital Injection",
       amount: alloc.amount,
       description: `Capital from ${fromCo?.name ?? "parent"} — ${alloc.purpose}`,

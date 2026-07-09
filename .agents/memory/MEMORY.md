@@ -24,3 +24,5 @@
 - [TBOS browser workspace](tbos-browser-workspace.md) — Playwright streaming arch; chromium-bidi/* must be in esbuild external; URL from catalog (SSRF); inFlight backpressure; retryKey reconnect; passive wheel workaround.
 - [Replit WS proxy limitation](replit-ws-proxy.md) — Replit path-proxy handles HTTP but drops WS upgrades; fix via Vite server.proxy with ws:true pointing to localhost:API_PORT.
 - [TBOS Treasury & Finance modules](tbos-treasury-finance.md) — treasury_entries no companyId (single-parent); DELETE=soft-cancel; finance routes need canAccessCompany authz on every txn endpoint.
+- [TBOS capital vs revenue separation](tbos-capital-revenue.md) — treasury_entries = capital; transactionsTable type=income = operational revenue; never mix; summary endpoint reads revenue read-only from finance txns; sidebar widget + treasury summary show separately.
+- [TBOS react-query invalidation pitfall](tbos-query-invalidation.md) — ["/api/treasury"] does NOT prefix-match ["/api/treasury/summary"]; must invalidate each exact key; always add /working-capital to invalidation sets alongside /summary.

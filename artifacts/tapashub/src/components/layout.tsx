@@ -35,6 +35,7 @@ import {
   Landmark,
 } from "lucide-react"
 import { GlobalSearch } from "@/components/global-search"
+import { WorkingCapitalWidget } from "@/components/working-capital-widget"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -342,6 +343,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           )
         })}
       </nav>
+
+      {/* Working Capital Widget — parent view only, expanded sidebar */}
+      {!collapsed && isParentView && <WorkingCapitalWidget />}
 
       {/* Bottom: Settings + Logout */}
       <div className="p-3 border-t shrink-0 space-y-0.5">

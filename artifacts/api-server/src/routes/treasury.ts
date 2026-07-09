@@ -4,7 +4,8 @@
  * All routes are super-admin only: the treasury is the parent company's
  * capital ledger and must not be writable by subsidiary staff.
  *
- * GET  /treasury/summary          Live balance (raised − allocated)
+ * GET  /treasury/summary          Live balance with group revenue
+ * GET  /treasury/working-capital  Lightweight sidebar snapshot
  * GET  /treasury/entries          List entries (paginated, filtered)
  * POST /treasury/entries          Create new funding entry
  * PATCH /treasury/entries/:id     Edit an entry (audit-logged)
@@ -12,46 +13,121 @@
  */
 
 import { Router } from "express";
-import { db, treasuryEntriesTable, fundAllocationsTable, companiesTable } from "@workspace/db";
+import { db, treasuryEntriesTable, fundAllocationsTable, companiesTable, transactionsTable } from "@workspace/db";
 import type { User } from "@workspace/db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, ne, desc, sql, inArray } from "drizzle-orm";
 import { requireSuperAdmin } from "../middleware/authz";
 import { writeAudit } from "../lib/audit";
 
 const router = Router();
 
+/* ─────────────────────────────────────────────────────
+   Shared helpers
+──────────────────────────────────────────────────────── */
+
+/** Fetch all companies (id, name, color, type) keyed by id. */
+async function companyMap() {
+  const rows = await db
+    .select({ id: companiesTable.id, name: companiesTable.name, color: companiesTable.brandColor, type: companiesTable.type })
+    .from(companiesTable);
+  return { rows, map: Object.fromEntries(rows.map(c => [c.id, c])) };
+}
+
+/** Sum of all completed income transactions for a set of company IDs.
+ *  Returns a map from companyId → total income. */
+async function subsidiaryIncomeMap(subsidiaryIds: number[]): Promise<Record<number, number>> {
+  if (!subsidiaryIds.length) return {};
+  const rows = await db
+    .select({
+      companyId: transactionsTable.companyId,
+      total: sql<number>`coalesce(sum(amount), 0)`,
+    })
+    .from(transactionsTable)
+    .where(
+      and(
+        eq(transactionsTable.type, "income"),
+        eq(transactionsTable.status, "completed"),
+        inArray(transactionsTable.companyId, subsidiaryIds),
+      ),
+    )
+    .groupBy(transactionsTable.companyId);
+  return Object.fromEntries(rows.map(r => [r.companyId, Number(r.total)]));
+}
+
 /* ─────────────────────────────────────────────
    GET /treasury/summary
+   Returns:
+     • totalRaised      — capital in treasury_entries (approved, not reversed)
+     • allocated        — capital sent out to subsidiaries (executed fund_allocations)
+     • available        — totalRaised − allocated
+     • groupRevenue     — operational income across all subsidiaries (from finance txns)
+     • netGroupPosition — totalRaised + groupRevenue − allocated
+     • allocationsBySubsidiary[]  — per-company {allocated, income, color}
+     • revenueBySubsidiary[]      — per-company income from operations
+     • monthlyInflow[]   — capital raised per month (last 6 months)
+     • monthlyRevenue[]  — subsidiary income per month (last 6 months)
    ─────────────────────────────────────────────── */
 router.get("/treasury/summary", requireSuperAdmin, async (req, res) => {
   try {
-    // Total capital raised = all approved, non-reversed entries
+    // ── Capital raised ─────────────────────────────────────────────────────
     const [raised] = await db
       .select({ total: sql<number>`coalesce(sum(amount), 0)` })
       .from(treasuryEntriesTable)
       .where(and(eq(treasuryEntriesTable.status, "approved"), eq(treasuryEntriesTable.isReversed, false)));
 
-    // Find parent company id
-    const [parent] = await db
-      .select({ id: companiesTable.id, name: companiesTable.name })
-      .from(companiesTable)
-      .where(eq(companiesTable.type, "parent"))
-      .limit(1);
+    // ── Company map ────────────────────────────────────────────────────────
+    const { rows: allCompanies, map: cm } = await companyMap();
+    const parent = allCompanies.find(c => c.type === "parent") ?? null;
+    const subsidiaries = allCompanies.filter(c => c.type !== "parent");
 
-    // Total executed allocations from parent → subsidiaries
+    // ── Allocations from parent → subsidiaries ─────────────────────────────
     let allocated = 0;
+    let allocationsBySubsidiary: {
+      companyId: number; companyName: string; color: string;
+      allocated: number; income: number; netPosition: number;
+    }[] = [];
+
     if (parent) {
-      const [allocStat] = await db
-        .select({ total: sql<number>`coalesce(sum(amount), 0)` })
+      const allocRows = await db
+        .select({ companyId: fundAllocationsTable.toCompanyId, total: sql<number>`coalesce(sum(amount), 0)` })
         .from(fundAllocationsTable)
-        .where(and(eq(fundAllocationsTable.fromCompanyId, parent.id), eq(fundAllocationsTable.status, "executed")));
-      allocated = Number(allocStat?.total ?? 0);
+        .where(and(eq(fundAllocationsTable.fromCompanyId, parent.id), eq(fundAllocationsTable.status, "executed")))
+        .groupBy(fundAllocationsTable.toCompanyId);
+      allocated = allocRows.reduce((s, r) => s + Number(r.total), 0);
+
+      // Per-subsidiary income from their finance module
+      const subIds = subsidiaries.map(s => s.id);
+      const incomeMap = await subsidiaryIncomeMap(subIds);
+
+      allocationsBySubsidiary = allocRows.map(r => {
+        const co = cm[r.companyId];
+        const inc = incomeMap[r.companyId] ?? 0;
+        const alloc = Number(r.total);
+        return {
+          companyId: r.companyId,
+          companyName: co?.name ?? "Unknown",
+          color: co?.color ?? "#6366f1",
+          allocated: alloc,
+          income: inc,
+          netPosition: alloc + inc,
+        };
+      });
     }
 
     const totalRaised = Number(raised?.total ?? 0);
-    const available   = totalRaised - allocated;
+    const available = totalRaised - allocated;
 
-    // Breakdown by funding source
+    // ── Total group revenue (all subsidiary operational income) ────────────
+    const subIds = subsidiaries.map(s => s.id);
+    const incomeBySubsidiary = await subsidiaryIncomeMap(subIds);
+    const groupRevenue = Object.values(incomeBySubsidiary).reduce((s, v) => s + v, 0);
+
+    const revenueBySubsidiary = subsidiaries
+      .map(c => ({ companyId: c.id, companyName: c.name, color: c.color ?? "#6366f1", income: incomeBySubsidiary[c.id] ?? 0 }))
+      .filter(r => r.income > 0)
+      .sort((a, b) => b.income - a.income);
+
+    // ── Funding source breakdown ───────────────────────────────────────────
     const bySource = await db
       .select({
         fundingSource: treasuryEntriesTable.fundingSource,
@@ -62,51 +138,45 @@ router.get("/treasury/summary", requireSuperAdmin, async (req, res) => {
       .where(and(eq(treasuryEntriesTable.status, "approved"), eq(treasuryEntriesTable.isReversed, false)))
       .groupBy(treasuryEntriesTable.fundingSource);
 
-    // Allocation breakdown by subsidiary
-    let allocationsBySubsidiary: { companyId: number; companyName: string; total: number }[] = [];
-    if (parent) {
-      const rows = await db
-        .select({
-          companyId: fundAllocationsTable.toCompanyId,
-          total: sql<number>`coalesce(sum(amount), 0)`,
-        })
-        .from(fundAllocationsTable)
-        .where(and(eq(fundAllocationsTable.fromCompanyId, parent.id), eq(fundAllocationsTable.status, "executed")))
-        .groupBy(fundAllocationsTable.toCompanyId);
-
-      const allCos = await db.select({ id: companiesTable.id, name: companiesTable.name }).from(companiesTable);
-      const cm = Object.fromEntries(allCos.map(c => [c.id, c.name]));
-      allocationsBySubsidiary = rows.map(r => ({
-        companyId: r.companyId,
-        companyName: cm[r.companyId] ?? "Unknown",
-        total: Number(r.total),
-      }));
-    }
-
-    // Monthly inflow for the last 6 months
+    // ── Monthly capital inflow (last 6 months) ─────────────────────────────
     const now = new Date();
     const monthlyInflow = [];
+    const monthlyRevenue = [];
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const d    = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const nextD = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
-      const [row] = await db
+      const label = d.toLocaleString("en-IN", { month: "short", year: "2-digit" });
+
+      const [inflowRow] = await db
         .select({ total: sql<number>`coalesce(sum(amount), 0)` })
         .from(treasuryEntriesTable)
-        .where(
-          and(
-            eq(treasuryEntriesTable.status, "approved"),
-            eq(treasuryEntriesTable.isReversed, false),
-            sql`date >= ${d.toISOString().slice(0, 10)}`,
-            sql`date < ${nextD.toISOString().slice(0, 10)}`,
-          ),
-        );
-      monthlyInflow.push({
-        label: d.toLocaleString("en-IN", { month: "short", year: "2-digit" }),
-        amount: Number(row?.total ?? 0),
-      });
+        .where(and(
+          eq(treasuryEntriesTable.status, "approved"),
+          eq(treasuryEntriesTable.isReversed, false),
+          sql`date >= ${d.toISOString().slice(0, 10)}`,
+          sql`date <  ${nextD.toISOString().slice(0, 10)}`,
+        ));
+      monthlyInflow.push({ label, amount: Number(inflowRow?.total ?? 0) });
+
+      // Revenue: sum income transactions for all subsidiaries in this month
+      let monthRevTotal = 0;
+      if (subIds.length > 0) {
+        const [revRow] = await db
+          .select({ total: sql<number>`coalesce(sum(amount), 0)` })
+          .from(transactionsTable)
+          .where(and(
+            eq(transactionsTable.type, "income"),
+            eq(transactionsTable.status, "completed"),
+            inArray(transactionsTable.companyId, subIds),
+            sql`created_at >= ${d.toISOString()}`,
+            sql`created_at <  ${nextD.toISOString()}`,
+          ));
+        monthRevTotal = Number(revRow?.total ?? 0);
+      }
+      monthlyRevenue.push({ label, amount: monthRevTotal });
     }
 
-    // Pending entries
+    // ── Pending entries ────────────────────────────────────────────────────
     const [pendingRow] = await db
       .select({ count: sql<number>`count(*)`, total: sql<number>`coalesce(sum(amount), 0)` })
       .from(treasuryEntriesTable)
@@ -116,17 +186,80 @@ router.get("/treasury/summary", requireSuperAdmin, async (req, res) => {
       totalRaised,
       allocated,
       available,
+      groupRevenue,
+      netGroupPosition: totalRaised + groupRevenue - allocated,
+      utilizationPercent: totalRaised > 0 ? (allocated / totalRaised) * 100 : 0,
       pendingCount: Number(pendingRow?.count ?? 0),
       pendingAmount: Number(pendingRow?.total ?? 0),
-      utilizationPercent: totalRaised > 0 ? (allocated / totalRaised) * 100 : 0,
-      parentCompany: parent ?? null,
+      parentCompany: parent ? { id: parent.id, name: parent.name } : null,
       bySource: bySource.map(s => ({ fundingSource: s.fundingSource, total: Number(s.total), count: Number(s.count) })),
       allocationsBySubsidiary,
+      revenueBySubsidiary,
       monthlyInflow,
+      monthlyRevenue,
     });
   } catch (e) {
     req.log.error(e);
     res.status(500).json({ error: "Failed to get treasury summary" });
+  }
+});
+
+/* ─────────────────────────────────────────────
+   GET /treasury/working-capital
+   Lightweight snapshot for the sidebar widget.
+   Shape: { totalCapital, allocated, available, utilizationPercent,
+            groupRevenue, byCompany[] }
+   ─────────────────────────────────────────────── */
+router.get("/treasury/working-capital", requireSuperAdmin, async (req, res) => {
+  try {
+    const [raised] = await db
+      .select({ total: sql<number>`coalesce(sum(amount), 0)` })
+      .from(treasuryEntriesTable)
+      .where(and(eq(treasuryEntriesTable.status, "approved"), eq(treasuryEntriesTable.isReversed, false)));
+
+    const { rows: allCompanies, map: cm } = await companyMap();
+    const parent = allCompanies.find(c => c.type === "parent") ?? null;
+    const subsidiaries = allCompanies.filter(c => c.type !== "parent");
+    const subIds = subsidiaries.map(s => s.id);
+
+    let allocated = 0;
+    const allocMap: Record<number, number> = {};
+
+    if (parent) {
+      const allocRows = await db
+        .select({ companyId: fundAllocationsTable.toCompanyId, total: sql<number>`coalesce(sum(amount), 0)` })
+        .from(fundAllocationsTable)
+        .where(and(eq(fundAllocationsTable.fromCompanyId, parent.id), eq(fundAllocationsTable.status, "executed")))
+        .groupBy(fundAllocationsTable.toCompanyId);
+      for (const r of allocRows) { allocMap[r.companyId] = Number(r.total); allocated += Number(r.total); }
+    }
+
+    const incomeMap = await subsidiaryIncomeMap(subIds);
+    const groupRevenue = Object.values(incomeMap).reduce((s, v) => s + v, 0);
+    const totalCapital = Number(raised?.total ?? 0);
+
+    const byCompany = subsidiaries
+      .filter(c => (allocMap[c.id] ?? 0) > 0 || (incomeMap[c.id] ?? 0) > 0)
+      .map(c => ({
+        id: c.id,
+        name: c.name,
+        color: c.color ?? "#6366f1",
+        allocated: allocMap[c.id] ?? 0,
+        income: incomeMap[c.id] ?? 0,
+      }))
+      .sort((a, b) => b.allocated - a.allocated);
+
+    res.json({
+      totalCapital,
+      allocated,
+      available: totalCapital - allocated,
+      utilizationPercent: totalCapital > 0 ? Math.round((allocated / totalCapital) * 100) : 0,
+      groupRevenue,
+      byCompany,
+    });
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to get working capital" });
   }
 });
 
@@ -136,17 +269,19 @@ router.get("/treasury/summary", requireSuperAdmin, async (req, res) => {
 router.get("/treasury/entries", requireSuperAdmin, async (req, res) => {
   try {
     const { status, fundingSource, page = "1", limit = "50" } = req.query as Record<string, string>;
-    const pageNum = Math.max(1, parseInt(page));
+    const pageNum  = Math.max(1, parseInt(page));
     const limitNum = Math.min(200, Math.max(1, parseInt(limit)));
-    const offset = (pageNum - 1) * limitNum;
+    const offset   = (pageNum - 1) * limitNum;
 
     const conditions = [eq(treasuryEntriesTable.isReversed, false)];
-    if (status && status !== "all") conditions.push(eq(treasuryEntriesTable.status, status));
+    if (status && status !== "all")         conditions.push(eq(treasuryEntriesTable.status, status));
     if (fundingSource && fundingSource !== "all") conditions.push(eq(treasuryEntriesTable.fundingSource, fundingSource));
     const where = and(...conditions);
 
     const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(treasuryEntriesTable).where(where);
-    const items = await db.select().from(treasuryEntriesTable).where(where).orderBy(desc(treasuryEntriesTable.date), desc(treasuryEntriesTable.createdAt)).limit(limitNum).offset(offset);
+    const items = await db.select().from(treasuryEntriesTable).where(where)
+      .orderBy(desc(treasuryEntriesTable.date), desc(treasuryEntriesTable.createdAt))
+      .limit(limitNum).offset(offset);
 
     res.json({ items: items.map(fmt), total: Number(count), page: pageNum, limit: limitNum });
   } catch (e) {
@@ -163,7 +298,7 @@ router.post("/treasury/entries", requireSuperAdmin, async (req, res) => {
     const u = (req as any).localUser as User;
     const { fundingSource, investorName, amount, date, currency, paymentMethod, referenceNumber, description, notes, status } = req.body ?? {};
 
-    if (!fundingSource || !fundingSource.trim()) { res.status(400).json({ error: "Funding source is required" }); return; }
+    if (!fundingSource?.trim()) { res.status(400).json({ error: "Funding source is required" }); return; }
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) { res.status(400).json({ error: "Amount must be greater than zero" }); return; }
     if (!date || !description?.trim()) { res.status(400).json({ error: "Date and description are required" }); return; }
@@ -172,19 +307,19 @@ router.post("/treasury/entries", requireSuperAdmin, async (req, res) => {
 
     const [entry] = await db.insert(treasuryEntriesTable).values({
       fundingSource: fundingSource.trim(),
-      investorName: investorName?.trim() || null,
+      investorName:  investorName?.trim() || null,
       amount: amt,
-      date: date.trim(),
-      currency: (currency?.trim()) || "INR",
-      paymentMethod: paymentMethod?.trim() || null,
+      date:   date.trim(),
+      currency: currency?.trim() || "INR",
+      paymentMethod:   paymentMethod?.trim()   || null,
       referenceNumber: referenceNumber?.trim() || null,
       description: description.trim(),
-      notes: notes?.trim() || null,
+      notes:       notes?.trim() || null,
       status: entryStatus,
-      createdById: u.id,
-      createdByName: u.name,
-      approvedByName: entryStatus === "approved" ? u.name : null,
-      approvedAt: entryStatus === "approved" ? new Date() : null,
+      createdById:     u.id,
+      createdByName:   u.name,
+      approvedByName:  entryStatus === "approved" ? u.name : null,
+      approvedAt:      entryStatus === "approved" ? new Date() : null,
     }).returning();
 
     void writeAudit({
@@ -207,15 +342,14 @@ router.post("/treasury/entries", requireSuperAdmin, async (req, res) => {
 router.patch("/treasury/entries/:id", requireSuperAdmin, async (req, res) => {
   try {
     const id = parseInt(String(req.params.id));
-    const u = (req as any).localUser as User;
+    const u  = (req as any).localUser as User;
 
     const [existing] = await db.select().from(treasuryEntriesTable).where(eq(treasuryEntriesTable.id, id)).limit(1);
-    if (!existing) { res.status(404).json({ error: "Entry not found" }); return; }
+    if (!existing)           { res.status(404).json({ error: "Entry not found" }); return; }
     if (existing.isReversed) { res.status(400).json({ error: "Reversed entries cannot be edited" }); return; }
 
     const changes: Record<string, { from: unknown; to: unknown }> = {};
 
-    // Build a typed partial update
     const patch: {
       fundingSource?: string; investorName?: string | null; amount?: number;
       date?: string; currency?: string; paymentMethod?: string | null;
@@ -267,19 +401,19 @@ router.patch("/treasury/entries/:id", requireSuperAdmin, async (req, res) => {
 router.post("/treasury/entries/:id/reverse", requireSuperAdmin, async (req, res) => {
   try {
     const id = parseInt(String(req.params.id));
-    const u = (req as any).localUser as User;
+    const u  = (req as any).localUser as User;
     const { reason } = req.body ?? {};
 
     const [existing] = await db.select().from(treasuryEntriesTable).where(eq(treasuryEntriesTable.id, id)).limit(1);
-    if (!existing) { res.status(404).json({ error: "Entry not found" }); return; }
+    if (!existing)           { res.status(404).json({ error: "Entry not found" }); return; }
     if (existing.isReversed) { res.status(400).json({ error: "Entry is already reversed" }); return; }
 
     const [updated] = await db.update(treasuryEntriesTable).set({
-      isReversed: true,
-      reversedAt: new Date(),
-      reversedByName: u.name,
-      reversalReason: reason?.trim() || "Reversed by administrator",
-      updatedAt: new Date(),
+      isReversed:      true,
+      reversedAt:      new Date(),
+      reversedByName:  u.name,
+      reversalReason:  reason?.trim() || "Reversed by administrator",
+      updatedAt:       new Date(),
     }).where(eq(treasuryEntriesTable.id, id)).returning();
 
     void writeAudit({
@@ -299,26 +433,26 @@ router.post("/treasury/entries/:id/reverse", requireSuperAdmin, async (req, res)
 function fmt(e: typeof treasuryEntriesTable.$inferSelect) {
   return {
     id: e.id,
-    fundingSource: e.fundingSource,
-    investorName: e.investorName,
-    amount: e.amount,
-    date: e.date,
-    currency: e.currency,
-    paymentMethod: e.paymentMethod,
+    fundingSource:   e.fundingSource,
+    investorName:    e.investorName,
+    amount:          e.amount,
+    date:            e.date,
+    currency:        e.currency,
+    paymentMethod:   e.paymentMethod,
     referenceNumber: e.referenceNumber,
-    description: e.description,
-    notes: e.notes,
-    status: e.status,
-    isReversed: e.isReversed,
-    reversedAt: e.reversedAt?.toISOString() ?? null,
-    reversedByName: e.reversedByName,
-    reversalReason: e.reversalReason,
-    createdById: e.createdById,
-    createdByName: e.createdByName,
-    approvedByName: e.approvedByName,
-    approvedAt: e.approvedAt?.toISOString() ?? null,
-    createdAt: e.createdAt.toISOString(),
-    updatedAt: e.updatedAt.toISOString(),
+    description:     e.description,
+    notes:           e.notes,
+    status:          e.status,
+    isReversed:      e.isReversed,
+    reversedAt:      e.reversedAt?.toISOString() ?? null,
+    reversedByName:  e.reversedByName,
+    reversalReason:  e.reversalReason,
+    createdById:     e.createdById,
+    createdByName:   e.createdByName,
+    approvedByName:  e.approvedByName,
+    approvedAt:      e.approvedAt?.toISOString() ?? null,
+    createdAt:       e.createdAt.toISOString(),
+    updatedAt:       e.updatedAt.toISOString(),
   };
 }
 

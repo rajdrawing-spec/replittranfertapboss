@@ -12,7 +12,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
-import { ArrowRight, Ban, Landmark, Pencil, ShieldCheck, Wallet, AlertCircle } from "lucide-react"
+import { ArrowRight, Ban, Landmark, Pencil, ShieldCheck, Wallet, AlertCircle, TrendingUp, Building2 } from "lucide-react"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 
@@ -87,6 +88,20 @@ export default function FundAllocations() {
     queryKey: ["/api/fund-allocations/threshold"],
     queryFn: () => adminApi.get("/fund-allocations/threshold"),
   })
+
+  // Working capital snapshot — feeds the "Capital by Company" section
+  interface WorkingCapital {
+    totalCapital: number; allocated: number; available: number
+    utilizationPercent: number; groupRevenue: number
+    byCompany: { id: number; name: string; color: string; allocated: number; income: number }[]
+  }
+  const { data: wcData } = useQuery<WorkingCapital>({
+    queryKey: ["/api/treasury/working-capital"],
+    queryFn: () => adminApi.get("/treasury/working-capital"),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+    enabled: isSuperAdmin,
+  })
   const threshold = thresholdData?.threshold ?? 100000
 
   const listKey = ["/api/fund-allocations", statusFilter]
@@ -127,6 +142,7 @@ export default function FundAllocations() {
     void qc.invalidateQueries({ queryKey: ["/api/finance/pnl-summary"] })
     void qc.invalidateQueries({ queryKey: ["/api/treasury/summary"] })
     void qc.invalidateQueries({ queryKey: ["/api/treasury/entries"] })
+    void qc.invalidateQueries({ queryKey: ["/api/treasury/working-capital"] })
     void qc.invalidateQueries({ queryKey: ["/api/dashboard/executive-summary"] })
     void qc.invalidateQueries({ queryKey: ["/api/analytics"] })
   }
@@ -170,6 +186,19 @@ export default function FundAllocations() {
   })
 
   const isPending = create.isPending || update.isPending
+
+  // Running cumulative total allocated (executed allocations sorted by execution date).
+  // Used in the tooltip to show "balance after this allocation".
+  const runningTotal = React.useMemo(() => {
+    const executed = items.filter(a => a.status === "executed")
+    executed.sort((a, b) =>
+      new Date(a.executedAt ?? a.createdAt).getTime() - new Date(b.executedAt ?? b.createdAt).getTime()
+    )
+    const map: Record<number, number> = {}
+    let cum = 0
+    for (const a of executed) { cum += a.amount; map[a.id] = cum }
+    return map
+  }, [items])
 
   function submit() {
     const amt = Number(form.amount)
@@ -230,6 +259,75 @@ export default function FundAllocations() {
         </CardHeader>
       </Card>
 
+      {/* ─── Capital Distribution by Company ─────────────────────────── */}
+      {isSuperAdmin && wcData && wcData.byCompany.length > 0 && (
+        <Card className="bg-card/60">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-base">Capital Distribution</CardTitle>
+                <CardDescription className="text-xs">
+                  Working capital allocated from the Main Treasury to each sub-brand
+                </CardDescription>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-base font-bold">{inr(wcData.totalCapital)}</div>
+                <div className="text-[11px] text-muted-foreground">Total treasury capital</div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {wcData.byCompany.map(co => {
+                const pct = wcData.totalCapital > 0
+                  ? Math.min(100, (co.allocated / wcData.totalCapital) * 100)
+                  : 0
+                return (
+                  <div key={co.id} className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-2">
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
+                        style={{ background: co.color }}
+                      >
+                        {co.name.substring(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold truncate">{co.name}</div>
+                        <div className="text-[11px] text-muted-foreground">{pct.toFixed(1)}% of treasury capital</div>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Allocated capital</span>
+                        <span className="font-semibold text-amber-400">{inr(co.allocated)}</span>
+                      </div>
+                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: co.color }} />
+                      </div>
+                      {co.income > 0 && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground flex items-center gap-1">
+                            <TrendingUp className="w-3 h-3 text-emerald-400" />Income generated
+                          </span>
+                          <span className="text-emerald-400 font-medium">{inr(co.income)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground pt-2 border-t">
+              <span>Available: <span className="text-green-400 font-medium">{inr(wcData.available)}</span></span>
+              <span>Deployed: <span className="text-amber-400 font-medium">{wcData.utilizationPercent}%</span></span>
+              {wcData.groupRevenue > 0 && (
+                <span>Group Revenue: <span className="text-emerald-400 font-medium">{inr(wcData.groupRevenue)}</span></span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center gap-2">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
@@ -280,7 +378,70 @@ export default function FundAllocations() {
                         <span className={a.toCompanyName === "Unknown" ? "text-amber-400" : ""}>{a.toCompanyName}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="font-semibold">{inr(a.amount)}</TableCell>
+                    <TableCell>
+                      <HoverCard openDelay={200}>
+                        <HoverCardTrigger asChild>
+                          <button
+                            type="button"
+                            className={
+                              a.status === "cancelled"
+                                ? "line-through text-muted-foreground focus:outline-none"
+                                : "font-semibold underline decoration-dotted decoration-muted-foreground/40 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded"
+                            }
+                          >
+                            {inr(a.amount)}
+                          </button>
+                        </HoverCardTrigger>
+                        <HoverCardContent align="start" className="w-72 text-sm">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 font-semibold">
+                              <span>{a.fromCompanyName}</span>
+                              <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                              <span>{a.toCompanyName}</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground space-y-1.5">
+                              <div className="flex justify-between">
+                                <span>Date</span>
+                                <span>{new Date(a.createdAt).toLocaleDateString("en-IN")}</span>
+                              </div>
+                              <div className="flex justify-between gap-3">
+                                <span className="shrink-0">Purpose</span>
+                                <span className="text-right">{a.purpose}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Requested by</span>
+                                <span>{a.requestedByName}</span>
+                              </div>
+                              {a.equityChangePercent && (
+                                <div className="flex justify-between">
+                                  <span>Equity change</span>
+                                  <span className="text-blue-400">+{a.equityChangePercent}%</span>
+                                </div>
+                              )}
+                              {a.executedAt && (
+                                <div className="flex justify-between">
+                                  <span>Executed</span>
+                                  <span>{new Date(a.executedAt).toLocaleDateString("en-IN")}</span>
+                                </div>
+                              )}
+                              {a.note && (
+                                <div className="text-[11px] text-muted-foreground/80 border-t pt-1 line-clamp-2">{a.note}</div>
+                              )}
+                            </div>
+                            <div className="pt-1.5 border-t flex items-center justify-between font-semibold">
+                              <span className="text-xs text-muted-foreground">Amount</span>
+                              <span className="text-amber-400">{inr(a.amount)}</span>
+                            </div>
+                            {runningTotal[a.id] !== undefined && (
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <span>Running total allocated</span>
+                                <span className="text-foreground font-medium">{inr(runningTotal[a.id])}</span>
+                              </div>
+                            )}
+                          </div>
+                        </HoverCardContent>
+                      </HoverCard>
+                    </TableCell>
                     <TableCell className="max-w-[220px] truncate text-muted-foreground">{a.purpose}</TableCell>
                     <TableCell>
                       {a.equityChangePercent

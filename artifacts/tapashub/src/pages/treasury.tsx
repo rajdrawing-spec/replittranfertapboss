@@ -13,7 +13,9 @@ import * as XLSX from "xlsx"
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  ComposedChart,
 } from "recharts"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -42,13 +44,20 @@ interface TreasurySummary {
   totalRaised: number
   allocated: number
   available: number
+  groupRevenue: number
+  netGroupPosition: number
   pendingCount: number
   pendingAmount: number
   utilizationPercent: number
   parentCompany: { id: number; name: string } | null
   bySource: { fundingSource: string; total: number; count: number }[]
-  allocationsBySubsidiary: { companyId: number; companyName: string; total: number }[]
+  allocationsBySubsidiary: {
+    companyId: number; companyName: string; color: string
+    allocated: number; income: number; netPosition: number
+  }[]
+  revenueBySubsidiary: { companyId: number; companyName: string; color: string; income: number }[]
   monthlyInflow: { label: string; amount: number }[]
+  monthlyRevenue: { label: string; amount: number }[]
 }
 
 interface TreasuryEntry {
@@ -213,7 +222,11 @@ export default function Treasury() {
   })
 
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["/api/treasury"] })
+    // Use exact query key prefixes — ["/api/treasury"] alone does NOT match
+    // ["/api/treasury/summary"] since react-query matches the first array element exactly.
+    void qc.invalidateQueries({ queryKey: ["/api/treasury/summary"] })
+    void qc.invalidateQueries({ queryKey: ["/api/treasury/entries"] })
+    void qc.invalidateQueries({ queryKey: ["/api/treasury/working-capital"] })
   }
 
   /* Mutations */
@@ -457,10 +470,15 @@ export default function Treasury() {
                     tickFormatter={v => v >= 1_00_000 ? `₹${(v/1_00_000).toFixed(0)}L` : `₹${(v/1000).toFixed(0)}K`} />
                   <Tooltip
                     contentStyle={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }}
-                    formatter={(v: number) => [inr(v), "Allocated"]} />
-                  <Bar dataKey="total" radius={[4, 4, 0, 0]}>
-                    {summary.allocationsBySubsidiary.map((_, i) => (
-                      <Cell key={i} fill={SOURCE_COLORS[i % SOURCE_COLORS.length]} />
+                    formatter={(v: number, name: string) => [inr(v), name === "income" ? "Revenue" : "Allocated"]} />
+                  <Bar dataKey="allocated" name="allocated" radius={[4, 4, 0, 0]}>
+                    {summary.allocationsBySubsidiary.map((entry, i) => (
+                      <Cell key={i} fill={entry.color || SOURCE_COLORS[i % SOURCE_COLORS.length]} />
+                    ))}
+                  </Bar>
+                  <Bar dataKey="income" name="income" radius={[4, 4, 0, 0]} opacity={0.6}>
+                    {summary.allocationsBySubsidiary.map((entry, i) => (
+                      <Cell key={i} fill="#10b981" />
                     ))}
                   </Bar>
                 </BarChart>
@@ -491,6 +509,99 @@ export default function Treasury() {
           </CardContent>
         </Card>
       )}
+
+      {/* ─── Group Revenue from Operations ─────────────────────────────── */}
+      {/* Clearly distinct from capital — revenue is read-only from
+          subsidiary Finance modules and is never mixed with Treasury entries */}
+      <Card className="border-emerald-500/20 bg-emerald-500/5">
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CardTitle className="text-sm text-emerald-400">Group Revenue from Operations</CardTitle>
+                  <span className="inline-flex items-center rounded-full border border-emerald-500/30 px-2 py-0.5 text-[10px] font-medium text-emerald-500">
+                    Separate from capital
+                  </span>
+                </div>
+                <CardDescription className="text-xs mt-0.5">
+                  Operational income across all subsidiaries · auto-synced from their Finance modules
+                </CardDescription>
+              </div>
+            </div>
+            {summaryLoading ? (
+              <Skeleton className="h-8 w-24" />
+            ) : (
+              <div className="text-right">
+                <div className="text-xl font-bold text-emerald-400">{inr(summary?.groupRevenue ?? 0)}</div>
+                <div className="text-[11px] text-muted-foreground">Total group revenue</div>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0 space-y-4">
+          {!summaryLoading && (
+            <>
+              {/* Per-company revenue cards */}
+              {(summary?.revenueBySubsidiary ?? []).length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                  {(summary!.revenueBySubsidiary).map(co => (
+                    <div key={co.companyId} className="flex items-center gap-2 p-2.5 rounded-lg bg-white/4 border border-emerald-500/10">
+                      <div
+                        className="w-7 h-7 rounded text-white text-[9px] flex items-center justify-center font-bold shrink-0"
+                        style={{ background: co.color }}
+                      >
+                        {co.companyName.substring(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-medium truncate">{co.companyName}</div>
+                        <div className="text-[11px] text-emerald-400 font-semibold">{inr(co.income)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground py-2">
+                  No revenue recorded in subsidiary Finance modules yet.
+                </div>
+              )}
+
+              {/* Monthly revenue sparkline */}
+              {(summary?.monthlyRevenue ?? []).some(m => m.amount > 0) && (
+                <div>
+                  <div className="text-[11px] text-muted-foreground mb-2">Monthly revenue trend (last 6 months)</div>
+                  <ResponsiveContainer width="100%" height={110}>
+                    <AreaChart data={summary!.monthlyRevenue} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
+                      <defs>
+                        <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%"  stopColor="#10b981" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false}
+                        tickFormatter={v => v >= 1_00_000 ? `₹${(v/1_00_000).toFixed(0)}L` : v >= 1000 ? `₹${(v/1000).toFixed(0)}K` : `₹${v}`} />
+                      <Tooltip
+                        contentStyle={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }}
+                        formatter={(v: number) => [inr(v), "Revenue"]} />
+                      <Area type="monotone" dataKey="amount" stroke="#10b981" strokeWidth={2}
+                        fill="url(#revenueGrad)" dot={{ fill: "#10b981", r: 3 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              <div className="text-[11px] text-muted-foreground/60 pt-1 border-t border-emerald-500/10">
+                Revenue flows: Subsidiary operations → Subsidiary Finance → visible here. Capital flows: Treasury → Fund Allocation → Subsidiary Finance. These two are always tracked separately.
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <Separator className="opacity-30" />
 
@@ -568,7 +679,35 @@ export default function Treasury() {
                       )}
                     </TableCell>
                     <TableCell className="font-semibold text-green-400 whitespace-nowrap">
-                      {e.isReversed ? <span className="line-through text-muted-foreground">{inr(e.amount)}</span> : inr(e.amount)}
+                      {e.isReversed ? (
+                        <span className="line-through text-muted-foreground">{inr(e.amount)}</span>
+                      ) : (
+                        <HoverCard openDelay={200}>
+                          <HoverCardTrigger asChild>
+                            <button type="button" className="font-semibold text-green-400 underline decoration-dotted decoration-green-400/40 focus:outline-none focus-visible:ring-1 focus-visible:ring-green-400 rounded">{inr(e.amount)}</button>
+                          </HoverCardTrigger>
+                          <HoverCardContent align="start" className="w-64 text-sm">
+                            <div className="space-y-2">
+                              <div className="font-semibold">{sourceLabel(e.fundingSource)}</div>
+                              <div className="text-xs text-muted-foreground space-y-1.5">
+                                <div className="flex justify-between"><span>Date</span><span className="font-mono">{e.date}</span></div>
+                                {e.investorName && <div className="flex justify-between"><span>Source</span><span>{e.investorName}</span></div>}
+                                {e.paymentMethod && <div className="flex justify-between"><span>Method</span><span className="capitalize">{e.paymentMethod.replace(/_/g, " ")}</span></div>}
+                                {e.referenceNumber && <div className="flex justify-between"><span>Ref #</span><span className="font-mono text-[11px]">{e.referenceNumber}</span></div>}
+                                <div className="flex justify-between"><span>Recorded by</span><span>{e.createdByName}</span></div>
+                                <div className="flex justify-between"><span>Status</span><span className="capitalize">{e.status}</span></div>
+                              </div>
+                              <div className="pt-1.5 border-t flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">Amount</span>
+                                <span className="font-bold text-green-400">{inr(e.amount)}</span>
+                              </div>
+                              {e.notes && (
+                                <div className="text-[11px] text-muted-foreground border-t pt-1.5 line-clamp-2">{e.notes}</div>
+                              )}
+                            </div>
+                          </HoverCardContent>
+                        </HoverCard>
+                      )}
                     </TableCell>
                     <TableCell>
                       {e.isReversed

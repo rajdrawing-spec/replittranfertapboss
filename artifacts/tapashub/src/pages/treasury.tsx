@@ -381,38 +381,58 @@ export default function Treasury() {
         </div>
       </div>
 
-      {/* KPI row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Total Capital Raised" value={summaryLoading ? "…" : inr(summary?.totalRaised ?? 0)}
-          sub="All approved funding sources"
-          icon={TrendingUp} color="text-green-400" bg="bg-green-500/10" loading={summaryLoading} />
-        <KpiCard label="Allocated to Subsidiaries" value={summaryLoading ? "…" : inr(summary?.allocated ?? 0)}
-          sub="Executed fund allocations"
+      {/* KPI row — 5 cards showing the full group funds picture */}
+      {/* Total Group Funds = Capital Raised + All Subsidiary Income (sales, other income, etc.) */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <KpiCard label="Capital Raised" value={summaryLoading ? "…" : inr(summary?.totalRaised ?? 0)}
+          sub="Investor & grant funding"
+          icon={Landmark} color="text-green-400" bg="bg-green-500/10" loading={summaryLoading} />
+        <KpiCard
+          label="Group Revenue"
+          value={summaryLoading ? "…" : inr(summary?.groupRevenue ?? 0)}
+          sub="Sales & income across all sub-brands"
+          icon={TrendingUp} color="text-emerald-400" bg="bg-emerald-500/10" loading={summaryLoading} />
+        <KpiCard
+          label="Total Group Funds"
+          value={summaryLoading ? "…" : inr((summary?.totalRaised ?? 0) + (summary?.groupRevenue ?? 0))}
+          sub="Capital raised + group revenue"
+          icon={Wallet} color="text-indigo-400" bg="bg-indigo-500/10" loading={summaryLoading} />
+        <KpiCard label="Allocated" value={summaryLoading ? "…" : inr(summary?.allocated ?? 0)}
+          sub="Deployed to subsidiaries"
           icon={ArrowRight} color="text-amber-400" bg="bg-amber-500/10" loading={summaryLoading} />
-        <KpiCard label="Available Treasury" value={summaryLoading ? "…" : inr(summary?.available ?? 0)}
-          sub="Raised minus allocated"
-          icon={Wallet} color={!summaryLoading && (summary?.available ?? 0) < 0 ? "text-red-400" : "text-blue-400"}
-          bg={!summaryLoading && (summary?.available ?? 0) < 0 ? "bg-red-500/10" : "bg-blue-500/10"}
+        <KpiCard
+          label="Net Available"
+          value={summaryLoading ? "…" : inr(summary?.netGroupPosition ?? 0)}
+          sub="Total funds minus allocated"
+          icon={CheckCircle2}
+          color={!summaryLoading && (summary?.netGroupPosition ?? 0) < 0 ? "text-red-400" : "text-blue-400"}
+          bg={!summaryLoading && (summary?.netGroupPosition ?? 0) < 0 ? "bg-red-500/10" : "bg-blue-500/10"}
           loading={summaryLoading} />
-        <KpiCard label="Pending Entries" value={summaryLoading ? "…" : String(summary?.pendingCount ?? 0)}
-          sub={summary?.pendingAmount ? inr(summary.pendingAmount) + " pending approval" : "No pending entries"}
-          icon={Clock} color="text-purple-400" bg="bg-purple-500/10" loading={summaryLoading} />
       </div>
 
-      {/* Budget utilization bar */}
-      {!summaryLoading && summary && summary.totalRaised > 0 && (
+      {/* Budget utilization bar — based on total group funds (capital + revenue) */}
+      {!summaryLoading && summary && (summary.totalRaised + summary.groupRevenue) > 0 && (
         <Card className="bg-card/60">
           <CardContent className="pt-4 pb-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">Budget Utilization</span>
+            <div className="flex items-center justify-between mb-1">
+              <div>
+                <span className="text-sm font-medium">Group Fund Utilization</span>
+                <span className="ml-2 text-xs text-muted-foreground">(capital + revenue vs allocated)</span>
+              </div>
               <span className={`text-sm font-bold ${utilPct > 90 ? "text-red-400" : utilPct > 70 ? "text-amber-400" : "text-green-400"}`}>
-                {utilPct}%
+                {Math.round((summary.allocated / (summary.totalRaised + summary.groupRevenue)) * 100)}%
               </span>
             </div>
-            <Progress value={utilPct} className="h-2.5" />
+            <Progress
+              value={Math.min(100, Math.round((summary.allocated / (summary.totalRaised + summary.groupRevenue)) * 100))}
+              className="h-2.5"
+            />
             <div className="flex justify-between text-xs text-muted-foreground mt-2">
-              <span>{inr(summary.allocated)} allocated</span>
-              <span>{inr(summary.available)} remaining</span>
+              <span className="flex items-center gap-3">
+                <span>₹{((summary.totalRaised + summary.groupRevenue) / 1_00_000).toFixed(1)}L total funds</span>
+                <span className="text-amber-400">{inr(summary.allocated)} allocated</span>
+              </span>
+              <span className="text-blue-400">{inr(summary.netGroupPosition)} net available</span>
             </div>
           </CardContent>
         </Card>

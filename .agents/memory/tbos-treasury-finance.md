@@ -8,6 +8,11 @@ description: Treasury module design (parent-only ledger, no companyId), soft-can
 - `treasury_entries` table has **no `companyId`** — intentional: TapasHub is single-parent, treasury is one central ledger
 - All `/treasury/*` routes require `requireSuperAdmin` — never open to staff
 - Treasury balance = SUM(approved + non-reversed entries) − SUM(executed fund_allocations FROM parent)
+- `available = totalRaised − allocated` (fund allocations ARE the depletion mechanism — NOT expenses)
+- `utilizationPercent = allocated / totalRaised` (capital deployment rate)
+- Expenses (`totalExpenses`) are returned for reference and per-subsidiary tracking but do NOT reduce treasury
+- Sub-brands hold their own capital (received via fund allocation) and spend from it independently
+- `netGroupPosition = totalRaised + groupRevenue − totalExpenses` (full group P&L view)
 - Soft-reversal only (no hard delete): `isReversed=true` + audit trail
 - Route file: `artifacts/api-server/src/routes/treasury.ts`
 - Frontend page: `artifacts/tapashub/src/pages/treasury.tsx`

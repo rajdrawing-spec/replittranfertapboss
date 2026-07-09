@@ -19,9 +19,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 interface WorkingCapital {
   totalCapital: number
-  allocated: number    // budget distributed (reference)
-  totalSpent: number   // actual expenses across all companies
-  available: number    // totalCapital − totalSpent
+  allocated: number    // capital deployed to sub-brands via Fund Allocations
+  totalSpent: number   // actual expenses (reference)
+  available: number    // totalCapital − allocated (undeployed treasury balance)
   utilizationPercent: number
   groupRevenue: number
   byCompany: { id: number; name: string; color: string; allocated: number; spent: number; income: number }[]
@@ -78,8 +78,8 @@ export function WorkingCapitalWidget() {
                   <span className="font-semibold text-foreground tabular-nums">{compact(data.totalCapital)}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Total Spent</span>
-                  <span className="text-amber-400 tabular-nums">{compact(data.totalSpent)}</span>
+                  <span className="text-muted-foreground">Deployed</span>
+                  <span className="text-indigo-400 tabular-nums">{compact(data.allocated)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Available</span>
@@ -89,7 +89,7 @@ export function WorkingCapitalWidget() {
                 </div>
               </div>
 
-              {/* Spend utilization bar */}
+              {/* Capital deployment bar */}
               <div className="space-y-1">
                 <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                   <div
@@ -98,17 +98,16 @@ export function WorkingCapitalWidget() {
                   />
                 </div>
                 <div className="text-[10px] text-muted-foreground text-right">
-                  {data.utilizationPercent}% spent
+                  {data.utilizationPercent}% deployed
                 </div>
               </div>
 
-              {/* Per-company spend bars (spent vs budget) */}
+              {/* Per-company allocation bars */}
               {data.byCompany.length > 0 && (
                 <div className="space-y-1.5 border-t border-border/40 pt-2">
                   {data.byCompany.map(co => {
-                    // bar shows spent as % of the company's allocated budget
-                    const budget = co.allocated > 0 ? co.allocated : data.totalCapital
-                    const pct = budget > 0 ? Math.min(100, (co.spent / budget) * 100) : 0
+                    // bar shows this sub-brand's allocation as % of total capital
+                    const pct = data.totalCapital > 0 ? Math.min(100, (co.allocated / data.totalCapital) * 100) : 0
                     return (
                       <div key={co.id} className="space-y-0.5">
                         <div className="flex items-center justify-between text-[10px]">
@@ -121,11 +120,11 @@ export function WorkingCapitalWidget() {
                             </div>
                             <span className="text-muted-foreground truncate">{co.name}</span>
                           </div>
-                          <span className="text-amber-400 tabular-nums shrink-0 ml-1">{compact(co.spent)}</span>
+                          <span className="text-indigo-400 tabular-nums shrink-0 ml-1">{compact(co.allocated)}</span>
                         </div>
                         <div className="h-1 bg-muted rounded-full overflow-hidden">
                           <div
-                            className={cn("h-full rounded-full", pct > 90 ? "bg-red-500" : "bg-amber-500")}
+                            className="h-full rounded-full bg-indigo-500"
                             style={{ width: `${pct}%`, opacity: 0.8 }}
                           />
                         </div>

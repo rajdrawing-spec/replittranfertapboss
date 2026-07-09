@@ -85,9 +85,9 @@ async function subsidiaryIncomeMap(subsidiaryIds: number[]): Promise<Record<numb
    GET /treasury/summary
    Returns:
      • totalRaised      — capital in treasury_entries (approved, not reversed)
-     • allocated        — capital budgeted to subsidiaries (fund_allocations, for reference)
-     • totalExpenses    — actual spend across all companies (centralized model)
-     • available        — totalRaised − totalExpenses  (live cash position)
+     • allocated        — capital deployed to subsidiaries via executed fund allocations
+     • totalExpenses    — actual spend across all companies (for reference)
+     • available        — totalRaised − allocated  (undeployed treasury balance)
      • groupRevenue     — operational income across all subsidiaries (from finance txns)
      • netGroupPosition — totalRaised + groupRevenue − totalExpenses
      • allocationsBySubsidiary[]  — per-company {allocated, spent, income, color}
@@ -153,8 +153,11 @@ router.get("/treasury/summary", requireSuperAdmin, async (req, res) => {
     }
 
     const totalRaised = Number(raised?.total ?? 0);
-    // Available = capital raised minus what has actually been spent
-    const available = totalRaised - totalExpenses;
+    // Available = capital raised minus what has been deployed to subsidiaries.
+    // Fund Allocations are the mechanism that moves capital from the main treasury
+    // into sub-brands — each executed allocation reduces the treasury balance.
+    // Sub-brands then spend from their own allocated budget (tracked in their Finance).
+    const available = totalRaised - allocated;
 
     // ── Total group revenue (all subsidiary operational income) ────────────
     const subIds = subsidiaries.map(s => s.id);
@@ -224,12 +227,12 @@ router.get("/treasury/summary", requireSuperAdmin, async (req, res) => {
 
     res.json({
       totalRaised,
-      allocated,           // budget distributed (for reference, not deducted from balance)
-      totalExpenses,       // actual spend across all companies → what reduces the treasury
-      available,           // totalRaised − totalExpenses
+      allocated,           // capital deployed to subsidiaries → what reduces the treasury
+      totalExpenses,       // actual expenses across all companies (for reference / per-sub tracking)
+      available,           // totalRaised − allocated (undeployed treasury balance)
       groupRevenue,
       netGroupPosition: totalRaised + groupRevenue - totalExpenses,
-      utilizationPercent: totalRaised > 0 ? (totalExpenses / totalRaised) * 100 : 0,
+      utilizationPercent: totalRaised > 0 ? (allocated / totalRaised) * 100 : 0,
       pendingCount: Number(pendingRow?.count ?? 0),
       pendingAmount: Number(pendingRow?.total ?? 0),
       parentCompany: parent ? { id: parent.id, name: parent.name } : null,
@@ -279,13 +282,14 @@ router.get("/treasury/working-capital", requireSuperAdmin, async (req, res) => {
       for (const r of allocRows) { allocMap[r.companyId] = Number(r.total); }
     }
 
-    // Actual spend across all companies
+    // Actual spend across all companies (for reference / per-sub tracking)
     const expenseMap = await companyExpenseMap(allCompanyIds);
     const totalSpent = Object.values(expenseMap).reduce((s, v) => s + v, 0);
 
     const incomeMap = await subsidiaryIncomeMap(subIds);
     const groupRevenue = Object.values(incomeMap).reduce((s, v) => s + v, 0);
     const totalCapital = Number(raised?.total ?? 0);
+    const totalAllocated = Object.values(allocMap).reduce((s, v) => s + v, 0);
 
     const byCompany = subsidiaries
       .filter(c => (allocMap[c.id] ?? 0) > 0 || (expenseMap[c.id] ?? 0) > 0)
@@ -293,18 +297,18 @@ router.get("/treasury/working-capital", requireSuperAdmin, async (req, res) => {
         id: c.id,
         name: c.name,
         color: c.color ?? "#6366f1",
-        allocated: allocMap[c.id] ?? 0,   // budget given
-        spent: expenseMap[c.id] ?? 0,     // actual expenses
+        allocated: allocMap[c.id] ?? 0,   // capital received from parent
+        spent: expenseMap[c.id] ?? 0,     // actual expenses (sub-brand's own draw)
         income: incomeMap[c.id] ?? 0,
       }))
-      .sort((a, b) => b.spent - a.spent);
+      .sort((a, b) => b.allocated - a.allocated);
 
     res.json({
       totalCapital,
-      allocated: Object.values(allocMap).reduce((s, v) => s + v, 0), // kept for compat
-      totalSpent,
-      available: totalCapital - totalSpent,
-      utilizationPercent: totalCapital > 0 ? Math.round((totalSpent / totalCapital) * 100) : 0,
+      allocated: totalAllocated,   // capital deployed to sub-brands → reduces treasury
+      totalSpent,                  // actual expenses (reference only)
+      available: totalCapital - totalAllocated,  // undeployed treasury balance
+      utilizationPercent: totalCapital > 0 ? Math.round((totalAllocated / totalCapital) * 100) : 0,
       groupRevenue,
       byCompany,
     });

@@ -42,9 +42,9 @@ import { useAuth } from "@/contexts/auth-context"
 
 interface TreasurySummary {
   totalRaised: number
-  allocated: number      // budget distributed (reference only)
-  totalExpenses: number  // actual spend → what reduces the treasury
-  available: number
+  allocated: number      // capital deployed to sub-brands → reduces treasury
+  totalExpenses: number  // actual expenses across all companies (reference)
+  available: number      // totalRaised − allocated (undeployed treasury balance)
   groupRevenue: number
   netGroupPosition: number
   pendingCount: number
@@ -383,44 +383,44 @@ export default function Treasury() {
       </div>
 
       {/* KPI row
-          Capital Raised | Group Revenue | Total Spent (expenses) | Capital Budget Distributed | Treasury Available */}
+          Capital Raised | Deployed to Sub-brands | Treasury Available | Group Revenue | Total Expenses */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <KpiCard label="Capital Raised" value={summaryLoading ? "…" : inr(summary?.totalRaised ?? 0)}
           sub="Investor & grant funding"
           icon={Landmark} color="text-green-400" bg="bg-green-500/10" loading={summaryLoading} />
+        <KpiCard
+          label="Deployed to Sub-brands"
+          value={summaryLoading ? "…" : inr(summary?.allocated ?? 0)}
+          sub="Capital moved via Fund Allocations"
+          icon={ArrowRight} color="text-indigo-400" bg="bg-indigo-500/10" loading={summaryLoading} />
+        <KpiCard
+          label="Treasury Available"
+          value={summaryLoading ? "…" : inr(summary?.available ?? 0)}
+          sub="Raised − deployed (unallocated)"
+          icon={Wallet}
+          color={!summaryLoading && (summary?.available ?? 0) < 0 ? "text-red-400" : "text-blue-400"}
+          bg={!summaryLoading && (summary?.available ?? 0) < 0 ? "bg-red-500/10" : "bg-blue-500/10"}
+          loading={summaryLoading} />
         <KpiCard
           label="Group Revenue"
           value={summaryLoading ? "…" : inr(summary?.groupRevenue ?? 0)}
           sub="Sales & income across all sub-brands"
           icon={TrendingUp} color="text-emerald-400" bg="bg-emerald-500/10" loading={summaryLoading} />
         <KpiCard
-          label="Total Spent"
+          label="Total Expenses"
           value={summaryLoading ? "…" : inr(summary?.totalExpenses ?? 0)}
-          sub="Expenses across all sub-brands"
-          icon={ArrowRight} color="text-amber-400" bg="bg-amber-500/10" loading={summaryLoading} />
-        <KpiCard
-          label="Capital Distributed"
-          value={summaryLoading ? "…" : inr(summary?.allocated ?? 0)}
-          sub="Budget allocated to sub-brands"
-          icon={Wallet} color="text-indigo-400" bg="bg-indigo-500/10" loading={summaryLoading} />
-        <KpiCard
-          label="Treasury Available"
-          value={summaryLoading ? "…" : inr(summary?.netGroupPosition ?? 0)}
-          sub="Capital + revenue − total spent"
-          icon={CheckCircle2}
-          color={!summaryLoading && (summary?.netGroupPosition ?? 0) < 0 ? "text-red-400" : "text-blue-400"}
-          bg={!summaryLoading && (summary?.netGroupPosition ?? 0) < 0 ? "bg-red-500/10" : "bg-blue-500/10"}
-          loading={summaryLoading} />
+          sub="Spend across all sub-brands"
+          icon={CheckCircle2} color="text-amber-400" bg="bg-amber-500/10" loading={summaryLoading} />
       </div>
 
-      {/* Spend utilization bar — total expenses vs capital raised */}
+      {/* Capital deployment bar — allocated vs capital raised */}
       {!summaryLoading && summary && summary.totalRaised > 0 && (
         <Card className="bg-card/60">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center justify-between mb-1">
               <div>
-                <span className="text-sm font-medium">Treasury Spend Rate</span>
-                <span className="ml-2 text-xs text-muted-foreground">(total expenses vs capital raised)</span>
+                <span className="text-sm font-medium">Capital Deployment Rate</span>
+                <span className="ml-2 text-xs text-muted-foreground">(deployed to sub-brands vs total raised)</span>
               </div>
               <span className={`text-sm font-bold ${utilPct > 90 ? "text-red-400" : utilPct > 70 ? "text-amber-400" : "text-green-400"}`}>
                 {utilPct}%
@@ -430,9 +430,9 @@ export default function Treasury() {
             <div className="flex justify-between text-xs text-muted-foreground mt-2">
               <span className="flex items-center gap-3">
                 <span>{inr(summary.totalRaised)} raised</span>
-                <span className="text-amber-400">{inr(summary.totalExpenses)} spent</span>
+                <span className="text-indigo-400">{inr(summary.allocated)} deployed</span>
               </span>
-              <span className="text-blue-400">{inr(summary.available)} remaining</span>
+              <span className="text-blue-400">{inr(summary.available)} available</span>
             </div>
           </CardContent>
         </Card>

@@ -1,0 +1,79 @@
+Add this requirement to your Replit AI prompt:
+
+---
+
+### 10. Editable Main Treasury
+
+The **TapasHub Main Treasury** must be fully editable because the company may receive funds from multiple sources over time.
+
+The Treasury should support adding, editing, and tracking different funding sources.
+
+Possible funding sources include:
+
+* Shareholder Investments
+* Founder Investment
+* Director Investment
+* Angel Investors
+* Venture Capital
+* Bank Loans
+* Grants
+* Government Funding
+* Donations (if applicable)
+* Revenue from Subsidiaries
+* Product Sales
+* Service Revenue
+* Interest Income
+* Other Income
+
+Each treasury entry should include:
+
+* Transaction ID (auto-generated)
+* Funding Source
+* Investor/Lender Name (if applicable)
+* Amount
+* Date
+* Currency
+* Payment Method
+* Reference Number
+* Description/Notes
+* Supporting Documents (optional)
+* Status (Pending, Approved, Rejected)
+* Created By
+* Approved By
+* Last Updated
+
+### Treasury Functions
+
+Administrators should be able to:
+
+* Add new treasury entries
+* Edit existing treasury entries (with audit history)
+* Reverse or correct transactions (instead of deleting)
+* View complete transaction history
+* Filter by funding source, date, amount, and status
+* Export reports (PDF/Excel)
+
+### Live Treasury Balance
+
+The Main Treasury balance should update automatically based on:
+
+**Opening Balance + All Approved Income - Fund Allocations + Returned Funds + Other Income = Current Treasury Balance**
+
+All fund allocations to subsidiaries must reduce the treasury balance automatically.
+
+If a subsidiary returns unused funds, the amount should automatically be credited back to the Main Treasury.
+
+### Audit & Security
+
+* Never permanently delete financial records.
+* Every edit must create an audit log showing:
+
+  * Who made the change
+  * Previous value
+  * New value
+  * Date and time
+  * Reason for the change
+
+### Goal
+
+The Main Treasury should function like a professional corporate finance system, allowing multiple funding sources while maintaining complete transparency, accurate balances, and a full audit trail for shareholders, auditors, and administrators.

@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { transactionsTable, companiesTable, insertTransactionSchema, fundAllocationsTable } from "@workspace/db";
-import { eq, and, or, sql, desc } from "drizzle-orm";
+import { eq, and, or, sql, desc, inArray } from "drizzle-orm";
 import { emitNotification } from "../lib/notify";
+import { companyScope, canAccessCompany } from "../lib/company-scope";
 
 const router = Router();
 
@@ -13,8 +14,23 @@ router.get("/finance/transactions", async (req, res) => {
     const limitNum = parseInt(limit);
     const offset = (pageNum - 1) * limitNum;
 
+    const scope = companyScope(req);
+    // Scoped user with no companies → empty result
+    if (scope !== null && scope.length === 0) {
+      res.json({ items: [], total: 0, page: pageNum, limit: limitNum });
+      return;
+    }
+
     const conditions = [];
-    if (companyId) conditions.push(eq(transactionsTable.companyId, parseInt(companyId)));
+    // Apply company filter from query, but validate caller has access
+    if (companyId) {
+      const cid = parseInt(companyId);
+      if (!canAccessCompany(req, cid)) { res.status(403).json({ error: "Access denied" }); return; }
+      conditions.push(eq(transactionsTable.companyId, cid));
+    } else if (scope !== null) {
+      // No specific company requested: restrict to caller's companies
+      conditions.push(inArray(transactionsTable.companyId, scope));
+    }
     if (type) conditions.push(eq(transactionsTable.type, type));
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -46,6 +62,8 @@ router.post("/finance/transactions", async (req, res) => {
   try {
     const parsed = insertTransactionSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
+    // Validate caller has access to the target company
+    if (!canAccessCompany(req, parsed.data.companyId)) { res.status(403).json({ error: "Access denied" }); return; }
     const [t] = await db.insert(transactionsTable).values(parsed.data).returning();
     const [c] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, t.companyId));
     if (t.type === "income") {
@@ -112,6 +130,10 @@ router.get("/finance/pnl-summary", async (req, res) => {
 router.patch("/finance/transactions/:txId", async (req, res) => {
   try {
     const id = parseInt(req.params.txId);
+    const [existing] = await db.select({ companyId: transactionsTable.companyId })
+      .from(transactionsTable).where(eq(transactionsTable.id, id)).limit(1);
+    if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+    if (!canAccessCompany(req, existing.companyId)) { res.status(403).json({ error: "Access denied" }); return; }
     const [t] = await db.update(transactionsTable).set(req.body).where(eq(transactionsTable.id, id)).returning();
     if (!t) { res.status(404).json({ error: "Not found" }); return; }
     const [c] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, t.companyId));
@@ -119,13 +141,24 @@ router.patch("/finance/transactions/:txId", async (req, res) => {
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to update transaction" }); }
 });
 
+// DELETE is a soft-cancel: financial records are never permanently destroyed.
+// The transaction is set to status="cancelled" and remains in the audit trail.
 router.delete("/finance/transactions/:txId", async (req, res) => {
   try {
     const id = parseInt(req.params.txId);
-    const [t] = await db.delete(transactionsTable).where(eq(transactionsTable.id, id)).returning();
+    const [existing] = await db.select({ companyId: transactionsTable.companyId })
+      .from(transactionsTable).where(eq(transactionsTable.id, id)).limit(1);
+    if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+    if (!canAccessCompany(req, existing.companyId)) { res.status(403).json({ error: "Access denied" }); return; }
+    const [t] = await db
+      .update(transactionsTable)
+      .set({ status: "cancelled" })
+      .where(eq(transactionsTable.id, id))
+      .returning();
     if (!t) { res.status(404).json({ error: "Not found" }); return; }
-    res.json({ ok: true });
-  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to delete transaction" }); }
+    const [c] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, t.companyId));
+    res.json(formatTransaction(t, { [t.companyId]: c?.name ?? "Unknown" }));
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to cancel transaction" }); }
 });
 
 /* ── GET /finance/balance ── */

@@ -1,0 +1,209 @@
+Here's a clearer and more detailed prompt for Replit AI:
+
+---
+
+## Replit AI Prompt – Redesign the Finance & Fund Allocation System
+
+The current **Fund Allocation** module is confusing and needs to be redesigned to reflect our actual company structure.
+
+### Company Structure
+
+**TapasHub** is the parent company.
+
+All investors invest only in **TapasHub**.
+
+Shareholder investments, equity, and funding are collected into the **TapasHub Main Account**.
+
+The subsidiaries do **not** receive investments directly from shareholders.
+
+Instead, TapasHub allocates funds to each subsidiary based on approved budgets and business requirements.
+
+Example:
+
+* TapasHub raises ₹50,00,000 from shareholders.
+* The money stays in the TapasHub treasury.
+* TapasHub approves budgets for subsidiaries.
+* Example allocation:
+
+  * HugFab – ₹5,00,000
+  * TikkaTails – ₹5,00,000
+  * TottoToy – ₹5,00,000
+  * TargetGum – ₹5,00,000
+* Additional funds can be allocated later whenever required.
+
+---
+
+### Finance Module Structure
+
+Create a clear finance system with the following sections:
+
+### 1. TapasHub Treasury
+
+This is the central finance dashboard.
+
+Show:
+
+* Total Shareholder Investment
+* Available Cash Balance
+* Total Funds Allocated
+* Remaining Balance
+* Investment History
+* Shareholder Equity
+* Capital Raised
+* Company Valuation
+* Cash Flow Summary
+
+---
+
+### 2. Fund Allocation
+
+Create a dedicated **Fund Allocation** page.
+
+Allow administrators to:
+
+* Select Subsidiary
+* Enter Allocation Amount
+* Allocation Date
+* Purpose
+* Budget Category
+* Notes
+* Approval Status
+
+Each allocation should create a transaction record.
+
+Example:
+
+TapasHub → TikkaTails → ₹5,00,000
+
+Status: Approved
+
+---
+
+### 3. Subsidiary Finance Dashboard
+
+Each subsidiary should have its own finance page showing:
+
+* Funds Received from TapasHub
+* Current Available Balance
+* Total Expenses
+* Remaining Budget
+* Monthly Spending
+* Expense Categories
+* Budget Utilization %
+* Financial Reports
+
+Important:
+
+Subsidiaries **cannot** issue shares or collect investments directly.
+
+Their funding source is only TapasHub.
+
+---
+
+### 4. Expense Management
+
+Each subsidiary can record expenses.
+
+Categories:
+
+* Salaries
+* Marketing
+* Technology
+* Office
+* Software
+* Operations
+* Manufacturing
+* Shipping
+* Legal
+* Miscellaneous
+
+Each expense should reduce the subsidiary's available balance.
+
+---
+
+### 5. Financial Reports
+
+Generate reports for:
+
+TapasHub
+
+* Total Investments
+* Total Allocations
+* Treasury Balance
+* Cash Flow
+* Profit & Loss
+* Budget vs Actual
+
+Subsidiaries
+
+* Funds Received
+* Total Expenses
+* Remaining Budget
+* Monthly Reports
+* Expense Breakdown
+
+---
+
+### 6. Transaction History
+
+Maintain a complete audit trail.
+
+Every financial transaction should include:
+
+* Transaction ID
+* Date
+* Source
+* Destination
+* Amount
+* Category
+* Description
+* Created By
+* Approval Status
+
+Nothing should be deletable—only reversible with proper approval.
+
+---
+
+### 7. Approval Workflow
+
+Require approval for:
+
+* Fund Allocation
+* Large Expenses
+* Budget Changes
+* Additional Funding Requests
+
+Track who approved and when.
+
+---
+
+### 8. Dashboard Visualization
+
+Create easy-to-understand charts and cards showing:
+
+* Total Treasury
+* Allocated Funds
+* Available Funds
+* Subsidiary Budgets
+* Monthly Expenses
+* Budget Utilization
+* Cash Flow
+* Investment Distribution
+
+The dashboard should be simple enough that investors, shareholders, and team members can immediately understand how money flows from **TapasHub → Subsidiaries → Expenses**.
+
+---
+
+### 9. Data Flow
+
+Implement this financial flow:
+
+**Shareholders → TapasHub Treasury → Fund Allocation → Subsidiaries → Expenses**
+
+This should be the only funding workflow.
+
+---
+
+### Final Goal
+
+Redesign the finance module so it follows standard corporate accounting practices with a clear parent-company treasury model. The interface should be intuitive, transparent, and easy for shareholders, administrators, and subsidiary managers to understand, with complete financial visibility and audit history.

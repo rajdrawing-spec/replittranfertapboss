@@ -17,9 +17,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import {
-  Plus, Trash2, TrendingUp, TrendingDown, Wallet, Pencil,
+  Plus, TrendingUp, TrendingDown, Wallet, Pencil, Ban,
   Download, Scale, ArrowDownLeft, ArrowUpRight, Clock,
+  Building2, PieChart,
 } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
 import { useCompany } from "@/contexts/company-context"
 import { useToast } from "@/hooks/use-toast"
 
@@ -31,7 +33,11 @@ const TYPE_COLORS: Record<string, string> = {
   transfer: "bg-blue-500/10 text-blue-400  border-blue-500/20",
 }
 const CATEGORIES_INCOME  = ["Sales Revenue","Service Income","Consulting","Royalties","Investment Returns","Other Income"]
-const CATEGORIES_EXPENSE = ["Salaries","Rent","Utilities","Marketing","Cost of Goods","Logistics","Software","Travel","Tax","Other Expense"]
+const CATEGORIES_EXPENSE = [
+  "Salaries","Marketing","Technology","Office","Software","Operations",
+  "Manufacturing","Shipping","Legal","Miscellaneous",
+  "Rent","Utilities","Cost of Goods","Logistics","Travel","Tax","Other Expense",
+]
 const PAYMENT_METHODS    = ["bank_transfer","cash","upi","credit_card","cheque","razorpay"]
 
 interface TxForm {
@@ -231,14 +237,15 @@ export default function Finance() {
   }
 
   async function handleDelete(id: number) {
-    if (!confirm("Delete this transaction?")) return
+    if (!confirm("Cancel this transaction? The record will be preserved with status 'cancelled'.")) return
     setDeleting(id)
     try {
       const res = await fetch(`${API_BASE}/api/finance/transactions/${id}`, { method: "DELETE", credentials: "include" })
       if (!res.ok) throw new Error()
-      toast({ title: "Transaction deleted" }); refetch()
+      toast({ title: "Transaction cancelled", description: "The record has been marked as cancelled." })
+      refetch()
     } catch {
-      toast({ title: "Error", description: "Could not delete", variant: "destructive" })
+      toast({ title: "Error", description: "Could not cancel transaction", variant: "destructive" })
     } finally { setDeleting(null) }
   }
 
@@ -335,14 +342,17 @@ export default function Finance() {
     },
   ] : []
 
+  const isSubsidiary = activeCompany?.mode === "subsidiary"
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Finance</h1>
           <p className="text-muted-foreground mt-0.5 text-sm">
-            {activeCompany ? `${activeCompany.name} · ` : "All companies · "}P&L this month
+            {activeCompany ? `${activeCompany.name} · ` : "All companies · "}
+            {isSubsidiary ? "Subsidiary finance" : "P&L this month"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -355,6 +365,99 @@ export default function Finance() {
           </Button>
         </div>
       </div>
+
+      {/* ── Subsidiary Finance Overview ───────────────────────────────
+          Shown only when viewing a subsidiary company.
+          Displays the funds received from TapasHub treasury, how much
+          has been spent, and what's left in the budget.
+         ─────────────────────────────────────────────────────────── */}
+      {isSubsidiary && balance && !balanceLoading && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-indigo-400" />
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Subsidiary Finance Overview
+            </h2>
+          </div>
+
+          {/* Subsidiary KPI grid */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Funds received */}
+            <Card className="bg-card/60">
+              <CardContent className="pt-4 pb-4">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3 bg-indigo-500/10">
+                  <ArrowDownLeft className="w-4 h-4 text-indigo-400" />
+                </div>
+                <div className="text-xl font-bold">{fmt(balance.fundAllocationsIn)}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Funds from TapasHub</div>
+                <div className="text-[11px] text-muted-foreground/60">Executed allocations received</div>
+              </CardContent>
+            </Card>
+
+            {/* Total expenses */}
+            <Card className="bg-card/60">
+              <CardContent className="pt-4 pb-4">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3 bg-red-500/10">
+                  <TrendingDown className="w-4 h-4 text-red-400" />
+                </div>
+                <div className="text-xl font-bold text-red-400">{fmt(balance.totalExpenses)}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Total Expenses</div>
+                <div className="text-[11px] text-muted-foreground/60">Completed expense transactions</div>
+              </CardContent>
+            </Card>
+
+            {/* Available balance */}
+            {(() => {
+              const avail = balance.fundAllocationsIn - balance.totalExpenses
+              return (
+                <Card className="bg-card/60">
+                  <CardContent className="pt-4 pb-4">
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${avail >= 0 ? "bg-green-500/10" : "bg-red-500/10"}`}>
+                      <Wallet className={`w-4 h-4 ${avail >= 0 ? "text-green-400" : "text-red-400"}`} />
+                    </div>
+                    <div className={`text-xl font-bold ${avail >= 0 ? "text-green-400" : "text-red-400"}`}>{fmt(avail, true)}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Available Balance</div>
+                    <div className="text-[11px] text-muted-foreground/60">Received minus expenses</div>
+                  </CardContent>
+                </Card>
+              )
+            })()}
+
+            {/* Budget utilization */}
+            {(() => {
+              const utilPct = balance.fundAllocationsIn > 0
+                ? Math.min(100, Math.round((balance.totalExpenses / balance.fundAllocationsIn) * 100))
+                : 0
+              return (
+                <Card className="bg-card/60">
+                  <CardContent className="pt-4 pb-4">
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${utilPct > 90 ? "bg-red-500/10" : utilPct > 70 ? "bg-amber-500/10" : "bg-blue-500/10"}`}>
+                      <PieChart className={`w-4 h-4 ${utilPct > 90 ? "text-red-400" : utilPct > 70 ? "text-amber-400" : "text-blue-400"}`} />
+                    </div>
+                    <div className={`text-xl font-bold ${utilPct > 90 ? "text-red-400" : utilPct > 70 ? "text-amber-400" : "text-blue-400"}`}>{utilPct}%</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Budget Utilization</div>
+                    <Progress value={utilPct} className="h-1.5 mt-2" />
+                  </CardContent>
+                </Card>
+              )
+            })()}
+          </div>
+
+          {/* Allocation info note */}
+          {balance.fundAllocationsIn === 0 && (
+            <div className="flex items-center gap-2 rounded-lg bg-indigo-500/5 border border-indigo-500/15 px-4 py-3 text-xs text-muted-foreground">
+              <ArrowDownLeft className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+              <span>
+                No funds have been allocated to {activeCompany?.name} from TapasHub yet.
+                Allocations are managed in{" "}
+                <a href="/fund-allocation" className="text-indigo-400 hover:underline">Fund Allocation</a>.
+              </span>
+            </div>
+          )}
+
+          <Separator className="opacity-30" />
+        </div>
+      )}
 
       {/* P&L KPI cards */}
       {pnl && (
@@ -459,7 +562,7 @@ export default function Finance() {
                               size="icon" variant="ghost" className="w-7 h-7 text-destructive hover:text-destructive"
                               disabled={deleting === t.id} onClick={() => handleDelete(t.id)}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Ban className="w-3.5 h-3.5" />
                             </Button>
                           </div>
                         </TableCell>

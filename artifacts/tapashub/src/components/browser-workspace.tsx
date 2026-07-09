@@ -275,77 +275,142 @@ export function BrowserWorkspace({
   return (
     <div className="flex flex-col h-full bg-zinc-950">
 
-      {/* ── Toolbar ─────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-white/8 bg-zinc-900/80 shrink-0">
+      {/* ══════════════════════════════════════════════════════════
+          Toolbar — two rows on mobile, single row on desktop
+          Mobile row 1 : [Platform icon+name] [company chip] [Close]
+          Mobile row 2 : [Home] [URL bar] [Reload] [ExternalLink]
+          Desktop      : all inline in one row
+         ══════════════════════════════════════════════════════════ */}
+      <div className="shrink-0 border-b border-white/8 bg-zinc-900/80">
 
-        {/* Company chip */}
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/6 border border-white/10 shrink-0">
-          <span className="text-[10px] font-semibold text-zinc-400 truncate max-w-[80px]">
-            {companyName}
-          </span>
-        </div>
+        {/* ── Desktop single-row toolbar (hidden on mobile) ──────── */}
+        <div className="hidden sm:flex items-center gap-2 px-3 py-2">
 
-        {/* Platform badge */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <div className={`w-5 h-5 rounded-md ${platform.logoColor} flex items-center justify-center`}>
-            <span className="text-white font-bold" style={{ fontSize: 8 }}>{platform.logo}</span>
+          {/* Company chip */}
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/6 border border-white/10 shrink-0">
+            <span className="text-[10px] font-semibold text-zinc-400 truncate max-w-[80px]">
+              {companyName}
+            </span>
           </div>
-          <span className="text-xs font-semibold hidden sm:block">{platform.name}</span>
-        </div>
 
-        {/* URL bar */}
-        <div className="flex-1 flex items-center gap-1 min-w-0">
-          <div className="flex-1 flex items-center gap-1 bg-zinc-800/80 border border-white/8 rounded-md px-2 h-7 min-w-0">
-            <Globe className="w-3 h-3 text-zinc-500 shrink-0" />
-            <Input
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleNavigate() }}
-              className="h-full border-0 bg-transparent px-0 text-xs text-zinc-300 placeholder:text-zinc-600 focus-visible:ring-0 min-w-0"
-              placeholder="https://"
-              spellCheck={false}
-              autoComplete="off"
-            />
+          {/* Platform badge */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className={`w-5 h-5 rounded-md ${platform.logoColor} flex items-center justify-center`}>
+              <span className="text-white font-bold" style={{ fontSize: 8 }}>{platform.logo}</span>
+            </div>
+            <span className="text-xs font-semibold">{platform.name}</span>
+          </div>
+
+          {/* URL bar */}
+          <div className="flex-1 flex items-center gap-1 min-w-0">
+            <div className="flex-1 flex items-center gap-1 bg-zinc-800/80 border border-white/8 rounded-md px-2 h-7 min-w-0">
+              <Globe className="w-3 h-3 text-zinc-500 shrink-0" />
+              <Input
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleNavigate() }}
+                className="h-full border-0 bg-transparent px-0 text-xs text-zinc-300 placeholder:text-zinc-600 focus-visible:ring-0 min-w-0"
+                placeholder="https://"
+                spellCheck={false}
+                autoComplete="off"
+              />
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center gap-0.5 shrink-0">
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-zinc-200"
+              onClick={handleReload} aria-label="Reload page" disabled={!showBrowser}>
+              <RefreshCw className="w-3.5 h-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-zinc-200"
+              onClick={handleHome} aria-label="Go to platform home" disabled={!showBrowser}>
+              <Home className="w-3.5 h-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-zinc-200"
+              onClick={() => window.open(currentUrl, "_blank", "noopener")} aria-label="Open in new browser tab">
+              <ExternalLink className="w-3.5 h-3.5" />
+            </Button>
+            <div className="w-px h-4 bg-white/10 mx-1" />
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-red-400"
+              onClick={onClose} aria-label="Close workspace">
+              <X className="w-3.5 h-3.5" />
+            </Button>
           </div>
         </div>
 
-        {/* Controls */}
-        <div className="flex items-center gap-0.5 shrink-0">
-          <Button
-            variant="ghost" size="icon"
-            className="h-7 w-7 text-zinc-500 hover:text-zinc-200"
-            onClick={handleReload}
-            title="Reload page"
-            disabled={!showBrowser}
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-          </Button>
-          <Button
-            variant="ghost" size="icon"
-            className="h-7 w-7 text-zinc-500 hover:text-zinc-200"
-            onClick={handleHome}
-            title="Go to platform home"
-            disabled={!showBrowser}
-          >
-            <Home className="w-3.5 h-3.5" />
-          </Button>
-          <Button
-            variant="ghost" size="icon"
-            className="h-7 w-7 text-zinc-500 hover:text-zinc-200"
-            onClick={() => window.open(currentUrl, "_blank", "noopener")}
-            title="Open in new browser tab"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-          </Button>
-          <div className="w-px h-4 bg-white/10 mx-1" />
-          <Button
-            variant="ghost" size="icon"
-            className="h-7 w-7 text-zinc-500 hover:text-red-400"
-            onClick={onClose}
-            title="Close workspace"
-          >
-            <X className="w-3.5 h-3.5" />
-          </Button>
+        {/* ── Mobile two-row toolbar (hidden on sm+) ─────────────── */}
+        <div className="flex flex-col sm:hidden">
+
+          {/* Mobile row 1: identity + close */}
+          <div className="flex items-center gap-2 px-3 pt-2 pb-1.5">
+            {/* Platform icon + name */}
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className={`w-7 h-7 rounded-lg ${platform.logoColor} flex items-center justify-center shrink-0`}>
+                <span className="text-white font-bold" style={{ fontSize: 10 }}>{platform.logo}</span>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs font-semibold leading-none truncate">{platform.name}</span>
+                <span className="text-[10px] text-zinc-500 leading-none mt-0.5 truncate">{companyName}</span>
+              </div>
+            </div>
+
+            {/* Close — large tap target */}
+            <button
+              onClick={onClose}
+              className="flex items-center justify-center w-11 h-11 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-red-400/10 active:bg-red-400/20 transition-colors shrink-0 -mr-1"
+              aria-label="Close workspace"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Mobile row 2: navigation */}
+          <div className="flex items-center gap-1.5 px-3 pb-2">
+            {/* Home */}
+            <button
+              onClick={handleHome}
+              disabled={!showBrowser}
+              className="flex items-center justify-center w-11 h-11 rounded-xl text-zinc-500 hover:text-zinc-200 hover:bg-white/6 active:bg-white/10 disabled:opacity-40 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+              aria-label="Go to platform home"
+            >
+              <Home className="w-5 h-5" />
+            </button>
+
+            {/* URL bar — full flex-1 */}
+            <div className="flex-1 flex items-center gap-2 bg-zinc-800/80 border border-white/8 rounded-xl px-3 h-11 min-w-0">
+              <Globe className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+              <Input
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleNavigate() }}
+                className="h-full border-0 bg-transparent px-0 text-sm text-zinc-300 placeholder:text-zinc-600 focus-visible:ring-0 min-w-0"
+                placeholder="https://"
+                spellCheck={false}
+                autoComplete="off"
+                inputMode="url"
+              />
+            </div>
+
+            {/* Reload */}
+            <button
+              onClick={handleReload}
+              disabled={!showBrowser}
+              className="flex items-center justify-center w-11 h-11 rounded-xl text-zinc-500 hover:text-zinc-200 hover:bg-white/6 active:bg-white/10 disabled:opacity-40 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+              aria-label="Reload page"
+            >
+              <RefreshCw className="w-5 h-5" />
+            </button>
+
+            {/* External link */}
+            <button
+              onClick={() => window.open(currentUrl, "_blank", "noopener")}
+              className="flex items-center justify-center w-11 h-11 rounded-xl text-zinc-500 hover:text-zinc-200 hover:bg-white/6 active:bg-white/10 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+              aria-label="Open in new browser tab"
+            >
+              <ExternalLink className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -433,7 +498,7 @@ export function BrowserWorkspace({
           onContextMenu={handleContextMenu}
         />
 
-        {/* Company isolation badge */}
+        {/* Company isolation badge — bottom-right on mobile, same on desktop */}
         <div className="absolute bottom-3 right-3 pointer-events-none">
           <Badge
             variant="secondary"

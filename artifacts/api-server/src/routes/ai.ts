@@ -1,13 +1,16 @@
 import { Router } from "express";
-import { db, aiAnalysesTable, aiConfigTable } from "@workspace/db";
+import { db, aiAnalysesTable, aiConfigTable, aiValuationsTable, aiPredictionsTable, aiMarketAnalysesTable } from "@workspace/db";
 import {
   ordersTable, productsTable, transactionsTable, employeesTable,
-  leadsTable, customersTable, companiesTable
+  leadsTable, customersTable, companiesTable, shareholdersTable
 } from "@workspace/db";
 import { eq, sql, desc, inArray, and } from "drizzle-orm";
 import { requirePermission, requireSuperAdmin } from "../middleware/authz";
 import { getActiveProvider, getActiveProviderName, setConfig, testProvider } from "../lib/ai-provider";
-import { buildCompanyContext, buildPortfolioContext, formatContextForPrompt } from "../lib/ai-context";
+import {
+  buildCompanyContext, buildPortfolioContext, formatContextForPrompt,
+  buildMonthlyFinanceTrend, formatMonthlyTrendForPrompt,
+} from "../lib/ai-context";
 import { canAccessCompany, companyScope } from "../lib/company-scope";
 
 // ── Prompt guardrails ─────────────────────────────────────────────────────────
@@ -475,6 +478,367 @@ router.get("/ai/insights", requirePermission("ai.read"), async (req, res) => {
   }
 });
 
+// ── Valuation system prompt ───────────────────────────────────────────────────
+const VALUATION_SYSTEM_PROMPT = `You are a business valuation expert using the Revenue Multiplier method.
+Based on the provided financial data, estimate the company's value and return ONLY valid JSON:
+{
+  "estimated_value":    number,               // INR total estimated company value
+  "enterprise_value":   number,               // INR (estimated_value + debt - cash proxy)
+  "shareholder_equity": number,               // INR (estimated_value - estimated liabilities)
+  "nav":                number,               // Net Asset Value in INR
+  "growth_score":       number,               // 0-100 composite growth score
+  "health_trend":       "growing"|"stable"|"declining",
+  "revenue_growth_rate": number,              // % (positive or negative)
+  "profit_growth_rate":  number,              // % (positive or negative)
+  "explanation":        string               // 2-3 sentence explanation of the valuation
+}
+Use conservative multipliers (2-5x revenue for profitable businesses, 1-2x for loss-making).
+All values in Indian Rupees (INR). Return ONLY JSON — no markdown.`;
+
+// ── Predictions system prompt ─────────────────────────────────────────────────
+const PREDICTIONS_SYSTEM_PROMPT = `You are a financial forecasting expert.
+Based on the provided business data and 12-month trend, generate 3, 6, and 12-month predictions.
+Return ONLY valid JSON:
+{
+  "predictions": [
+    {
+      "metric":             "revenue"|"profit"|"cash_flow"|"valuation"|"headcount",
+      "horizon":            3|6|12,
+      "value":              number,
+      "confidence_score":   number,      // 0-100
+      "risk_level":         "low"|"medium"|"high",
+      "supporting_factors": string[],    // 2-3 specific factors
+      "recommended_actions": string[]    // 1-3 actionable steps
+    }
+  ]
+}
+Generate exactly 15 entries: all 5 metrics × 3 horizons.
+All monetary values in INR. Return ONLY JSON — no markdown.`;
+
+// ── Market system prompt ──────────────────────────────────────────────────────
+const MARKET_SYSTEM_PROMPT = `You are a market intelligence and competitive analysis expert.
+Based on the provided company profile and data, generate actionable market intelligence.
+Return ONLY valid JSON:
+{
+  "industry_demand": string,           // 3-4 sentences on industry demand/trends
+  "competitor_analysis": [
+    {
+      "name":           string,        // competitor name or archetype
+      "strength":       string,        // their competitive advantage
+      "weakness":       string,        // their vulnerability
+      "market_position": string        // how they compare to this company
+    }
+  ],
+  "recommendations": [
+    {
+      "type":        "launch"|"enter"|"discontinue"|"pricing"|"operational",
+      "title":       string,
+      "description": string,
+      "priority":    "critical"|"high"|"medium"|"low"
+    }
+  ]
+}
+Include 3-4 competitors and 4-6 prioritised recommendations. Return ONLY JSON — no markdown.`;
+
+// ── POST /ai/valuation/:companyId ─────────────────────────────────────────────
+router.post("/ai/valuation/:companyId", requirePermission("ai.read"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.params.companyId as string);
+    if (!Number.isFinite(companyId)) { res.status(400).json({ error: "Invalid companyId" }); return; }
+    if (!canAccessCompany(req, companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const force = (req.query.force as string | undefined) === "true";
+
+    if (!force) {
+      const [cached] = await db.select().from(aiValuationsTable)
+        .where(eq(aiValuationsTable.companyId, companyId))
+        .orderBy(desc(aiValuationsTable.createdAt)).limit(1);
+      if (cached && isFresh(cached.createdAt)) { res.json(formatValuation(cached)); return; }
+    }
+
+    const ctx = await buildCompanyContext(companyId);
+    if (!ctx) { res.status(404).json({ error: "Company not found" }); return; }
+
+    // Also pull 12-month trend for richer context
+    const trend = await buildMonthlyFinanceTrend(companyId, 12);
+    const trendText = formatMonthlyTrendForPrompt(trend);
+
+    const provider = await getActiveProvider();
+    const providerName = await getActiveProviderName();
+
+    const raw = await provider.chat(
+      [{ role: "user", content: `Company data:\n${formatContextForPrompt(ctx)}\n\n12-Month Trend:\n${trendText}` }],
+      VALUATION_SYSTEM_PROMPT,
+    );
+
+    const jsonStr = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+    let parsed: Record<string, unknown>;
+    try { parsed = JSON.parse(jsonStr); }
+    catch {
+      req.log.warn({ raw }, "Valuation AI returned non-JSON");
+      res.status(502).json({ error: "AI returned unexpected format. Please retry." }); return;
+    }
+
+    const num = (v: unknown, def = 0) => Number.isFinite(Number(v)) ? Number(v) : def;
+    const [row] = await db.insert(aiValuationsTable).values({
+      companyId,
+      provider: providerName,
+      estimatedValue:    num(parsed.estimated_value),
+      enterpriseValue:   num(parsed.enterprise_value),
+      shareholderEquity: num(parsed.shareholder_equity),
+      nav:               num(parsed.nav),
+      growthScore:       Math.min(100, Math.max(0, Math.round(num(parsed.growth_score)))),
+      healthTrend:       ["growing", "stable", "declining"].includes(String(parsed.health_trend))
+                           ? String(parsed.health_trend) : "stable",
+      revenueGrowthRate: num(parsed.revenue_growth_rate),
+      profitGrowthRate:  num(parsed.profit_growth_rate),
+      explanation:       typeof parsed.explanation === "string" ? parsed.explanation : null,
+    }).returning();
+
+    res.json(formatValuation(row));
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Valuation AI failed" });
+  }
+});
+
+// ── GET /ai/valuation/:companyId ──────────────────────────────────────────────
+router.get("/ai/valuation/:companyId", requirePermission("ai.read"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.params.companyId as string);
+    if (!Number.isFinite(companyId)) { res.status(400).json({ error: "Invalid companyId" }); return; }
+    if (!canAccessCompany(req, companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const [cached] = await db.select().from(aiValuationsTable)
+      .where(eq(aiValuationsTable.companyId, companyId))
+      .orderBy(desc(aiValuationsTable.createdAt)).limit(1);
+
+    res.json(cached && isFresh(cached.createdAt) ? formatValuation(cached) : null);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to get cached valuation" });
+  }
+});
+
+// ── GET /ai/valuation/:companyId/shareholders ─────────────────────────────────
+router.get("/ai/valuation/:companyId/shareholders", requirePermission("ai.read"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.params.companyId as string);
+    if (!Number.isFinite(companyId)) { res.status(400).json({ error: "Invalid companyId" }); return; }
+    if (!canAccessCompany(req, companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const [valuation] = await db.select().from(aiValuationsTable)
+      .where(eq(aiValuationsTable.companyId, companyId))
+      .orderBy(desc(aiValuationsTable.createdAt)).limit(1);
+
+    const holders = await db.select().from(shareholdersTable)
+      .where(and(eq(shareholdersTable.companyId, companyId), eq(shareholdersTable.status, "active")));
+
+    const estValue = valuation?.estimatedValue ?? 0;
+    const shareholders = holders.map((h) => {
+      const ownershipPct  = (h.ownershipPercent ?? 0) / 100;
+      const shareValue    = estValue * ownershipPct;
+      const capitalIn     = h.investmentAmount ?? 0;
+      const roiEstimate   = capitalIn > 0 ? ((shareValue - capitalIn) / capitalIn) * 100 : null;
+      const growthRate    = valuation?.revenueGrowthRate ?? 0;
+      return {
+        id:                 h.id,
+        name:               h.name,
+        role:               h.role,
+        ownershipPercent:   h.ownershipPercent ?? 0,
+        shares:             h.shares ?? 0,
+        capitalInvested:    capitalIn,
+        estimatedShareValue: shareValue,
+        estimatedGrowth:    growthRate,
+        roiEstimate,
+        roiExplanation: roiEstimate != null
+          ? `Based on ₹${Math.round(capitalIn).toLocaleString("en-IN")} invested and AI-estimated share value of ₹${Math.round(shareValue).toLocaleString("en-IN")}`
+          : "No capital injection recorded — ROI cannot be computed",
+      };
+    });
+
+    res.json({
+      valuation: valuation ? formatValuation(valuation) : null,
+      shareholders,
+    });
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to build shareholder valuation" });
+  }
+});
+
+// ── POST /ai/predictions/:companyId ──────────────────────────────────────────
+router.post("/ai/predictions/:companyId", requirePermission("ai.read"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.params.companyId as string);
+    if (!Number.isFinite(companyId)) { res.status(400).json({ error: "Invalid companyId" }); return; }
+    if (!canAccessCompany(req, companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const force = (req.query.force as string | undefined) === "true";
+    if (!force) {
+      const [cached] = await db.select().from(aiPredictionsTable)
+        .where(eq(aiPredictionsTable.companyId, companyId))
+        .orderBy(desc(aiPredictionsTable.createdAt)).limit(1);
+      if (cached && isFresh(cached.createdAt)) { res.json(formatPredictions(cached)); return; }
+    }
+
+    const ctx   = await buildCompanyContext(companyId);
+    if (!ctx) { res.status(404).json({ error: "Company not found" }); return; }
+    const trend = await buildMonthlyFinanceTrend(companyId, 12);
+    const trendText = formatMonthlyTrendForPrompt(trend);
+
+    const provider = await getActiveProvider();
+    const providerName = await getActiveProviderName();
+
+    const raw = await provider.chat(
+      [{ role: "user", content: `Company snapshot:\n${formatContextForPrompt(ctx)}\n\n12-Month Trend:\n${trendText}` }],
+      PREDICTIONS_SYSTEM_PROMPT,
+    );
+
+    const jsonStr = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+    let parsed: Record<string, unknown>;
+    try { parsed = JSON.parse(jsonStr); }
+    catch {
+      req.log.warn({ raw }, "Predictions AI returned non-JSON");
+      res.status(502).json({ error: "AI returned unexpected format. Please retry." }); return;
+    }
+
+    const arr = (v: unknown): string[] =>
+      Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : [];
+    const rawPreds = Array.isArray(parsed.predictions) ? parsed.predictions : [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const predictions = rawPreds.map((p: any) => ({
+      metric:             String(p.metric ?? "revenue"),
+      horizon:            [3, 6, 12].includes(Number(p.horizon)) ? Number(p.horizon) : 3,
+      value:              Number(p.value ?? 0),
+      confidenceScore:    Math.min(100, Math.max(0, Number(p.confidence_score ?? 70))),
+      riskLevel:          ["low", "medium", "high"].includes(String(p.risk_level)) ? String(p.risk_level) : "medium",
+      supportingFactors:  arr(p.supporting_factors),
+      recommendedActions: arr(p.recommended_actions),
+    }));
+
+    const [row] = await db.insert(aiPredictionsTable).values({
+      companyId, provider: providerName, predictions,
+    }).returning();
+
+    res.json(formatPredictions(row));
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Predictions AI failed" });
+  }
+});
+
+// ── GET /ai/predictions/:companyId ────────────────────────────────────────────
+router.get("/ai/predictions/:companyId", requirePermission("ai.read"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.params.companyId as string);
+    if (!Number.isFinite(companyId)) { res.status(400).json({ error: "Invalid companyId" }); return; }
+    if (!canAccessCompany(req, companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const [cached] = await db.select().from(aiPredictionsTable)
+      .where(eq(aiPredictionsTable.companyId, companyId))
+      .orderBy(desc(aiPredictionsTable.createdAt)).limit(1);
+
+    res.json(cached && isFresh(cached.createdAt) ? formatPredictions(cached) : null);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to get cached predictions" });
+  }
+});
+
+// ── POST /ai/market/:companyId ────────────────────────────────────────────────
+router.post("/ai/market/:companyId", requirePermission("ai.read"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.params.companyId as string);
+    if (!Number.isFinite(companyId)) { res.status(400).json({ error: "Invalid companyId" }); return; }
+    if (!canAccessCompany(req, companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const force = (req.query.force as string | undefined) === "true";
+    if (!force) {
+      const [cached] = await db.select().from(aiMarketAnalysesTable)
+        .where(eq(aiMarketAnalysesTable.companyId, companyId))
+        .orderBy(desc(aiMarketAnalysesTable.createdAt)).limit(1);
+      if (cached && isFresh(cached.createdAt)) { res.json(formatMarket(cached)); return; }
+    }
+
+    const ctx = await buildCompanyContext(companyId);
+    if (!ctx) { res.status(404).json({ error: "Company not found" }); return; }
+
+    // Fetch company profile for industry/type info
+    const [company] = await db.select({ industry: companiesTable.industry, type: companiesTable.type })
+      .from(companiesTable).where(eq(companiesTable.id, companyId)).limit(1);
+
+    const provider = await getActiveProvider();
+    const providerName = await getActiveProviderName();
+
+    const industryNote = company?.industry
+      ? `Industry: ${company.industry}\n`
+      : "Industry: Not specified\n";
+
+    const raw = await provider.chat(
+      [{ role: "user", content: `${industryNote}Company data:\n${formatContextForPrompt(ctx)}` }],
+      MARKET_SYSTEM_PROMPT,
+    );
+
+    const jsonStr = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+    let parsed: Record<string, unknown>;
+    try { parsed = JSON.parse(jsonStr); }
+    catch {
+      req.log.warn({ raw }, "Market AI returned non-JSON");
+      res.status(502).json({ error: "AI returned unexpected format. Please retry." }); return;
+    }
+
+    const VALID_TYPES = new Set(["launch", "enter", "discontinue", "pricing", "operational"]);
+    const VALID_PRI   = new Set(["critical", "high", "medium", "low"]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawComps = Array.isArray(parsed.competitor_analysis) ? parsed.competitor_analysis : [];
+    const competitorAnalysis = rawComps.map((c: any) => ({
+      name:           String(c.name ?? "Competitor"),
+      strength:       String(c.strength ?? ""),
+      weakness:       String(c.weakness ?? ""),
+      marketPosition: String(c.market_position ?? ""),
+    }));
+
+    const rawRecs = Array.isArray(parsed.recommendations) ? parsed.recommendations : [];
+    const recommendations = rawRecs.map((r: any) => ({
+      type:        VALID_TYPES.has(String(r.type)) ? String(r.type) : "operational",
+      title:       String(r.title ?? ""),
+      description: String(r.description ?? ""),
+      priority:    VALID_PRI.has(String(r.priority)) ? String(r.priority) : "medium",
+    }));
+
+    const [row] = await db.insert(aiMarketAnalysesTable).values({
+      companyId, provider: providerName,
+      industryDemand: typeof parsed.industry_demand === "string" ? parsed.industry_demand : null,
+      competitorAnalysis,
+      recommendations,
+    }).returning();
+
+    res.json(formatMarket(row));
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Market AI failed" });
+  }
+});
+
+// ── GET /ai/market/:companyId ─────────────────────────────────────────────────
+router.get("/ai/market/:companyId", requirePermission("ai.read"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.params.companyId as string);
+    if (!Number.isFinite(companyId)) { res.status(400).json({ error: "Invalid companyId" }); return; }
+    if (!canAccessCompany(req, companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const [cached] = await db.select().from(aiMarketAnalysesTable)
+      .where(eq(aiMarketAnalysesTable.companyId, companyId))
+      .orderBy(desc(aiMarketAnalysesTable.createdAt)).limit(1);
+
+    res.json(cached && isFresh(cached.createdAt) ? formatMarket(cached) : null);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to get cached market analysis" });
+  }
+});
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatAnalysis(a: typeof aiAnalysesTable.$inferSelect) {
   return {
@@ -491,6 +855,40 @@ function formatAnalysis(a: typeof aiAnalysesTable.$inferSelect) {
     growthOpportunities: a.growthOpportunities,
     summary:             a.summary,
     createdAt:           a.createdAt.toISOString(),
+  };
+}
+
+function formatValuation(v: typeof aiValuationsTable.$inferSelect) {
+  return {
+    id: v.id, companyId: v.companyId, provider: v.provider,
+    estimatedValue:    v.estimatedValue,
+    enterpriseValue:   v.enterpriseValue,
+    shareholderEquity: v.shareholderEquity,
+    nav:               v.nav,
+    growthScore:       v.growthScore,
+    healthTrend:       v.healthTrend,
+    revenueGrowthRate: v.revenueGrowthRate,
+    profitGrowthRate:  v.profitGrowthRate,
+    explanation:       v.explanation,
+    createdAt:         v.createdAt.toISOString(),
+  };
+}
+
+function formatPredictions(p: typeof aiPredictionsTable.$inferSelect) {
+  return {
+    id: p.id, companyId: p.companyId, provider: p.provider,
+    predictions: p.predictions,
+    createdAt: p.createdAt.toISOString(),
+  };
+}
+
+function formatMarket(m: typeof aiMarketAnalysesTable.$inferSelect) {
+  return {
+    id: m.id, companyId: m.companyId, provider: m.provider,
+    industryDemand:     m.industryDemand,
+    competitorAnalysis: m.competitorAnalysis,
+    recommendations:    m.recommendations,
+    createdAt:          m.createdAt.toISOString(),
   };
 }
 

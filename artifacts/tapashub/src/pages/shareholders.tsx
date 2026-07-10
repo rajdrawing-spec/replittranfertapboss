@@ -11,9 +11,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { Users, PieChart, Wallet, TrendingUp, Plus, Pencil, Trash2, History, Send } from "lucide-react"
+import { Users, PieChart, Wallet, TrendingUp, Plus, Pencil, Trash2, History, Send, Sparkles, Brain, RefreshCw, ChevronDown, ChevronRight, TrendingDown, Activity } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
+import { cn } from "@/lib/utils"
 
 interface Company { id: number; name: string; type: string }
 interface Shareholder {
@@ -33,9 +34,26 @@ interface CapTable {
   shareholderCount: number
   holders: { id: number; name: string; role: string; type: string; shares: number; ownershipPercent: number; investmentAmount: number; equityValue: number; status: string }[]
 }
+interface AiValuation {
+  id: number; companyId: number; provider: string
+  estimatedValue: number | null; enterpriseValue: number | null
+  shareholderEquity: number | null; nav: number | null
+  growthScore: number | null; healthTrend: string | null
+  revenueGrowthRate: number | null; profitGrowthRate: number | null
+  explanation: string | null; createdAt: string
+}
+interface AiShareholderValuation {
+  valuation: AiValuation | null
+  shareholders: {
+    id: number; name: string; role: string; ownershipPercent: number; shares: number
+    capitalInvested: number; estimatedShareValue: number; estimatedGrowth: number
+    roiEstimate: number | null; roiExplanation: string
+  }[]
+}
 
-const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`
+const inr = (n: number | null | undefined) => n != null ? `₹${Math.round(n).toLocaleString("en-IN")}` : "—"
 const num = (n: number) => Math.round(n).toLocaleString("en-IN")
+const pct = (n: number | null | undefined) => n != null ? `${n > 0 ? "+" : ""}${n.toFixed(1)}%` : "—"
 
 const ROLE_LABELS: Record<string, string> = {
   founder: "Founder", investor: "Investor", employee: "Employee (ESOP)", advisor: "Advisor", institutional: "Institutional",
@@ -135,6 +153,182 @@ function MyHoldingsView() {
           </Table>
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+// ── AI Valuation Panel ────────────────────────────────────────────────────────
+function AiValuationPanel({ companyId }: { companyId: string }) {
+  const { toast } = useToast()
+  const qc = useQueryClient()
+  const [expanded, setExpanded] = React.useState(false)
+  const cid = companyId ? parseInt(companyId) : null
+
+  const valuationKey = ["/api/ai/valuation", companyId]
+  const shareholderKey = ["/api/ai/valuation", companyId, "shareholders"]
+
+  const { data: cached, isLoading: cacheLoading } = useQuery<AiValuation | null>({
+    queryKey: valuationKey,
+    queryFn: () => adminApi.get(`/ai/valuation/${companyId}`),
+    enabled: !!cid,
+  })
+
+  const { data: shareholderData, isLoading: shLoading } = useQuery<AiShareholderValuation>({
+    queryKey: shareholderKey,
+    queryFn: () => adminApi.get(`/ai/valuation/${companyId}/shareholders`),
+    enabled: !!cid && expanded,
+  })
+
+  const runValuation = useMutation<AiValuation, Error, boolean>({
+    mutationFn: (force: boolean) =>
+      adminApi.post(`/ai/valuation/${companyId}${force ? "?force=true" : ""}`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: valuationKey })
+      qc.invalidateQueries({ queryKey: shareholderKey })
+    },
+    onError: (e: Error) => toast({ title: "Valuation failed", description: e.message, variant: "destructive" }),
+  })
+
+  const valuation = runValuation.data ?? cached
+
+  const healthColor = valuation?.healthTrend === "growing"
+    ? "text-green-400 bg-green-500/10 border-green-500/20"
+    : valuation?.healthTrend === "declining"
+    ? "text-red-400 bg-red-500/10 border-red-500/20"
+    : "text-amber-400 bg-amber-500/10 border-amber-500/20"
+
+  if (!cid) return null
+
+  return (
+    <Card className="border-primary/20">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Brain className="h-4 w-4 text-primary" />
+            <CardTitle className="text-base">AI Valuation Intelligence</CardTitle>
+            <Badge variant="outline" className="text-[10px] gap-1">
+              <Sparkles className="w-2.5 h-2.5" /> AI estimate
+            </Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            {valuation && (
+              <Button size="sm" variant="outline" onClick={() => runValuation.mutate(true)} disabled={runValuation.isPending} className="gap-1.5 h-7 text-xs">
+                <RefreshCw className={cn("w-3 h-3", runValuation.isPending && "animate-spin")} /> Refresh
+              </Button>
+            )}
+            {!valuation && (
+              <Button size="sm" onClick={() => runValuation.mutate(false)} disabled={runValuation.isPending || cacheLoading} className="gap-1.5 h-7 text-xs">
+                {runValuation.isPending ? <Sparkles className="w-3 h-3 animate-spin" /> : <Brain className="w-3 h-3" />}
+                {cacheLoading ? "Loading…" : "Run AI Valuation"}
+              </Button>
+            )}
+          </div>
+        </div>
+        <CardDescription className="text-xs">
+          AI-estimated values based on financial data. <span className="text-amber-400">Not official financial advice.</span>
+        </CardDescription>
+      </CardHeader>
+
+      {(cacheLoading || runValuation.isPending) && (
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[1,2,3,4].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+          </div>
+        </CardContent>
+      )}
+
+      {valuation && !runValuation.isPending && (
+        <CardContent className="space-y-4">
+          {/* KPI grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <ValKpi label="Est. Company Value"   value={inr(valuation.estimatedValue)}    accent="text-green-400" />
+            <ValKpi label="Enterprise Value"      value={inr(valuation.enterpriseValue)}   accent="text-blue-400" />
+            <ValKpi label="Shareholder Equity"    value={inr(valuation.shareholderEquity)} accent="text-purple-400" />
+            <ValKpi label="Net Asset Value"       value={inr(valuation.nav)}               accent="text-amber-400" />
+            <ValKpi label="Revenue Growth Rate"   value={pct(valuation.revenueGrowthRate)} accent={valuation.revenueGrowthRate != null && valuation.revenueGrowthRate >= 0 ? "text-green-400" : "text-red-400"} />
+            <ValKpi label="Profit Growth Rate"    value={pct(valuation.profitGrowthRate)}  accent={valuation.profitGrowthRate != null && valuation.profitGrowthRate >= 0 ? "text-green-400" : "text-red-400"} />
+            <ValKpi
+              label="Business Growth Score"
+              value={valuation.growthScore != null ? `${valuation.growthScore}/100` : "—"}
+              accent={valuation.growthScore != null && valuation.growthScore >= 70 ? "text-green-400" : valuation.growthScore != null && valuation.growthScore >= 40 ? "text-amber-400" : "text-red-400"}
+            />
+            <div className="rounded-lg border p-3 bg-card">
+              <div className="text-xs text-muted-foreground mb-1.5">Health Trend</div>
+              {valuation.healthTrend ? (
+                <Badge variant="outline" className={healthColor}>
+                  {valuation.healthTrend === "growing" ? <TrendingUp className="w-3 h-3 mr-1" /> : valuation.healthTrend === "declining" ? <TrendingDown className="w-3 h-3 mr-1" /> : <Activity className="w-3 h-3 mr-1" />}
+                  {valuation.healthTrend.charAt(0).toUpperCase() + valuation.healthTrend.slice(1)}
+                </Badge>
+              ) : "—"}
+            </div>
+          </div>
+
+          {valuation.explanation && (
+            <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 text-sm text-muted-foreground">
+              <span className="text-xs font-semibold text-primary uppercase tracking-wide block mb-1">AI Explanation</span>
+              {valuation.explanation}
+            </div>
+          )}
+
+          {/* Per-shareholder AI enrichment */}
+          <div>
+            <button
+              className="flex w-full items-center gap-2 text-sm font-medium py-1"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              Per-Shareholder AI Estimates
+              <span className="text-xs text-muted-foreground">(ownership % × estimated value)</span>
+            </button>
+            {expanded && (
+              <div className="mt-3 space-y-2">
+                {shLoading ? (
+                  <Skeleton className="h-20 w-full" />
+                ) : (shareholderData?.shareholders.length ?? 0) === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">No active shareholders recorded for this company.</p>
+                ) : (
+                  shareholderData!.shareholders.map((sh) => (
+                    <div key={sh.id} className="rounded-lg border p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                      <div>
+                        <div className="font-medium">{sh.name}</div>
+                        <div className="text-xs text-muted-foreground">{ROLE_LABELS[sh.role] ?? sh.role} · {sh.ownershipPercent.toFixed(2)}%</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Est. Share Value</div>
+                        <div className="font-semibold text-green-400">{inr(sh.estimatedShareValue)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Capital Invested</div>
+                        <div>{inr(sh.capitalInvested)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">ROI Estimate</div>
+                        <div className={cn("font-semibold", sh.roiEstimate != null && sh.roiEstimate >= 0 ? "text-green-400" : "text-red-400")}>
+                          {sh.roiEstimate != null ? pct(sh.roiEstimate) : "—"}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5 truncate" title={sh.roiExplanation}>{sh.roiExplanation}</div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="text-[10px] text-muted-foreground border-t pt-2">
+            AI estimate generated {new Date(valuation.createdAt).toLocaleString("en-IN")} via {valuation.provider} · Not official financial advice
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  )
+}
+
+function ValKpi({ label, value, accent }: { label: string; value: string; accent: string }) {
+  return (
+    <div className="rounded-lg border p-3 bg-card">
+      <div className="text-xs text-muted-foreground mb-1">{label}</div>
+      <div className={cn("text-base font-bold", accent)}>{value}</div>
     </div>
   )
 }
@@ -340,6 +534,9 @@ function AdminShareholdersView() {
         </CardContent>
       </Card>
 
+      {/* AI Valuation Intelligence */}
+      {companyId && <AiValuationPanel companyId={companyId} />}
+
       {/* Create / edit dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="sm:max-w-lg">
@@ -494,7 +691,6 @@ function ShareholderDetail({ id, onClose, canManage, txForm, setTxForm, onChange
     }
     addTx.mutate({
       type: txForm.type,
-      // A sale removes shares from the holding.
       shares: txForm.type === "sale" ? -Math.abs(shares) : shares,
       pricePerShare: Number(txForm.pricePerShare) || 0,
       amount,

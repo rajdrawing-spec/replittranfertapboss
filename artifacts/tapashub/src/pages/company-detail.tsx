@@ -1,16 +1,29 @@
 import { useParams, Link } from "wouter"
 import { useGetCompany, getGetCompanyQueryKey, useGetCompanySummary, getGetCompanySummaryQueryKey } from "@workspace/api-client-react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { adminApi } from "@/lib/admin-api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { EmptyState, NoData } from "@/components/empty-state"
-import { ArrowLeft, FileText } from "lucide-react"
+import { ArrowLeft, FileText, Brain, Sparkles, TrendingUp, TrendingDown, Activity, RefreshCw } from "lucide-react"
+import { cn } from "@/lib/utils"
+
+interface AiValuation {
+  id: number; companyId: number; provider: string
+  estimatedValue: number | null; growthScore: number | null
+  healthTrend: string | null; revenueGrowthRate: number | null
+  explanation: string | null; createdAt: string
+}
+
+const inr = (n: number | null | undefined) => n != null ? `₹${n >= 10000000 ? (n / 10000000).toFixed(1) + "Cr" : n >= 100000 ? (n / 100000).toFixed(1) + "L" : Math.round(n).toLocaleString("en-IN")}` : "—"
 
 export default function CompanyDetail() {
   const params = useParams()
   const companyId = params.id ? parseInt(params.id) : 0
+  const qc = useQueryClient()
 
   const { data: company, isLoading: loadingCompany } = useGetCompany(companyId, {
     query: { enabled: !!companyId, queryKey: getGetCompanyQueryKey(companyId) }
@@ -19,6 +32,20 @@ export default function CompanyDetail() {
   const { data: summary, isLoading: loadingSummary } = useGetCompanySummary(companyId, {
     query: { enabled: !!companyId, queryKey: getGetCompanySummaryQueryKey(companyId) }
   })
+
+  const valKey = ["/api/ai/valuation", companyId]
+  const { data: valuation, isLoading: valLoading } = useQuery<AiValuation | null>({
+    queryKey: valKey,
+    queryFn: () => adminApi.get(`/ai/valuation/${companyId}`),
+    enabled: !!companyId,
+  })
+
+  const runVal = useMutation({
+    mutationFn: () => adminApi.post(`/ai/valuation/${companyId}`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: valKey }),
+  })
+
+  const val = runVal.data ?? valuation
 
   if (loadingCompany || loadingSummary) {
     return <div className="space-y-6">
@@ -33,6 +60,10 @@ export default function CompanyDetail() {
   if (!company) {
     return <div className="text-center py-20">Company not found</div>
   }
+
+  const healthColor = val?.healthTrend === "growing"
+    ? "text-green-400" : val?.healthTrend === "declining"
+    ? "text-red-400" : "text-amber-400"
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -105,7 +136,7 @@ export default function CompanyDetail() {
           <TabsTrigger value="details">Company Details</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle>Recent Activity</CardTitle>
@@ -120,6 +151,69 @@ export default function CompanyDetail() {
               </CardHeader>
               <CardContent>
                 <EmptyState />
+              </CardContent>
+            </Card>
+
+            {/* AI Valuation snapshot widget */}
+            <Card className="border-primary/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Brain className="w-4 h-4 text-primary" />
+                  AI Valuation Snapshot
+                  <Badge variant="outline" className="text-[9px] gap-1 ml-auto">
+                    <Sparkles className="w-2 h-2" /> Estimate
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {valLoading && <Skeleton className="h-16 w-full" />}
+                {!val && !valLoading && !runVal.isPending && (
+                  <div className="text-center py-3">
+                    <div className="text-xs text-muted-foreground mb-2">No AI valuation yet</div>
+                    <Button size="sm" variant="outline" onClick={() => runVal.mutate()} className="h-7 text-xs gap-1.5">
+                      <Brain className="w-3 h-3" /> Run Valuation
+                    </Button>
+                  </div>
+                )}
+                {runVal.isPending && <Skeleton className="h-16 w-full" />}
+                {val && !runVal.isPending && (
+                  <>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Estimated Value</div>
+                      <div className="text-xl font-bold text-green-400">{inr(val.estimatedValue)}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <div className="text-muted-foreground">Growth Score</div>
+                        <div className={cn("font-semibold", val.growthScore != null && val.growthScore >= 70 ? "text-green-400" : val.growthScore != null && val.growthScore >= 40 ? "text-amber-400" : "text-red-400")}>
+                          {val.growthScore != null ? `${val.growthScore}/100` : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Health Trend</div>
+                        <div className={cn("font-semibold flex items-center gap-1", healthColor)}>
+                          {val.healthTrend === "growing" ? <TrendingUp className="w-3 h-3" /> : val.healthTrend === "declining" ? <TrendingDown className="w-3 h-3" /> : <Activity className="w-3 h-3" />}
+                          {val.healthTrend ?? "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Rev. Growth</div>
+                        <div className={cn("font-semibold", val.revenueGrowthRate != null && val.revenueGrowthRate >= 0 ? "text-green-400" : "text-red-400")}>
+                          {val.revenueGrowthRate != null ? `${val.revenueGrowthRate > 0 ? "+" : ""}${val.revenueGrowthRate.toFixed(1)}%` : "—"}
+                        </div>
+                      </div>
+                      <div className="flex items-end">
+                        <Button size="sm" variant="ghost" onClick={() => runVal.mutate()} disabled={runVal.isPending} className="h-6 text-[10px] px-1.5 gap-1">
+                          <RefreshCw className="w-2.5 h-2.5" /> Refresh
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground border-t pt-2">
+                      <Link href="/ai-assistant" className="text-primary hover:underline">View full analysis →</Link>
+                      <span className="ml-2">AI estimate — not financial advice</span>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>

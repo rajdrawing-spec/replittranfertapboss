@@ -97,6 +97,79 @@ export async function applyMigrations(): Promise<void> {
       )
     `);
 
+    // ── AI report schedules and history ──────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ai_report_schedules (
+        id                SERIAL PRIMARY KEY,
+        company_id        INTEGER,
+        type              TEXT      NOT NULL,
+        enabled           BOOLEAN   NOT NULL DEFAULT true,
+        recipient_emails  JSONB     NOT NULL DEFAULT '[]',
+        last_run_at       TIMESTAMP,
+        next_run_at       TIMESTAMP,
+        created_at        TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at        TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ai_report_history (
+        id               SERIAL PRIMARY KEY,
+        schedule_id      INTEGER,
+        company_id       INTEGER,
+        type             TEXT      NOT NULL,
+        status           TEXT      NOT NULL,
+        subject          TEXT      NOT NULL,
+        html_content     TEXT,
+        ai_summary       TEXT,
+        recipient_count  INTEGER   DEFAULT 0,
+        error_message    TEXT,
+        sent_at          TIMESTAMP,
+        created_at       TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // ── AI valuation, predictions, market analyses ────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ai_valuations (
+        id                    SERIAL PRIMARY KEY,
+        company_id            INTEGER   NOT NULL,
+        provider              TEXT      NOT NULL,
+        estimated_value       REAL,
+        enterprise_value      REAL,
+        shareholder_equity    REAL,
+        nav                   REAL,
+        growth_score          INTEGER,
+        health_trend          TEXT,
+        revenue_growth_rate   REAL,
+        profit_growth_rate    REAL,
+        explanation           TEXT,
+        created_at            TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ai_predictions (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER   NOT NULL,
+        provider     TEXT      NOT NULL,
+        predictions  JSONB     NOT NULL DEFAULT '[]',
+        created_at   TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ai_market_analyses (
+        id                    SERIAL PRIMARY KEY,
+        company_id            INTEGER   NOT NULL,
+        provider              TEXT      NOT NULL,
+        industry_demand       TEXT,
+        competitor_analysis   JSONB     NOT NULL DEFAULT '[]',
+        recommendations       JSONB     NOT NULL DEFAULT '[]',
+        created_at            TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
     // ── Additive column patches (idempotent via IF NOT EXISTS) ────────────────
     // Add iv column to ai_config if missing (added to support encrypted API keys)
     await db.execute(sql`

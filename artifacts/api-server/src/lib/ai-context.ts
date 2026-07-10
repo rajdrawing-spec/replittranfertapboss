@@ -212,6 +212,50 @@ export async function buildPortfolioContext(companyIds?: number[]): Promise<Port
   };
 }
 
+export interface MonthlyFinanceTrend {
+  month: string;   // e.g. "Jan '25"
+  revenue: number;
+  expenses: number;
+  profit: number;
+}
+
+/** Fetch the last N months of finance data for predictions context. */
+export async function buildMonthlyFinanceTrend(
+  companyId: number,
+  months = 12,
+): Promise<MonthlyFinanceTrend[]> {
+  const now = new Date();
+  const results: MonthlyFinanceTrend[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d    = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const next = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+    const startStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+    const endStr   = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`;
+    const label = d.toLocaleString("en-IN", { month: "short", year: "2-digit" });
+    const [row] = await db
+      .select({
+        income:   sql<number>`coalesce(sum(case when type='income'  then amount else 0 end),0)`,
+        expenses: sql<number>`coalesce(sum(case when type='expense' then amount else 0 end),0)`,
+      })
+      .from(transactionsTable)
+      .where(and(eq(transactionsTable.companyId, companyId), sql`date >= ${startStr}`, sql`date < ${endStr}`));
+    const revenue  = Number(row?.income   ?? 0);
+    const expenses = Number(row?.expenses ?? 0);
+    results.push({ month: label, revenue, expenses, profit: revenue - expenses });
+  }
+  return results;
+}
+
+/** Format monthly trend as a compact table for AI prompts. */
+export function formatMonthlyTrendForPrompt(trend: MonthlyFinanceTrend[]): string {
+  const lines = ["Month | Revenue | Expenses | Profit"];
+  const fmt = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+  for (const row of trend) {
+    lines.push(`${row.month} | ${fmt(row.revenue)} | ${fmt(row.expenses)} | ${fmt(row.profit)}`);
+  }
+  return lines.join("\n");
+}
+
 /** Serialise a company context into a concise prose block for use in AI prompts. */
 export function formatContextForPrompt(ctx: CompanyContext): string {
   const fmt = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;

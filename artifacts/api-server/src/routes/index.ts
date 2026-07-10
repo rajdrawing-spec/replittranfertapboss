@@ -29,6 +29,7 @@ import searchRouter from "./search";
 import storageRouter from "./storage";
 import browserRouter from "./browser";
 import treasuryRouter from "./treasury";
+import reportsRouter from "./reports";
 
 const router: IRouter = Router();
 
@@ -52,6 +53,7 @@ router.use(notificationsRouter);
 router.use(approvalsRouter);
 router.use(aiRouter);
 router.use(geminiRouter);
+router.use(reportsRouter);
 router.use(usersRouter);
 router.use(rolesRouter);
 router.use(auditRouter);

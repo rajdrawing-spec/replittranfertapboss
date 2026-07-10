@@ -29,3 +29,5 @@
 - [Orval types-directory collision fix](orval-types-collision.md) — orval generates both Zod const and TS type with the same name (e.g. RunAiAnalysisParams); remove `schemas` from orval config + strip the types re-export via sed in the codegen script.
 - [TBOS AI provider layer](tbos-ai-module.md) — Gemini via @workspace/integrations-gemini-ai; @google/* must NOT be in esbuild external or Gemini won't bundle; all AI routes need requirePermission("ai.read") + canAccessCompany on every companyId route param.
 - [TBOS DB table naming](tbos-db-table-naming.md) — Gemini template exports `conversations` and `messages` (not conversationsTable/messagesTable); always check schema export name before importing from @workspace/db.
+- [TBOS AI valuation & predictions](tbos-ai-valuation.md) — useMutation default-param pitfall + frontend raw adminApi pattern for new AI routes not yet in OpenAPI spec.
+- [TBOS AI executive reports](tbos-ai-reports.md) — scheduler must delay first tick 5s so startup migrations finish first; portfolio null companyId rows are super-admin only.

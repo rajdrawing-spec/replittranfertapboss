@@ -63,6 +63,8 @@ interface SendArgs {
 }
 
 async function send({ to, subject, html }: SendArgs): Promise<SendResult> {
+  // Strip CR/LF from subject to prevent header injection attacks.
+  subject = subject.replace(/[\r\n]+/g, " ").trim();
   try {
     const resp = await connectors.proxy("resend", "/emails", {
       method: "POST",
@@ -135,6 +137,11 @@ export function sendUserInviteEmail(args: {
     subject: "You've been invited to TapasHub",
     html: layout("You're invited to TapasHub", body, url ? { label: "Sign in to TapasHub", url } : undefined),
   });
+}
+
+/** Send a full AI executive report email (wider layout, plain-text fallback). */
+export function sendExecutiveReportEmail(args: { to: string; subject: string; html: string }): Promise<SendResult> {
+  return send({ to: args.to, subject: args.subject, html: args.html });
 }
 
 /** Notify a shareholder that they've been added, with a link to the portal. */

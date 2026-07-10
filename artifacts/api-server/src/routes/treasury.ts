@@ -291,17 +291,34 @@ router.get("/treasury/working-capital", requireSuperAdmin, async (req, res) => {
     const totalCapital = Number(raised?.total ?? 0);
     const totalAllocated = Object.values(allocMap).reduce((s, v) => s + v, 0);
 
-    const byCompany = subsidiaries
+    const byCompany: {
+      id: number; name: string; color: string;
+      allocated: number; spent: number; income: number; isSelf: boolean;
+    }[] = subsidiaries
       .filter(c => (allocMap[c.id] ?? 0) > 0 || (expenseMap[c.id] ?? 0) > 0)
       .map(c => ({
         id: c.id,
         name: c.name,
         color: c.color ?? "#6366f1",
-        allocated: allocMap[c.id] ?? 0,   // capital received from parent
-        spent: expenseMap[c.id] ?? 0,     // actual expenses (sub-brand's own draw)
+        allocated: allocMap[c.id] ?? 0,
+        spent: expenseMap[c.id] ?? 0,
         income: incomeMap[c.id] ?? 0,
+        isSelf: false,
       }))
-      .sort((a, b) => b.allocated - a.allocated);
+      .sort((a, b) => b.spent - a.spent);
+
+    // Include the parent's own operational expenses as a "Self" entry
+    if (parent && (expenseMap[parent.id] ?? 0) > 0) {
+      byCompany.unshift({
+        id: parent.id,
+        name: parent.name,
+        color: parent.color ?? "#818cf8",
+        allocated: 0,          // parent doesn't receive allocations from itself
+        spent: expenseMap[parent.id] ?? 0,
+        income: 0,
+        isSelf: true,
+      });
+    }
 
     res.json({
       totalCapital,

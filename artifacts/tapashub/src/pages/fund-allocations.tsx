@@ -87,10 +87,11 @@ export default function FundAllocations() {
 
   // Working capital snapshot — feeds the "Capital by Company" section
   // byCompany.spent = Finance expenses recorded for that company (Finance is source of truth)
+  // byCompany.isSelf = true for the parent company's own operational expenses
   interface WorkingCapital {
     totalCapital: number; allocated: number; totalSpent: number; available: number
     utilizationPercent: number; groupRevenue: number
-    byCompany: { id: number; name: string; color: string; allocated: number; spent: number; income: number }[]
+    byCompany: { id: number; name: string; color: string; allocated: number; spent: number; income: number; isSelf: boolean }[]
   }
   const { data: wcData } = useQuery<WorkingCapital>({
     queryKey: ["/api/treasury/working-capital"],
@@ -274,6 +275,9 @@ export default function FundAllocations() {
           <CardContent className="pt-0 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {wcData.byCompany.map(co => {
+                const selfSpentPct = wcData.totalCapital > 0
+                  ? Math.min(100, ((co.spent ?? 0) / wcData.totalCapital) * 100)
+                  : 0
                 const allocPct = wcData.totalCapital > 0
                   ? Math.min(100, (co.allocated / wcData.totalCapital) * 100)
                   : 0
@@ -281,6 +285,42 @@ export default function FundAllocations() {
                   ? Math.min(100, ((co.spent ?? 0) / co.allocated) * 100)
                   : 0
                 const remaining = co.allocated - (co.spent ?? 0)
+
+                // ── Parent "Self" card ──────────────────────────────────────
+                if (co.isSelf) return (
+                  <div key={co.id} className="p-3 rounded-lg border border-indigo-500/30 bg-indigo-500/5 space-y-2">
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
+                        style={{ background: co.color }}
+                      >
+                        {co.name.substring(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <div className="text-sm font-semibold truncate">{co.name}</div>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-medium shrink-0">Self</span>
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">Parent · own operational spend</div>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Own expenses</span>
+                        <span className="font-semibold text-amber-400">{inr(co.spent ?? 0)}</span>
+                      </div>
+                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-indigo-500" style={{ width: `${selfSpentPct}%`, opacity: 0.8 }} />
+                      </div>
+                    </div>
+                    <div className="flex justify-between text-[11px] pt-0.5">
+                      <span className="text-muted-foreground">% of treasury</span>
+                      <span className="text-indigo-300 font-semibold">{selfSpentPct.toFixed(1)}%</span>
+                    </div>
+                  </div>
+                )
+
+                // ── Subsidiary card ─────────────────────────────────────────
                 return (
                   <div key={co.id} className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-2">
                     <div className="flex items-center gap-2.5">

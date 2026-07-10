@@ -5,6 +5,63 @@ import { eq, and, or, sql, desc, inArray, isNotNull } from "drizzle-orm";
 import { emitNotification } from "../lib/notify";
 import { companyScope, canAccessCompany } from "../lib/company-scope";
 
+// ── Auto Fund Allocation helpers ──────────────────────────────────────────────
+// When a Finance expense is recorded for a subsidiary, an "executed" Fund
+// Allocation is auto-created so the Fund Allocations page always reflects
+// what has actually been spent — no manual entry needed.
+//
+// The link is stored as note = "__auto_finance_{transactionId}".
+// Only expense transactions for subsidiary (non-parent) companies trigger this.
+// Transfer / Capital Injection / income transactions are skipped to avoid loops.
+
+const autoNote = (txId: number) => `__auto_finance_${txId}`;
+
+async function syncAutoAllocation(
+  txCtx: typeof db,                   // pass db or tx (inside a transaction)
+  txId: number,
+  companyId: number,
+  type: string,
+  amount: number,
+  category: string,
+  requestedByName: string,
+) {
+  // Only expense transactions for subsidiaries trigger an auto-allocation
+  const [co] = await txCtx.select({ type: companiesTable.type })
+    .from(companiesTable).where(eq(companiesTable.id, companyId)).limit(1);
+  if (!co || co.type === "parent") return;   // parent spending doesn't auto-allocate
+  if (type !== "expense") {
+    // Type changed away from expense — clean up any existing auto-allocation
+    await txCtx.delete(fundAllocationsTable)
+      .where(eq(fundAllocationsTable.note, autoNote(txId)));
+    return;
+  }
+
+  const [parent] = await txCtx.select({ id: companiesTable.id, name: companiesTable.name })
+    .from(companiesTable).where(eq(companiesTable.type, "parent")).limit(1);
+  if (!parent) return;  // no parent company configured
+
+  const note = autoNote(txId);
+  const [existing] = await txCtx.select({ id: fundAllocationsTable.id })
+    .from(fundAllocationsTable).where(eq(fundAllocationsTable.note, note)).limit(1);
+
+  if (existing) {
+    await txCtx.update(fundAllocationsTable)
+      .set({ amount, purpose: category, updatedAt: new Date() })
+      .where(eq(fundAllocationsTable.id, existing.id));
+  } else {
+    await txCtx.insert(fundAllocationsTable).values({
+      fromCompanyId: parent.id,
+      toCompanyId: companyId,
+      amount,
+      purpose: category,
+      note,
+      status: "executed",
+      requestedByName,
+      executedAt: new Date(),
+    });
+  }
+}
+
 const router = Router();
 
 router.get("/finance/transactions", async (req, res) => {
@@ -62,7 +119,6 @@ router.post("/finance/transactions", async (req, res) => {
   try {
     const parsed = insertTransactionSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
-    // Validate caller has access to the target company
     if (!canAccessCompany(req, parsed.data.companyId)) { res.status(403).json({ error: "Access denied" }); return; }
     const [t] = await db.insert(transactionsTable).values(parsed.data).returning();
     const [c] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, t.companyId));
@@ -74,6 +130,8 @@ router.post("/finance/transactions", async (req, res) => {
         actionUrl: "/finance",
       });
     }
+    // Auto-create an executed Fund Allocation so treasury deployment stays in sync
+    void syncAutoAllocation(db, t.id, t.companyId, t.type, t.amount, t.category ?? t.type, c?.name ?? "Auto");
     res.status(201).json(formatTransaction(t, { [t.companyId]: c?.name ?? "Unknown" }));
   } catch (e) {
     req.log.error(e);
@@ -137,6 +195,8 @@ router.patch("/finance/transactions/:txId", async (req, res) => {
     const [t] = await db.update(transactionsTable).set(req.body).where(eq(transactionsTable.id, id)).returning();
     if (!t) { res.status(404).json({ error: "Not found" }); return; }
     const [c] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, t.companyId));
+    // Sync the auto-allocation to match the updated amount/type/category
+    void syncAutoAllocation(db, t.id, t.companyId, t.type, t.amount, t.category ?? t.type, c?.name ?? "Auto");
     res.json(formatTransaction(t, { [t.companyId]: c?.name ?? "Unknown" }));
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to update transaction" }); }
 });
@@ -156,7 +216,10 @@ router.delete("/finance/transactions/:txId", async (req, res) => {
     if (!canAccessCompany(req, existing.companyId)) { res.status(403).json({ error: "Access denied" }); return; }
 
     await db.transaction(async (tx) => {
-      // Null out any fund_allocation rows that reference this transaction
+      // Remove the auto-allocation that was created when this expense was recorded
+      await tx.delete(fundAllocationsTable)
+        .where(eq(fundAllocationsTable.note, autoNote(id)));
+      // Null out manual fund_allocation rows that reference this transaction
       await tx.update(fundAllocationsTable)
         .set({ fromTransactionId: null })
         .where(eq(fundAllocationsTable.fromTransactionId, id));

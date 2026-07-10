@@ -1,9 +1,9 @@
 /**
  * AI Executive Report Generator
  *
- * Produces a rich HTML email report combining live financial data,
- * cached AI analyses (SWOT, valuation, predictions, market) and a
- * fresh AI-written executive narrative.
+ * Produces structured report content (JSON) + rich HTML email combining live
+ * financial data, cached AI analyses (SWOT, valuation, predictions, market)
+ * and AI-written executive narrative, recommendations, and action plan.
  */
 
 import { db } from "@workspace/db";
@@ -27,55 +27,153 @@ const inr = (n: number | null | undefined) => {
   return `₹${Math.round(v).toLocaleString("en-IN")}`;
 };
 
-const pct = (n: number | null | undefined) => {
-  if (n == null) return "—";
-  return `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
-};
-
 const esc = (v: unknown) =>
   String(v ?? "")
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
-const REPORT_NARRATIVE_SYSTEM = `You are an executive business analyst writing a concise weekly/monthly/quarterly report for the company owner.
+// ── Content JSON types ────────────────────────────────────────────────────────
+export interface ReportKpi {
+  label: string; value: string; raw: number; delta?: string; color: string;
+}
+export interface ReportChartPoint {
+  label: string; revenue: number; expenses: number; profit: number;
+}
+export interface ReportRisk         { title: string; severity: string; }
+export interface ReportOpportunity  { title: string; impact: string; }
+export interface ReportRecommendation {
+  title: string; description: string; priority: string; effort: string;
+}
+export interface ReportActionItem   { item: string; priority: string; }
+
+export interface ReportContentJson {
+  kpis:            ReportKpi[];
+  chart_data:      ReportChartPoint[];
+  risks:           ReportRisk[];
+  opportunities:   ReportOpportunity[];
+  recommendations: ReportRecommendation[];
+  action_plan:     ReportActionItem[];
+  ai_narrative:    string;
+}
+
+// ── Period label ──────────────────────────────────────────────────────────────
+export function computePeriodLabel(type: string, date: Date = new Date()): string | null {
+  const y = date.getFullYear();
+  const m = date.getMonth();
+  const d = date.getDate();
+  switch (type) {
+    case "daily":
+      return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    case "weekly": {
+      // ISO week number
+      const jan4 = new Date(y, 0, 4);
+      const startOfWeek = new Date(date);
+      startOfWeek.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+      const weekNum = Math.round((startOfWeek.getTime() - jan4.getTime()) / (7 * 86400000)) + 1;
+      return `${y}-W${String(weekNum).padStart(2, "0")}`;
+    }
+    case "monthly":
+      return `${y}-${String(m + 1).padStart(2, "0")}`;
+    case "quarterly":
+      return `${y}-Q${Math.floor(m / 3) + 1}`;
+    case "annual":
+      return String(y);
+    case "manual":
+    default:
+      return null;
+  }
+}
+
+// ── Next run time for all 5 schedule types ────────────────────────────────────
+export function computeNextRunAt(type: string, from = new Date()): Date {
+  const d = new Date(from);
+  // All scheduled reports fire at 08:00 IST = 02:30 UTC
+  // Target 02:00 UTC (= ~7:30 AM IST); isDue() covers the full 02:xx hour.
+  const setMorning = (dt: Date) => { dt.setUTCHours(2, 0, 0, 0); return dt; };
+  switch (type) {
+    case "daily": {
+      const next = new Date(d);
+      next.setDate(next.getDate() + 1);
+      return setMorning(next);
+    }
+    case "weekly": {
+      const daysUntilMonday = (8 - d.getDay()) % 7 || 7;
+      d.setDate(d.getDate() + daysUntilMonday);
+      return setMorning(d);
+    }
+    case "monthly": {
+      d.setMonth(d.getMonth() + 1, 1);
+      return setMorning(d);
+    }
+    case "quarterly": {
+      const q = Math.floor(d.getMonth() / 3);
+      d.setMonth((q + 1) * 3, 1);
+      return setMorning(d);
+    }
+    case "annual": {
+      d.setFullYear(d.getFullYear() + 1, 0, 1);
+      return setMorning(d);
+    }
+    default:
+      return new Date(d.getTime() + 7 * 24 * 60 * 60 * 1000);
+  }
+}
+
+// ── AI prompts ────────────────────────────────────────────────────────────────
+const REPORT_NARRATIVE_SYSTEM = `You are an executive business analyst writing a concise business report for the company owner.
 Based on the provided financial and operational data, write a 200-300 word executive narrative in professional business language.
 Cover: financial health, notable trends, key risks, and the single most important action the owner should take.
 Write in third-person. Do NOT use bullet points — write flowing paragraphs.
 Return ONLY the narrative text, no headers, no markdown.`;
 
-// ── HTML section builders ─────────────────────────────────────────────────────
+const STRUCTURED_SECTIONS_SYSTEM = `You are a business intelligence analyst. Based on the provided company data, return ONLY valid JSON with this exact schema:
+{
+  "risks": [{"title": "...", "severity": "critical"|"high"|"medium"|"low"}],
+  "opportunities": [{"title": "...", "impact": "high"|"medium"|"low"}],
+  "recommendations": [{"title": "...", "description": "...", "priority": "critical"|"high"|"medium"|"low", "effort": "Low"|"Medium"|"High"}],
+  "action_plan": [{"item": "...", "priority": "critical"|"high"|"medium"|"low"}]
+}
+Rules:
+- risks: 3-5 items, specific and data-driven
+- opportunities: 3-5 concrete growth opportunities
+- recommendations: 3-5 actionable AI recommendations with priority and effort level
+- action_plan: 5-7 concrete next actions the owner should take this period
+Return ONLY valid JSON, no markdown fences.`;
+
+// ── HTML report builder ───────────────────────────────────────────────────────
 function reportLayout(headline: string, date: string, bodyHtml: string): string {
   const url = appUrl();
   const cta = url
     ? `<tr><td style="padding:16px 0 4px;">
-         <a href="${esc(url)}/ai-assistant" style="display:inline-block;background:#6d28d9;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">Open Full Dashboard</a>
+         <a href="${esc(url)}/ai-reports" style="display:inline-block;background:#6d28d9;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">View Full Report</a>
        </td></tr>`
     : "";
   return `<!doctype html>
 <html><body style="margin:0;background:#0b0b0f;padding:24px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background:#15151c;border:1px solid #26262e;border-radius:16px;overflow:hidden;">
-  <!-- Header -->
   <tr><td style="padding:24px 28px 18px;border-bottom:1px solid #24242e;">
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-      <span style="color:#a78bfa;font-size:20px;font-weight:700;letter-spacing:-0.02em;">TapasHub</span>
-      <span style="color:#6b7280;font-size:12px;">Business OS · AI Executive Report</span>
-    </div>
+    <div><span style="color:#a78bfa;font-size:20px;font-weight:700;letter-spacing:-0.02em;">TapasHub</span>
+    <span style="color:#6b7280;font-size:12px;"> · AI Executive Report</span></div>
     <h1 style="margin:10px 0 4px;color:#f4f4f5;font-size:22px;">${esc(headline)}</h1>
     <div style="color:#6b7280;font-size:12px;">${esc(date)}</div>
   </td></tr>
-  <!-- Body -->
   <tr><td style="padding:24px 28px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="color:#cbd5e1;font-size:14px;line-height:1.6;">
       ${bodyHtml}
       ${cta}
     </table>
   </td></tr>
-  <!-- Footer -->
   <tr><td style="padding:16px 28px;border-top:1px solid #24242e;color:#6b7280;font-size:11px;line-height:1.5;">
-    This report was automatically generated by TapasHub AI. All AI-generated figures are estimates and should not be treated as official financial statements. To manage report schedules, visit your TapasHub settings.
+    AI-generated report. Not official financial advice. Manage report schedules in TapasHub AI Assistant.
   </td></tr>
 </table>
 </body></html>`;
+}
+
+function sectionHeader(title: string, emoji = ""): string {
+  return `<tr><td style="padding:16px 0 8px;">
+    <div style="color:#a78bfa;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;border-bottom:1px solid #24242e;padding-bottom:6px;">${emoji ? esc(emoji) + " " : ""}${esc(title)}</div>
+  </td></tr>`;
 }
 
 function kpiRow(items: { label: string; value: string; delta?: string; color?: string }[]): string {
@@ -90,80 +188,101 @@ function kpiRow(items: { label: string; value: string; delta?: string; color?: s
   </td></tr>`;
 }
 
-function sectionHeader(title: string, emoji = ""): string {
-  return `<tr><td style="padding:16px 0 8px;">
-    <div style="color:#a78bfa;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;border-bottom:1px solid #24242e;padding-bottom:6px;">${emoji ? esc(emoji) + " " : ""}${esc(title)}</div>
-  </td></tr>`;
-}
-
-function bulletList(items: string[], color = "#6b7280"): string {
-  if (!items.length) return "";
-  return `<tr><td style="padding:0 0 12px;">
-    <ul style="margin:0;padding-left:18px;color:${color};">
-      ${items.slice(0, 4).map(i => `<li style="margin-bottom:4px;">${esc(i)}</li>`).join("")}
-    </ul>
-  </td></tr>`;
-}
-
 function paragraph(text: string): string {
   return `<tr><td style="padding:0 0 16px;color:#cbd5e1;line-height:1.7;">${esc(text)}</td></tr>`;
 }
 
-function twoCol(left: { label: string; items: string[]; color?: string }, right: { label: string; items: string[]; color?: string }): string {
-  const col = (label: string, items: string[], color = "#6b7280") =>
-    `<td style="width:48%;vertical-align:top;background:#1e1e2a;border-radius:8px;padding:12px;">
-      <div style="color:#9ca3af;font-size:11px;font-weight:600;margin-bottom:8px;">${esc(label)}</div>
-      <ul style="margin:0;padding-left:16px;color:${color};font-size:13px;">
-        ${items.slice(0, 3).map(i => `<li style="margin-bottom:3px;">${esc(i)}</li>`).join("")}
-      </ul>
-    </td>`;
+function bulletList(items: string[], color = "#cbd5e1"): string {
+  if (!items.length) return "";
   return `<tr><td style="padding:0 0 12px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      ${col(left.label, left.items, left.color ?? "#6b7280")}
-      <td style="width:4%;"></td>
-      ${col(right.label, right.items, right.color ?? "#6b7280")}
-    </tr></table>
+    <ul style="margin:0;padding-left:18px;color:${color};">
+      ${items.slice(0, 5).map(i => `<li style="margin-bottom:4px;">${esc(i)}</li>`).join("")}
+    </ul>
   </td></tr>`;
 }
 
-// ── Main entry point ──────────────────────────────────────────────────────────
+// ── Generate structured content ────────────────────────────────────────────────
+async function buildStructuredContent(
+  contextText: string,
+  swot: typeof aiAnalysesTable.$inferSelect | null,
+  market: typeof aiMarketAnalysesTable.$inferSelect | null,
+  provider: Awaited<ReturnType<typeof getActiveProvider>>,
+): Promise<{ risks: ReportRisk[]; opportunities: ReportOpportunity[]; recommendations: ReportRecommendation[]; action_plan: ReportActionItem[] }> {
+  const contextSnippet = [
+    contextText.slice(0, 2000),
+    swot ? `SWOT: Strengths: ${swot.strengths.slice(0,2).join("; ")}. Risks: ${swot.threats.slice(0,2).join("; ")}` : "",
+    market?.recommendations.length ? `Top mkt rec: ${market.recommendations[0]?.title}` : "",
+  ].filter(Boolean).join("\n");
 
+  try {
+    const raw = await provider.chat(
+      [{ role: "user", content: `Analyse this business and produce the JSON report sections:\n\n${contextSnippet}` }],
+      STRUCTURED_SECTIONS_SYSTEM,
+    );
+    const jsonStr = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+    const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+
+    const arr = <T>(v: unknown): T[] => Array.isArray(v) ? v.filter(Boolean) as T[] : [];
+
+    return {
+      risks:           arr<ReportRisk>(parsed.risks),
+      opportunities:   arr<ReportOpportunity>(parsed.opportunities),
+      recommendations: arr<ReportRecommendation>(parsed.recommendations),
+      action_plan:     arr<ReportActionItem>(parsed.action_plan),
+    };
+  } catch {
+    // Fallback: derive from cached SWOT if AI fails
+    return {
+      risks:           (swot?.threats ?? []).slice(0, 4).map(t => ({ title: t, severity: "medium" })),
+      opportunities:   (swot?.opportunities ?? []).slice(0, 4).map(o => ({ title: o, impact: "medium" })),
+      recommendations: (swot?.growthOpportunities ?? []).slice(0, 3).map(g => ({
+        title: g, description: "Based on SWOT analysis", priority: "medium", effort: "Medium",
+      })),
+      action_plan:     (swot?.revenueleaks ?? []).slice(0, 3).map(r => ({ item: `Address: ${r}`, priority: "high" })),
+    };
+  }
+}
+
+// ── Main entry point ──────────────────────────────────────────────────────────
 export interface GenerateReportOptions {
-  companyId:      number | null;  // null = portfolio-wide
-  type:           string;         // weekly | monthly | quarterly | manual
+  companyId:      number | null;
+  type:           string;
   recipientEmails: string[];
   scheduleId?:    number;
 }
 
 export interface GeneratedReport {
-  subject:    string;
+  subject:     string;
   htmlContent: string;
-  aiSummary:  string;
+  aiSummary:   string;
+  contentJson: ReportContentJson;
+  periodLabel: string | null;
 }
 
 export async function generateExecutiveReport(opts: GenerateReportOptions): Promise<GeneratedReport> {
   const { companyId, type } = opts;
 
-  // ── 1. Resolve company / portfolio name ────────────────────────────────────
-  let reportTitle: string;
+  // ── 1. Resolve company name ────────────────────────────────────────────────
   let companyName: string;
-
   if (companyId != null) {
-    const [co] = await db.select({ name: companiesTable.name, industry: companiesTable.industry })
+    const [co] = await db.select({ name: companiesTable.name })
       .from(companiesTable).where(eq(companiesTable.id, companyId)).limit(1);
     companyName = co?.name ?? `Company #${companyId}`;
-    reportTitle = companyName;
   } else {
-    companyName = "Portfolio";
-    reportTitle = "Group Portfolio";
+    companyName = "Group Portfolio";
   }
 
-  const typeLabel = { weekly: "Weekly", monthly: "Monthly", quarterly: "Quarterly", manual: "Executive" }[type] ?? "Executive";
+  const TYPE_LABELS: Record<string, string> = {
+    daily: "Daily", weekly: "Weekly", monthly: "Monthly",
+    quarterly: "Quarterly", annual: "Annual", manual: "Executive",
+  };
+  const typeLabel = TYPE_LABELS[type] ?? "Executive";
   const now = new Date();
   const dateStr = now.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
-  const subject = `${typeLabel} Executive Report — ${reportTitle} — ${now.toLocaleDateString("en-IN", { month: "short", year: "numeric" })}`;
+  const periodLabel = computePeriodLabel(type, now);
+  const subject = `${typeLabel} AI Report — ${companyName} — ${now.toLocaleDateString("en-IN", { month: "short", year: "numeric" })}`;
 
-  // ── 2. Fetch live financial snapshot ───────────────────────────────────────
+  // ── 2. Fetch MTD financial snapshot ───────────────────────────────────────
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startStr = `${startOfMonth.getFullYear()}-${String(startOfMonth.getMonth() + 1).padStart(2, "0")}-01`;
   const endStr   = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -179,35 +298,28 @@ export async function generateExecutiveReport(opts: GenerateReportOptions): Prom
     mtdExpenses  = Number(fin?.expenses ?? 0);
   }
 
-  // ── 3. Fetch cached AI analyses ────────────────────────────────────────────
+  // ── 3. Fetch cached AI analyses ─────────────────────────────────────────────
   let swot: typeof aiAnalysesTable.$inferSelect | null = null;
   let valuation: typeof aiValuationsTable.$inferSelect | null = null;
   let predictions: typeof aiPredictionsTable.$inferSelect | null = null;
   let market: typeof aiMarketAnalysesTable.$inferSelect | null = null;
 
   if (companyId != null) {
-    const [s] = await db.select().from(aiAnalysesTable)
-      .where(eq(aiAnalysesTable.companyId, companyId)).orderBy(desc(aiAnalysesTable.createdAt)).limit(1);
+    const [[s], [v], [p], [m]] = await Promise.all([
+      db.select().from(aiAnalysesTable).where(eq(aiAnalysesTable.companyId, companyId)).orderBy(desc(aiAnalysesTable.createdAt)).limit(1),
+      db.select().from(aiValuationsTable).where(eq(aiValuationsTable.companyId, companyId)).orderBy(desc(aiValuationsTable.createdAt)).limit(1),
+      db.select().from(aiPredictionsTable).where(eq(aiPredictionsTable.companyId, companyId)).orderBy(desc(aiPredictionsTable.createdAt)).limit(1),
+      db.select().from(aiMarketAnalysesTable).where(eq(aiMarketAnalysesTable.companyId, companyId)).orderBy(desc(aiMarketAnalysesTable.createdAt)).limit(1),
+    ]);
     swot = s ?? null;
-
-    const [v] = await db.select().from(aiValuationsTable)
-      .where(eq(aiValuationsTable.companyId, companyId)).orderBy(desc(aiValuationsTable.createdAt)).limit(1);
     valuation = v ?? null;
-
-    const [p] = await db.select().from(aiPredictionsTable)
-      .where(eq(aiPredictionsTable.companyId, companyId)).orderBy(desc(aiPredictionsTable.createdAt)).limit(1);
     predictions = p ?? null;
-
-    const [m] = await db.select().from(aiMarketAnalysesTable)
-      .where(eq(aiMarketAnalysesTable.companyId, companyId)).orderBy(desc(aiMarketAnalysesTable.createdAt)).limit(1);
     market = m ?? null;
   }
 
-  // ── 4. Fetch trend + context for narrative ─────────────────────────────────
+  // ── 4. Build context + trend data ──────────────────────────────────────────
   let contextText = "";
-  const trend = companyId != null
-    ? await buildMonthlyFinanceTrend(companyId, 3)
-    : [];
+  const trend = companyId != null ? await buildMonthlyFinanceTrend(companyId, 6) : [];
 
   if (companyId != null) {
     const ctx = await buildCompanyContext(companyId);
@@ -217,25 +329,21 @@ export async function generateExecutiveReport(opts: GenerateReportOptions): Prom
     if (pCtx) contextText = formatContextForPrompt(pCtx as unknown as Parameters<typeof formatContextForPrompt>[0]);
   }
 
-  // ── 5. Generate AI executive narrative ────────────────────────────────────
+  // ── 5. Get AI provider ─────────────────────────────────────────────────────
   const provider = await getActiveProvider();
-  const providerName = await getActiveProviderName();
 
-  let trendSnippet = "";
-  if (trend.length) {
-    trendSnippet = trend.map(t => `${t.month}: Rev ${inr(t.revenue)} | Exp ${inr(t.expenses)} | Profit ${inr(t.profit)}`).join("; ");
-  }
+  // ── 6. Generate AI narrative ───────────────────────────────────────────────
+  const trendSnippet = trend.map(t =>
+    `${t.month}: Rev ${inr(t.revenue)} | Exp ${inr(t.expenses)} | Profit ${inr(t.profit)}`
+  ).join("; ");
 
   const narrativeInput = [
-    companyId != null ? `Company: ${companyName}` : `Portfolio report`,
-    `Report type: ${typeLabel}`,
-    `Period: ${dateStr}`,
-    contextText ? `\nBusiness data:\n${contextText}` : "",
-    trendSnippet ? `\nRecent 3-month trend: ${trendSnippet}` : "",
-    valuation ? `\nAI Valuation: ${inr(valuation.estimatedValue)} estimated value, ${valuation.healthTrend} trend, growth score ${valuation.growthScore}/100` : "",
+    companyId != null ? `Company: ${companyName}` : "Portfolio report",
+    `Report type: ${typeLabel} | Period: ${dateStr}`,
+    contextText ? `\nBusiness data:\n${contextText.slice(0, 2000)}` : "",
+    trendSnippet ? `\n6-month trend: ${trendSnippet}` : "",
+    valuation ? `\nAI Valuation: ${inr(valuation.estimatedValue)}, growth score ${valuation.growthScore}/100, trend: ${valuation.healthTrend}` : "",
     swot?.summary ? `\nSWOT summary: ${swot.summary}` : "",
-    market?.recommendations.length
-      ? `\nTop recommendation: ${market.recommendations[0]?.title}` : "",
   ].filter(Boolean).join("\n");
 
   let aiNarrative = "";
@@ -244,161 +352,166 @@ export async function generateExecutiveReport(opts: GenerateReportOptions): Prom
       [{ role: "user", content: narrativeInput }],
       REPORT_NARRATIVE_SYSTEM,
     );
-    // Strip any markdown artefacts
     aiNarrative = aiNarrative.replace(/^#+\s*/gm, "").trim();
   } catch {
-    aiNarrative = `AI narrative generation failed. Please run a manual analysis from the TapasHub dashboard to get current insights.`;
+    aiNarrative = "AI narrative unavailable. Please run a manual analysis from the TapasHub dashboard.";
   }
 
-  // ── 6. Assemble HTML ───────────────────────────────────────────────────────
+  // ── 7. Generate structured sections ───────────────────────────────────────
+  const structured = await buildStructuredContent(contextText, swot, market, provider);
+
+  // ── 8. Build contentJson ───────────────────────────────────────────────────
+  const mtdProfit = mtdRevenue - mtdExpenses;
+  const prevMonth = trend.length >= 2 ? trend[trend.length - 2] : null;
+  const revDelta = prevMonth && prevMonth.revenue > 0
+    ? `${((mtdRevenue - prevMonth.revenue) / prevMonth.revenue * 100).toFixed(1)}%` : undefined;
+
+  const kpis: ReportKpi[] = [];
+  if (companyId != null) {
+    kpis.push(
+      { label: "MTD Revenue",  value: inr(mtdRevenue),  raw: mtdRevenue,  delta: revDelta ? (mtdRevenue >= (prevMonth?.revenue ?? 0) ? "+" : "") + revDelta : undefined, color: "green" },
+      { label: "MTD Expenses", value: inr(mtdExpenses), raw: mtdExpenses, color: "red" },
+      { label: "MTD Profit",   value: inr(mtdProfit),   raw: mtdProfit,   color: mtdProfit >= 0 ? "green" : "red" },
+    );
+  }
+  if (valuation) {
+    kpis.push({
+      label: "AI Valuation", value: inr(valuation.estimatedValue),
+      raw: valuation.estimatedValue ?? 0, color: "purple",
+    });
+  }
+
+  const chartData: ReportChartPoint[] = trend.map(t => ({
+    label:    t.month,
+    revenue:  t.revenue,
+    expenses: t.expenses,
+    profit:   t.profit,
+  }));
+
+  const contentJson: ReportContentJson = {
+    kpis,
+    chart_data:      chartData,
+    risks:           structured.risks,
+    opportunities:   structured.opportunities,
+    recommendations: structured.recommendations,
+    action_plan:     structured.action_plan,
+    ai_narrative:    aiNarrative,
+  };
+
+  // ── 9. Build HTML email ────────────────────────────────────────────────────
   let bodyHtml = "";
 
-  // Financial snapshot
-  const mtdProfit = mtdRevenue - mtdExpenses;
-  if (companyId != null) {
-    bodyHtml += sectionHeader(`${typeLabel} Financial Snapshot`, "📊");
-    bodyHtml += kpiRow([
-      { label: "MTD Revenue",  value: inr(mtdRevenue),  color: "#34d399" },
-      { label: "MTD Expenses", value: inr(mtdExpenses), color: "#f87171" },
-      { label: "MTD Profit",   value: inr(mtdProfit),   color: mtdProfit >= 0 ? "#34d399" : "#f87171" },
-    ]);
+  if (kpis.length) {
+    const htmlKpis = kpis.map(k => ({
+      label: k.label, value: k.value, delta: k.delta,
+      color: k.color === "green" ? "#34d399" : k.color === "red" ? "#f87171" : k.color === "purple" ? "#a78bfa" : "#f4f4f5",
+    }));
+    bodyHtml += sectionHeader("Key Performance Indicators", "📊");
+    bodyHtml += kpiRow(htmlKpis.slice(0, 4));
   }
 
-  // AI Valuation widget
   if (valuation) {
-    bodyHtml += sectionHeader("Business Valuation (AI Estimate)", "💎");
+    bodyHtml += sectionHeader("AI Business Valuation (Estimate)", "💎");
     bodyHtml += kpiRow([
-      { label: "Est. Company Value",  value: inr(valuation.estimatedValue),  color: "#a78bfa" },
-      { label: "Growth Score",        value: `${valuation.growthScore ?? "—"}/100`,
-        color: (valuation.growthScore ?? 0) >= 70 ? "#34d399" : (valuation.growthScore ?? 0) >= 40 ? "#fbbf24" : "#f87171" },
-      { label: "Health Trend",        value: valuation.healthTrend ?? "—",
+      { label: "Est. Company Value", value: inr(valuation.estimatedValue), color: "#a78bfa" },
+      { label: "Growth Score",       value: `${valuation.growthScore ?? "—"}/100`, color: "#f4f4f5" },
+      { label: "Health Trend",       value: valuation.healthTrend ?? "—",
         color: valuation.healthTrend === "growing" ? "#34d399" : valuation.healthTrend === "declining" ? "#f87171" : "#fbbf24" },
     ]);
     if (valuation.explanation) bodyHtml += paragraph(valuation.explanation);
   }
 
-  // SWOT highlights
-  if (swot) {
-    bodyHtml += sectionHeader("SWOT Highlights", "🔍");
-    bodyHtml += twoCol(
-      { label: "Top Strengths",     items: swot.strengths,    color: "#34d399" },
-      { label: "Top Opportunities", items: swot.opportunities, color: "#60a5fa" },
-    );
-    bodyHtml += twoCol(
-      { label: "Weaknesses to Address", items: swot.weaknesses, color: "#fbbf24" },
-      { label: "Risks to Watch",        items: swot.threats,    color: "#f87171" },
-    );
+  if (structured.risks.length) {
+    bodyHtml += sectionHeader("Key Risks", "⚠️");
+    bodyHtml += bulletList(structured.risks.map(r => `[${r.severity.toUpperCase()}] ${r.title}`), "#f87171");
   }
 
-  // Growth predictions (12-month revenue + profit)
-  if (predictions?.predictions?.length) {
-    const rev12 = predictions.predictions.find(p => p.metric === "revenue"  && p.horizon === 12);
-    const pft12 = predictions.predictions.find(p => p.metric === "profit"   && p.horizon === 12);
-    const rev6  = predictions.predictions.find(p => p.metric === "revenue"  && p.horizon === 6);
-    const pft6  = predictions.predictions.find(p => p.metric === "profit"   && p.horizon === 6);
-    if (rev12 || pft12) {
-      bodyHtml += sectionHeader("AI Growth Predictions (AI Estimate)", "📈");
-      const predKpis = [
-        rev6  ? { label: "Revenue (6mo)",  value: inr(rev6.value),  color: "#34d399" } : null,
-        rev12 ? { label: "Revenue (12mo)", value: inr(rev12.value), color: "#34d399" } : null,
-        pft6  ? { label: "Profit (6mo)",   value: inr(pft6!.value), color: "#a78bfa" } : null,
-        pft12 ? { label: "Profit (12mo)",  value: inr(pft12.value), color: "#a78bfa" } : null,
-      ].filter((x): x is NonNullable<typeof x> => x !== null).slice(0, 4);
-      if (predKpis.length) bodyHtml += kpiRow(predKpis);
-    }
+  if (structured.opportunities.length) {
+    bodyHtml += sectionHeader("Growth Opportunities", "💡");
+    bodyHtml += bulletList(structured.opportunities.map(o => `[${o.impact.toUpperCase()}] ${o.title}`), "#34d399");
   }
 
-  // Market recommendations
-  if (market?.recommendations?.length) {
-    const sorted = [...market.recommendations].sort(
-      (a, b) => ["critical","high","medium","low"].indexOf(a.priority) - ["critical","high","medium","low"].indexOf(b.priority)
-    );
-    bodyHtml += sectionHeader("Market & Competitive Recommendations", "🎯");
-    bodyHtml += bulletList(sorted.slice(0, 4).map(r => `[${r.priority.toUpperCase()}] ${r.title} — ${r.description}`), "#cbd5e1");
+  if (structured.recommendations.length) {
+    bodyHtml += sectionHeader("AI Recommendations", "🎯");
+    bodyHtml += bulletList(structured.recommendations.map(r => `[${r.priority.toUpperCase()}] ${r.title} — ${r.description}`), "#cbd5e1");
   }
 
-  // Revenue leaks & growth opportunities
-  if (swot && (swot.revenueleaks.length || swot.growthOpportunities.length)) {
-    bodyHtml += sectionHeader("Revenue & Growth Intelligence", "⚡");
-    bodyHtml += twoCol(
-      { label: "Revenue Leaks",        items: swot.revenueleaks,       color: "#f87171" },
-      { label: "Growth Opportunities", items: swot.growthOpportunities, color: "#34d399" },
-    );
-  }
-
-  // AI narrative
-  bodyHtml += sectionHeader("Executive AI Analysis", "🤖");
+  bodyHtml += sectionHeader("Executive Analysis (AI)", "🤖");
   bodyHtml += paragraph(aiNarrative);
 
-  // Disclaimer
   bodyHtml += `<tr><td style="padding:12px;background:#1e1e2a;border-radius:8px;font-size:11px;color:#6b7280;line-height:1.5;">
-    ⚠️ All AI-generated valuations and forecasts are estimates based on data available in TapasHub. They are not official financial statements and should not be used for legal or accounting purposes. Revenue, profit, and expense figures reflect data entered into TapasHub and may not capture all transactions.
+    ⚠️ AI-generated content. Not official financial advice.
   </td></tr>`;
 
   const htmlContent = reportLayout(
-    `${typeLabel} Executive Report — ${reportTitle}`,
+    `${typeLabel} AI Report — ${companyName}`,
     dateStr,
     bodyHtml,
   );
 
-  void providerName; // used in future: could be added to footer
+  void (await getActiveProviderName());
 
-  return { subject, htmlContent, aiSummary: aiNarrative };
-}
-
-// ── Compute next delivery time for a schedule type ────────────────────────────
-export function computeNextRunAt(type: string, from = new Date()): Date {
-  const d = new Date(from);
-  switch (type) {
-    case "weekly": {
-      // Next Monday at 08:00 IST (02:30 UTC)
-      const daysUntilMonday = (8 - d.getDay()) % 7 || 7;
-      d.setDate(d.getDate() + daysUntilMonday);
-      d.setUTCHours(2, 30, 0, 0);
-      return d;
-    }
-    case "monthly": {
-      // First day of next month at 08:00 IST
-      d.setMonth(d.getMonth() + 1, 1);
-      d.setUTCHours(2, 30, 0, 0);
-      return d;
-    }
-    case "quarterly": {
-      // First day of next quarter
-      const q = Math.floor(d.getMonth() / 3);
-      d.setMonth((q + 1) * 3, 1);
-      d.setUTCHours(2, 30, 0, 0);
-      return d;
-    }
-    default:
-      return new Date(d.getTime() + 7 * 24 * 60 * 60 * 1000); // 1 week
-  }
+  return { subject, htmlContent, aiSummary: aiNarrative, contentJson, periodLabel };
 }
 
 // ── Store a report record ─────────────────────────────────────────────────────
 export async function storeReport(opts: {
-  companyId: number | null;
-  scheduleId?: number;
-  type: string;
-  status: string;
-  subject: string;
-  htmlContent?: string;
-  aiSummary?: string;
+  companyId:      number | null;
+  scheduleId?:    number;
+  type:           string;
+  periodLabel?:   string | null;
+  status:         string;
+  subject:        string;
+  htmlContent?:   string;
+  aiSummary?:     string;
+  contentJson?:   ReportContentJson;
   recipientCount?: number;
-  errorMessage?: string;
-  sentAt?: Date;
+  errorMessage?:  string;
+  sentAt?:        Date;
 }): Promise<number> {
   const [row] = await db.insert(aiReportHistoryTable).values({
     companyId:      opts.companyId,
     scheduleId:     opts.scheduleId,
     type:           opts.type,
+    periodLabel:    opts.periodLabel ?? null,
     status:         opts.status,
     subject:        opts.subject,
     htmlContent:    opts.htmlContent,
     aiSummary:      opts.aiSummary,
+    contentJson:    opts.contentJson as Record<string, unknown> | undefined,
     recipientCount: opts.recipientCount ?? 0,
     errorMessage:   opts.errorMessage,
     sentAt:         opts.sentAt,
   }).returning({ id: aiReportHistoryTable.id });
   return row.id;
+}
+
+// ── History retention cleanup ─────────────────────────────────────────────────
+// Retention limits per type: daily=30, weekly=12, monthly=12, quarterly=8, annual=5
+const RETENTION: Record<string, number> = {
+  daily: 30, weekly: 12, monthly: 12, quarterly: 8, annual: 5,
+};
+
+export async function pruneReportHistory(companyId: number | null): Promise<void> {
+  for (const [type, keep] of Object.entries(RETENTION)) {
+    try {
+      // Find the cutoff id (the keep-th most recent for this company+type)
+      const rows = await db.select({ id: aiReportHistoryTable.id })
+        .from(aiReportHistoryTable)
+        .where(
+          companyId != null
+            ? and(eq(aiReportHistoryTable.companyId, companyId), eq(aiReportHistoryTable.type, type))
+            : eq(aiReportHistoryTable.type, type)
+        )
+        .orderBy(desc(aiReportHistoryTable.createdAt));
+
+      const toDelete = rows.slice(keep).map(r => r.id);
+      if (toDelete.length > 0) {
+        await db.delete(aiReportHistoryTable)
+          .where(sql`id = ANY(${sql.raw(`ARRAY[${toDelete.join(",")}]`)})`);
+      }
+    } catch {
+      // Non-fatal — pruning failures don't block report generation
+    }
+  }
 }

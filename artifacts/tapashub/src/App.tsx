@@ -39,6 +39,7 @@ const Marketing = React.lazy(() => import('@/pages/marketing'));
 const AccessControl = React.lazy(() => import('@/pages/admin/access-control'));
 const AuditLogs = React.lazy(() => import('@/pages/admin/audit-logs'));
 const Treasury = React.lazy(() => import('@/pages/treasury'));
+const AiReports = React.lazy(() => import('@/pages/ai-reports'));
 import { LoadingScreen } from '@/components/loading-screen';
 import { OfflineBanner } from '@/components/offline-banner';
 import { Button } from '@/components/ui/button';
@@ -233,6 +234,7 @@ function AuthedApp() {
                   <Route path="/admin/access" component={AccessControl} />
                   <Route path="/admin/audit" component={AuditLogs} />
                   <Route path="/reports" component={Finance} />
+                  <Route path="/ai-reports" component={AiReports} />
                   <Route path="/analytics" component={Analytics} />
                   <Route path="/veterinary" component={HR} />
                   <Route path="/community" component={CRM} />

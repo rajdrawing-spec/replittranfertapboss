@@ -142,6 +142,27 @@ interface EntryForm {
   amount: string; date: string; currency: string
   paymentMethod: string; referenceNumber: string
   description: string; notes: string; status: string
+  interestRate: string   // % p.a. — only used when fundingSource === "bank_loan"
+}
+
+// Notes encoding: loans store interest rate as "IR:12.5\n" prefix
+function parseInterestFromNotes(raw: string | null): { interestRate: string; cleanNotes: string } {
+  if (!raw) return { interestRate: "", cleanNotes: "" }
+  const m = raw.match(/^IR:([\d.]+)\n?/)
+  if (m) return { interestRate: m[1], cleanNotes: raw.slice(m[0].length) }
+  return { interestRate: "", cleanNotes: raw }
+}
+function encodeInterestInNotes(ir: string, notes: string): string | null {
+  const v = parseFloat(ir)
+  const base = notes.trim()
+  if (v > 0) return `IR:${v}\n${base}`.trimEnd()
+  return base || null
+}
+export function getInterestRate(raw: string | null): number | null {
+  const m = (raw ?? "").match(/^IR:([\d.]+)\n?/)
+  if (!m) return null
+  const v = parseFloat(m[1])
+  return Number.isFinite(v) && v > 0 ? v : null
 }
 
 const emptyForm = (): EntryForm => ({
@@ -149,22 +170,26 @@ const emptyForm = (): EntryForm => ({
   fundingSource: "shareholder_investment", investorName: "",
   amount: "", date: new Date().toISOString().slice(0, 10), currency: "INR",
   paymentMethod: "bank_transfer", referenceNumber: "",
-  description: "", notes: "", status: "approved",
+  description: "", notes: "", status: "approved", interestRate: "",
 })
 
-const entryToForm = (e: TreasuryEntry): EntryForm => ({
-  id: e.id,
-  fundingSource: e.fundingSource,
-  investorName: e.investorName ?? "",
-  amount: String(e.amount),
-  date: e.date,
-  currency: e.currency,
-  paymentMethod: e.paymentMethod ?? "bank_transfer",
-  referenceNumber: e.referenceNumber ?? "",
-  description: e.description,
-  notes: e.notes ?? "",
-  status: e.status,
-})
+const entryToForm = (e: TreasuryEntry): EntryForm => {
+  const { interestRate, cleanNotes } = parseInterestFromNotes(e.notes)
+  return {
+    id: e.id,
+    fundingSource: e.fundingSource,
+    investorName: e.investorName ?? "",
+    amount: String(e.amount),
+    date: e.date,
+    currency: e.currency,
+    paymentMethod: e.paymentMethod ?? "bank_transfer",
+    referenceNumber: e.referenceNumber ?? "",
+    description: e.description,
+    notes: cleanNotes,
+    status: e.status,
+    interestRate,
+  }
+}
 
 /* ─────────────────────────────── KPI Card ──────────────────────────── */
 
@@ -279,7 +304,10 @@ export default function Treasury() {
       paymentMethod: form.paymentMethod,
       referenceNumber: form.referenceNumber || null,
       description: form.description,
-      notes: form.notes || null,
+      // For bank loans, embed annual interest rate into notes as "IR:X.X\n..."
+      notes: form.fundingSource === "bank_loan"
+        ? encodeInterestInNotes(form.interestRate, form.notes)
+        : form.notes || null,
       status: form.status,
     }
 
@@ -722,9 +750,30 @@ export default function Treasury() {
                                 <span className="text-xs text-muted-foreground">Amount</span>
                                 <span className="font-bold text-green-400">{inr(e.amount)}</span>
                               </div>
-                              {e.notes && (
-                                <div className="text-[11px] text-muted-foreground border-t pt-1.5 line-clamp-2">{e.notes}</div>
-                              )}
+                              {(() => {
+                                  const ir = getInterestRate(e.notes)
+                                  const { cleanNotes } = parseInterestFromNotes(e.notes)
+                                  return (
+                                    <>
+                                      {ir != null && (
+                                        <div className="pt-1.5 border-t space-y-1">
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-xs text-muted-foreground">Interest Rate</span>
+                                            <span className="text-xs font-semibold text-amber-400">{ir}% p.a.</span>
+                                          </div>
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-xs text-muted-foreground">Annual Interest Expense</span>
+                                            <span className="text-xs font-bold text-amber-400">{inr(e.amount * ir / 100)}</span>
+                                          </div>
+                                          <div className="text-[10px] text-amber-400/70">TapasHub repays this as an expense</div>
+                                        </div>
+                                      )}
+                                      {cleanNotes && (
+                                        <div className="text-[11px] text-muted-foreground border-t pt-1.5 line-clamp-2">{cleanNotes}</div>
+                                      )}
+                                    </>
+                                  )
+                              })()}
                             </div>
                           </HoverCardContent>
                         </HoverCard>
@@ -846,6 +895,41 @@ export default function Treasury() {
               <Input value={form.description} onChange={e => f("description", e.target.value)}
                 placeholder="Brief description of this funding event" />
             </div>
+
+            {/* Bank loan: annual interest rate */}
+            {form.fundingSource === "bank_loan" && (
+              <div className="col-span-2 rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 space-y-2">
+                <div className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Loan Interest Details</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Annual Interest Rate (% p.a.)</Label>
+                    <div className="relative">
+                      <Input
+                        type="number" min="0" max="100" step="0.01"
+                        value={form.interestRate}
+                        onChange={e => f("interestRate", e.target.value)}
+                        placeholder="e.g. 12.5"
+                        className="pr-10"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">% p.a.</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col justify-end pb-0.5">
+                    {form.interestRate && Number(form.amount) > 0 && Number(form.interestRate) > 0 && (
+                      <div className="rounded bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-sm">
+                        <div className="text-[10px] text-amber-400/80 uppercase tracking-wide mb-0.5">Annual interest expense</div>
+                        <div className="font-bold text-amber-400">
+                          {inr(Number(form.amount) * Number(form.interestRate) / 100)}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          This amount will be recorded as an expense to be repaid by TapasHub.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="col-span-2 space-y-1.5">
               <Label>Notes</Label>

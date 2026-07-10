@@ -9,7 +9,7 @@ import { sendExecutiveReportEmail } from "../lib/email";
 const router = Router();
 
 // ── GET /reports/schedules ────────────────────────────────────────────────────
-router.get("/reports/schedules", requirePermission("ai.read"), async (req, res) => {
+router.get("/reports/schedules", requirePermission("ai.reports"), async (req, res) => {
   try {
     const scope = companyScope(req);
     if (Array.isArray(scope) && scope.length === 0) { res.json([]); return; }
@@ -42,7 +42,7 @@ router.post("/reports/schedules", requireSuperAdmin, async (req, res) => {
       recipientEmails?: string[];
     };
 
-    const VALID_TYPES = new Set(["weekly", "monthly", "quarterly"]);
+    const VALID_TYPES = new Set(["daily", "weekly", "monthly", "quarterly", "annual"]);
     if (!VALID_TYPES.has(type)) { res.status(400).json({ error: `type must be one of: ${[...VALID_TYPES].join(", ")}` }); return; }
 
     const emails = (recipientEmails ?? []).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
@@ -75,7 +75,7 @@ router.patch("/reports/schedules/:id", requireSuperAdmin, async (req, res) => {
       type?: string; enabled?: boolean; recipientEmails?: string[];
     };
 
-    const VALID_TYPES = new Set(["weekly", "monthly", "quarterly"]);
+    const VALID_TYPES = new Set(["daily", "weekly", "monthly", "quarterly", "annual"]);
     const patch: Record<string, unknown> = { updatedAt: new Date() };
     if (type !== undefined) {
       if (!VALID_TYPES.has(type)) { res.status(400).json({ error: "Invalid type" }); return; }
@@ -115,21 +115,30 @@ router.delete("/reports/schedules/:id", requireSuperAdmin, async (req, res) => {
 });
 
 // ── GET /reports/history ───────────────────────────────────────────────────────
-router.get("/reports/history", requirePermission("ai.read"), async (req, res) => {
+router.get("/reports/history", requirePermission("ai.reports"), async (req, res) => {
   try {
     const scope = companyScope(req);
     if (Array.isArray(scope) && scope.length === 0) { res.json([]); return; }
 
-    const companyIdFilter = req.query.companyId ? parseInt(req.query.companyId as string) : null;
+    const cqp = req.query.companyId as string | undefined;
+    // Support "null" string to filter for portfolio (companyId IS NULL) records
+    const requestedPortfolio = cqp === "null";
+    const companyIdFilter: number | null | undefined =
+      !cqp ? undefined
+      : requestedPortfolio ? null
+      : Number.isFinite(parseInt(cqp)) ? parseInt(cqp)
+      : undefined;
 
     const rows = await db.select({
       id:             aiReportHistoryTable.id,
       companyId:      aiReportHistoryTable.companyId,
       scheduleId:     aiReportHistoryTable.scheduleId,
       type:           aiReportHistoryTable.type,
+      periodLabel:    aiReportHistoryTable.periodLabel,
       status:         aiReportHistoryTable.status,
       subject:        aiReportHistoryTable.subject,
       aiSummary:      aiReportHistoryTable.aiSummary,
+      contentJson:    aiReportHistoryTable.contentJson,
       recipientCount: aiReportHistoryTable.recipientCount,
       errorMessage:   aiReportHistoryTable.errorMessage,
       sentAt:         aiReportHistoryTable.sentAt,
@@ -138,13 +147,17 @@ router.get("/reports/history", requirePermission("ai.read"), async (req, res) =>
       .orderBy(desc(aiReportHistoryTable.createdAt))
       .limit(50);
 
+    // Scoped users only see their own companies; portfolio rows (companyId null) are super-admin only.
     const visible = scope === null
       ? rows
-      : rows.filter(r => r.companyId == null || scope.includes(r.companyId));
+      : rows.filter(r => r.companyId != null && scope.includes(r.companyId));
 
-    const filtered = companyIdFilter != null
-      ? visible.filter(r => r.companyId === companyIdFilter)
-      : visible;
+    const filtered =
+      companyIdFilter === undefined
+        ? visible                                                    // no filter
+        : companyIdFilter === null
+          ? visible.filter(r => r.companyId == null)               // portfolio only
+          : visible.filter(r => r.companyId === companyIdFilter);  // specific company
 
     res.json(filtered.map(r => ({
       ...r,
@@ -158,7 +171,7 @@ router.get("/reports/history", requirePermission("ai.read"), async (req, res) =>
 });
 
 // ── GET /reports/history/:id ──────────────────────────────────────────────────
-router.get("/reports/history/:id", requirePermission("ai.read"), async (req, res) => {
+router.get("/reports/history/:id", requirePermission("ai.reports"), async (req, res) => {
   try {
     const id = parseInt(req.params.id as string);
     if (!Number.isFinite(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -190,7 +203,7 @@ router.get("/reports/history/:id", requirePermission("ai.read"), async (req, res
 
 // ── POST /reports/generate ─────────────────────────────────────────────────────
 // Manually trigger report generation + email delivery
-router.post("/reports/generate", requirePermission("ai.read"), async (req, res) => {
+router.post("/reports/generate", requirePermission("ai.reports"), async (req, res) => {
   try {
     const { companyId, type, recipientEmails } = req.body as {
       companyId?: number | null;
@@ -199,7 +212,11 @@ router.post("/reports/generate", requirePermission("ai.read"), async (req, res) 
     };
 
     const cid: number | null = companyId ?? null;
-    if (cid != null && !canAccessCompany(req, cid)) {
+    // Portfolio-level reports (companyId null) are super-admin only
+    if (cid == null) {
+      const scope = companyScope(req);
+      if (scope !== null) { res.status(403).json({ error: "Forbidden: super-admin only for portfolio reports" }); return; }
+    } else if (!canAccessCompany(req, cid)) {
       res.status(403).json({ error: "Forbidden" }); return;
     }
 
@@ -227,10 +244,12 @@ router.post("/reports/generate", requirePermission("ai.read"), async (req, res) 
 
         const now = new Date();
         await db.update(aiReportHistoryTable).set({
-          status:         sentCount > 0 || emails.length === 0 ? "sent" : "failed",
+          status:         sentCount > 0 || emails.length === 0 ? "ready" : "failed",
           subject:        report.subject,
           htmlContent:    report.htmlContent,
           aiSummary:      report.aiSummary,
+          contentJson:    report.contentJson as unknown as Record<string, unknown>,
+          periodLabel:    report.periodLabel,
           recipientCount: sentCount,
           sentAt:         sentCount > 0 ? now : undefined,
           errorMessage:   sentCount === 0 && emails.length > 0 ? "All deliveries failed" : undefined,

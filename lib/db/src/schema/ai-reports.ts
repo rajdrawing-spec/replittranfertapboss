@@ -18,11 +18,13 @@ export const aiReportHistoryTable = pgTable("ai_report_history", {
   id:             serial("id").primaryKey(),
   scheduleId:     integer("schedule_id"),           // null = manually triggered
   companyId:      integer("company_id"),            // null = portfolio-wide
-  type:           text("type").notNull(),           // weekly | monthly | quarterly | manual
-  status:         text("status").notNull(),         // generating | sent | failed
+  type:           text("type").notNull(),           // daily | weekly | monthly | quarterly | annual | manual
+  periodLabel:    text("period_label"),             // e.g. "2026-W28", "2026-07", null for manual
+  status:         text("status").notNull(),         // generating | ready | failed
   subject:        text("subject").notNull(),
   htmlContent:    text("html_content"),             // full email HTML
   aiSummary:      text("ai_summary"),               // plain-text AI narrative for preview
+  contentJson:    jsonb("content_json"),            // structured: kpis, chart_data, risks, opportunities, recommendations, action_plan
   recipientCount: integer("recipient_count").default(0),
   errorMessage:   text("error_message"),
   sentAt:         timestamp("sent_at"),

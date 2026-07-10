@@ -71,7 +71,7 @@ const parentNav: NavItem[] = [
   { name: "Account Directory", href: "/accounts", icon: Contact },
   { name: "Approvals", href: "/approvals", icon: CheckSquare },
   { name: "Director Portal", href: "/director", icon: PieChart },
-  { name: "Reports", href: "/reports", icon: FileText },
+  { name: "AI Reports", href: "/ai-reports", icon: Bot },
   { name: "AI Insights", href: "/ai-assistant", icon: Bot },
 ]
 

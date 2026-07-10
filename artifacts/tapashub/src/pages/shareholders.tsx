@@ -11,10 +11,11 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { Users, PieChart, Wallet, TrendingUp, Plus, Pencil, Trash2, History, Send, Sparkles, Brain, RefreshCw, ChevronDown, ChevronRight, TrendingDown, Activity } from "lucide-react"
+import { Users, PieChart, Wallet, TrendingUp, Plus, Pencil, Trash2, History, Send, Sparkles, Brain, RefreshCw, ChevronDown, ChevronRight, TrendingDown, Activity, FileDown } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
+import { ShareCertificateModal, type ShareCertificateData } from "@/components/share-certificate"
 
 interface Company { id: number; name: string; type: string }
 interface Shareholder {
@@ -87,6 +88,7 @@ function MyHoldingsView() {
     queryKey: ["/api/shareholders", "self"],
     queryFn: () => adminApi.get("/shareholders"),
   })
+  const [certData, setCertData] = React.useState<ShareCertificateData | null>(null)
 
   const totalInvested = (holdings ?? []).reduce((s, h) => s + (h.investmentAmount ?? 0), 0)
   const totalShares   = (holdings ?? []).reduce((s, h) => s + (h.shares ?? 0), 0)
@@ -116,16 +118,17 @@ function MyHoldingsView() {
                 <TableHead className="text-right">Ownership</TableHead>
                 <TableHead className="text-right">Invested</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="text-right">Certificate</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 Array.from({ length: 3 }).map((_, i) => (
-                  <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-6 w-full" /></TableCell></TableRow>
+                  <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-6 w-full" /></TableCell></TableRow>
                 ))
               ) : !holdings || holdings.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
                     <PieChart className="mx-auto mb-2 h-8 w-8 opacity-40" />
                     No shareholdings recorded for your email address yet.
                   </TableCell>
@@ -146,6 +149,23 @@ function MyHoldingsView() {
                         {h.status === "active" ? "Active" : "Exited"}
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost" size="icon"
+                        title="Download your share certificate PDF"
+                        onClick={() => setCertData({
+                          id: h.id,
+                          holderName: h.name,
+                          companyName: h.companyName,
+                          shares: h.shares,
+                          sharePrice: h.sharePrice,
+                          investmentAmount: h.investmentAmount,
+                          joinedDate: h.joinedDate,
+                        })}
+                      >
+                        <FileDown className="h-4 w-4 text-blue-400" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -153,6 +173,12 @@ function MyHoldingsView() {
           </Table>
         </CardContent>
       </Card>
+
+      <ShareCertificateModal
+        data={certData}
+        open={certData != null}
+        onClose={() => setCertData(null)}
+      />
     </div>
   )
 }
@@ -345,6 +371,7 @@ function AdminShareholdersView() {
   const [form, setForm] = React.useState<Form>(emptyForm())
   const [detailId, setDetailId] = React.useState<number | null>(null)
   const [txForm, setTxForm] = React.useState<TxForm>(emptyTxForm())
+  const [certData, setCertData] = React.useState<ShareCertificateData | null>(null)
 
   const { data: companies } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
@@ -480,17 +507,18 @@ function AdminShareholdersView() {
                 <TableHead className="text-right">Invested</TableHead>
                 <TableHead className="text-right">Equity Value</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="text-right">Certificate</TableHead>
                 {canManage && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, i) => (
-                  <TableRow key={i}><TableCell colSpan={canManage ? 8 : 7}><Skeleton className="h-6 w-full" /></TableCell></TableRow>
+                  <TableRow key={i}><TableCell colSpan={canManage ? 9 : 8}><Skeleton className="h-6 w-full" /></TableCell></TableRow>
                 ))
               ) : !holders || holders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={canManage ? 8 : 7} className="py-12 text-center text-muted-foreground">
+                  <TableCell colSpan={canManage ? 9 : 8} className="py-12 text-center text-muted-foreground">
                     <PieChart className="mx-auto mb-2 h-8 w-8 opacity-40" />
                     No shareholders recorded for this company yet.
                   </TableCell>
@@ -511,6 +539,23 @@ function AdminShareholdersView() {
                       <Badge variant="outline" className={h.status === "active" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-muted text-muted-foreground"}>
                         {h.status === "active" ? "Active" : "Exited"}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost" size="icon"
+                        title="Download share certificate PDF"
+                        onClick={() => setCertData({
+                          id: h.id,
+                          holderName: h.name,
+                          companyName: h.companyName,
+                          shares: h.shares,
+                          sharePrice: h.sharePrice,
+                          investmentAmount: h.investmentAmount,
+                          joinedDate: h.joinedDate,
+                        })}
+                      >
+                        <FileDown className="h-4 w-4 text-blue-400" />
+                      </Button>
                     </TableCell>
                     {canManage && (
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
@@ -634,6 +679,13 @@ function AdminShareholdersView() {
         txForm={txForm}
         setTxForm={setTxForm}
         onChanged={invalidate}
+      />
+
+      {/* Share certificate download modal */}
+      <ShareCertificateModal
+        data={certData}
+        open={certData != null}
+        onClose={() => setCertData(null)}
       />
     </div>
   )

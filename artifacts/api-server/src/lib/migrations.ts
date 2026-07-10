@@ -118,15 +118,29 @@ export async function applyMigrations(): Promise<void> {
         schedule_id      INTEGER,
         company_id       INTEGER,
         type             TEXT      NOT NULL,
+        period_label     TEXT,
         status           TEXT      NOT NULL,
         subject          TEXT      NOT NULL,
         html_content     TEXT,
         ai_summary       TEXT,
+        content_json     JSONB,
         recipient_count  INTEGER   DEFAULT 0,
         error_message    TEXT,
         sent_at          TIMESTAMP,
         created_at       TIMESTAMP NOT NULL DEFAULT NOW()
       )
+    `);
+
+    // Idempotently add columns and index added after initial migration
+    await db.execute(sql`ALTER TABLE ai_report_history ADD COLUMN IF NOT EXISTS period_label TEXT`);
+    await db.execute(sql`ALTER TABLE ai_report_history ADD COLUMN IF NOT EXISTS content_json JSONB`);
+    // Use COALESCE so NULL company_id rows (portfolio) also deduplicate correctly
+    // (PostgreSQL unique indexes treat NULL != NULL, so raw company_id won't dedup NULLs)
+    await db.execute(sql`DROP INDEX IF EXISTS ai_report_history_dedup`);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS ai_report_history_dedup
+        ON ai_report_history (COALESCE(company_id, -1), type, period_label)
+        WHERE period_label IS NOT NULL
     `);
 
     // ── AI valuation, predictions, market analyses ────────────────────────────

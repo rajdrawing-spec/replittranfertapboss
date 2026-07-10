@@ -14,7 +14,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog"
-import { UserPlus, Trash2, ShieldCheck, Plus, Pencil } from "lucide-react"
+import { UserPlus, Trash2, ShieldCheck, Plus, Pencil, ChevronDown, ChevronUp, Crown } from "lucide-react"
 import { useCompany } from "@/contexts/company-context"
 import {
   adminApi, type AdminUser, type AdminInvitation, type AdminRole, type PermissionDef,
@@ -314,6 +314,75 @@ function InvitationsTab({ roles }: { roles: AdminRole[] }) {
   )
 }
 
+/* ───────────────── Super Admin expanded card ───────────────── */
+
+function SuperAdminCard({ role, permissions }: { role: AdminRole; permissions: PermissionDef[] }) {
+  const [expanded, setExpanded] = React.useState(false)
+
+  const groups = React.useMemo(() => {
+    const g: Record<string, PermissionDef[]> = {}
+    for (const p of permissions) (g[p.group] ??= []).push(p)
+    return Object.entries(g)
+  }, [permissions])
+
+  return (
+    <div className="rounded-lg border border-primary/30 bg-primary/5 overflow-hidden">
+      {/* Header row */}
+      <div className="flex items-center justify-between p-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+            <Crown className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 font-semibold">
+              {role.name}
+              <Badge variant="secondary" className="text-[10px]">system</Badge>
+              <Badge className="text-[10px] bg-primary/20 text-primary border-primary/30">Full access</Badge>
+            </div>
+            <div className="text-xs text-muted-foreground">{role.description}</div>
+          </div>
+        </div>
+        <Button
+          size="sm" variant="ghost"
+          className="gap-1 text-xs text-muted-foreground"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? <><ChevronUp className="w-3.5 h-3.5" /> Hide powers</> : <><ChevronDown className="w-3.5 h-3.5" /> View powers</>}
+        </Button>
+      </div>
+
+      {/* Expanded permission breakdown */}
+      {expanded && (
+        <div className="border-t border-primary/20 px-4 py-3 space-y-3 bg-background/40">
+          <p className="text-[11px] text-muted-foreground">
+            Super Admin has unrestricted access to every permission on the platform. These powers cannot be edited.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {groups.map(([group, defs]) => (
+              <div key={group}>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                  {group}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {defs.map((p) => (
+                    <span
+                      key={p.key}
+                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary/80 border border-primary/20"
+                    >
+                      <span className="w-1 h-1 rounded-full bg-primary/60 shrink-0" />
+                      {p.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ───────────────── Roles tab ───────────────── */
 
 function RolesTab({ roles, permissions }: { roles: AdminRole[]; permissions: PermissionDef[] }) {
@@ -324,6 +393,9 @@ function RolesTab({ roles, permissions }: { roles: AdminRole[]; permissions: Per
   const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/roles"] })
   const deleteRole = useMutation({ mutationFn: (id: number) => adminApi.del(`/roles/${id}`), onSuccess: invalidate })
 
+  const superAdmin = roles.find((r) => r.key === "super_admin")
+  const otherRoles = roles.filter((r) => r.key !== "super_admin")
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -331,7 +403,10 @@ function RolesTab({ roles, permissions }: { roles: AdminRole[]; permissions: Per
         <Button size="sm" onClick={() => setCreating(true)}><Plus className="w-4 h-4 mr-2" /> New role</Button>
       </CardHeader>
       <CardContent className="space-y-2">
-        {roles.map((r) => (
+        {/* Super Admin always first with expanded power view */}
+        {superAdmin && <SuperAdminCard role={superAdmin} permissions={permissions} />}
+
+        {otherRoles.map((r) => (
           <div key={r.id} className="flex items-center justify-between rounded-lg border p-3">
             <div>
               <div className="flex items-center gap-2 font-medium">
@@ -340,11 +415,11 @@ function RolesTab({ roles, permissions }: { roles: AdminRole[]; permissions: Per
               </div>
               <div className="text-xs text-muted-foreground">{r.description}</div>
               <div className="text-xs text-muted-foreground mt-0.5">
-                {r.permissions.includes("*") ? "All permissions" : `${r.permissions.length} permissions`}
+                {r.permissions.length} permissions
               </div>
             </div>
             <div className="space-x-2">
-              {r.key !== "super_admin" && <Button size="sm" variant="outline" onClick={() => setEditing(r)}>Edit</Button>}
+              <Button size="sm" variant="outline" onClick={() => setEditing(r)}>Edit</Button>
               {!r.isSystem && (
                 <Button size="sm" variant="ghost" onClick={() => { if (confirm(`Delete role ${r.name}?`)) deleteRole.mutate(r.id) }}>
                   <Trash2 className="w-4 h-4 text-destructive" />

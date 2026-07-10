@@ -134,13 +134,22 @@ export async function applyMigrations(): Promise<void> {
     // Idempotently add columns and index added after initial migration
     await db.execute(sql`ALTER TABLE ai_report_history ADD COLUMN IF NOT EXISTS period_label TEXT`);
     await db.execute(sql`ALTER TABLE ai_report_history ADD COLUMN IF NOT EXISTS content_json JSONB`);
-    // Use COALESCE so NULL company_id rows (portfolio) also deduplicate correctly
-    // (PostgreSQL unique indexes treat NULL != NULL, so raw company_id won't dedup NULLs)
+    // Two separate partial unique indexes replace the previous COALESCE expression index.
+    // The COALESCE approach caused operator-class mismatches when Replit's deployment
+    // validator introspected the dev DB and regenerated the DDL (text_ops on integer column).
+    // Split into: one for company-scoped rows (company_id IS NOT NULL), one for portfolio rows.
     await db.execute(sql`DROP INDEX IF EXISTS ai_report_history_dedup`);
+    await db.execute(sql`DROP INDEX IF EXISTS ai_report_history_dedup_company`);
+    await db.execute(sql`DROP INDEX IF EXISTS ai_report_history_dedup_portfolio`);
     await db.execute(sql`
-      CREATE UNIQUE INDEX IF NOT EXISTS ai_report_history_dedup
-        ON ai_report_history (COALESCE(company_id, -1), type, period_label)
-        WHERE period_label IS NOT NULL
+      CREATE UNIQUE INDEX IF NOT EXISTS ai_report_history_dedup_company
+        ON ai_report_history (company_id, type, period_label)
+        WHERE period_label IS NOT NULL AND company_id IS NOT NULL
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS ai_report_history_dedup_portfolio
+        ON ai_report_history (type, period_label)
+        WHERE period_label IS NOT NULL AND company_id IS NULL
     `);
 
     // ── AI valuation, predictions, market analyses ────────────────────────────

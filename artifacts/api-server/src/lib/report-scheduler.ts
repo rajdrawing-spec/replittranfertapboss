@@ -77,6 +77,7 @@ async function generateTypeReports(type: string, now: Date): Promise<void> {
         log.info({ companyId: company.id, type, periodLabel }, "Scheduled report generated");
       } catch (e: unknown) {
         // Unique constraint violation = already generated for this period
+        // (catches both ai_report_history_dedup_company and ai_report_history_dedup_portfolio)
         if (e instanceof Error && e.message.includes("ai_report_history_dedup")) {
           log.debug({ companyId: company.id, type, periodLabel }, "Report already exists for period, skipping");
         } else {

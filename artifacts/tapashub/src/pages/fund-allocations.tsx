@@ -86,10 +86,11 @@ export default function FundAllocations() {
   })
 
   // Working capital snapshot — feeds the "Capital by Company" section
+  // byCompany.spent = Finance expenses recorded for that company (Finance is source of truth)
   interface WorkingCapital {
-    totalCapital: number; allocated: number; available: number
+    totalCapital: number; allocated: number; totalSpent: number; available: number
     utilizationPercent: number; groupRevenue: number
-    byCompany: { id: number; name: string; color: string; allocated: number; income: number }[]
+    byCompany: { id: number; name: string; color: string; allocated: number; spent: number; income: number }[]
   }
   const { data: wcData } = useQuery<WorkingCapital>({
     queryKey: ["/api/treasury/working-capital"],
@@ -273,9 +274,13 @@ export default function FundAllocations() {
           <CardContent className="pt-0 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {wcData.byCompany.map(co => {
-                const pct = wcData.totalCapital > 0
+                const allocPct = wcData.totalCapital > 0
                   ? Math.min(100, (co.allocated / wcData.totalCapital) * 100)
                   : 0
+                const spentPct = co.allocated > 0
+                  ? Math.min(100, ((co.spent ?? 0) / co.allocated) * 100)
+                  : 0
+                const remaining = co.allocated - (co.spent ?? 0)
                 return (
                   <div key={co.id} className="p-3 rounded-lg border border-border/60 bg-muted/20 space-y-2">
                     <div className="flex items-center gap-2.5">
@@ -287,17 +292,35 @@ export default function FundAllocations() {
                       </div>
                       <div className="min-w-0">
                         <div className="text-sm font-semibold truncate">{co.name}</div>
-                        <div className="text-[11px] text-muted-foreground">{pct.toFixed(1)}% of treasury capital</div>
+                        <div className="text-[11px] text-muted-foreground">{allocPct.toFixed(1)}% of treasury</div>
                       </div>
                     </div>
+                    {/* Allocated capital bar */}
                     <div className="space-y-1">
                       <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Allocated capital</span>
-                        <span className="font-semibold text-amber-400">{inr(co.allocated)}</span>
+                        <span className="text-muted-foreground">Allocated</span>
+                        <span className="font-semibold text-indigo-400">{inr(co.allocated)}</span>
                       </div>
                       <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: co.color }} />
+                        <div className="h-full rounded-full" style={{ width: `${allocPct}%`, background: co.color }} />
                       </div>
+                    </div>
+                    {/* Finance spend (auto-synced from Finance module) */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Spent (Finance)</span>
+                        <span className={`font-semibold ${spentPct > 90 ? "text-red-400" : "text-amber-400"}`}>{inr(co.spent ?? 0)}</span>
+                      </div>
+                      <div className="h-1 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${spentPct > 90 ? "bg-red-500" : "bg-amber-500"}`}
+                          style={{ width: `${spentPct}%`, opacity: 0.85 }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-between text-[11px] pt-0.5">
+                      <span className="text-muted-foreground">Remaining budget</span>
+                      <span className={remaining < 0 ? "text-red-400 font-semibold" : "text-green-400 font-semibold"}>{inr(remaining)}</span>
                     </div>
                   </div>
                 )

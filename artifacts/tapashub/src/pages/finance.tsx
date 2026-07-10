@@ -5,7 +5,7 @@ import {
   useGetPnlSummary, getGetPnlSummaryQueryKey,
   useListCompanies,
 } from "@workspace/api-client-react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -171,10 +171,25 @@ export default function Finance() {
   const [showDialog, setShowDialog] = React.useState(false)
   const [editing, setEditing] = React.useState<any>(null)
   const [form, setForm] = React.useState<TxForm>(emptyForm())
+  const qc = useQueryClient()
   const [saving, setSaving] = React.useState(false)
   const [deleting, setDeleting] = React.useState<number | null>(null)
   const [deleteTarget, setDeleteTarget] = React.useState<{ id: number; description: string } | null>(null)
   const [exporting, setExporting] = React.useState(false)
+
+  /** Invalidate every query that derives from Finance transactions so all
+   *  views (Treasury, Working Capital, Fund Allocations, balances) stay
+   *  in sync automatically whenever a transaction is created, edited, or deleted. */
+  function invalidateAll() {
+    void qc.invalidateQueries({ queryKey: ["/api/treasury/summary"] })
+    void qc.invalidateQueries({ queryKey: ["/api/treasury/working-capital"] })
+    void qc.invalidateQueries({ queryKey: ["/api/fund-allocations"] })
+    // Balance uses a dynamic key that includes companyId — invalidate by prefix
+    const balanceBase = activeCompany
+      ? `/api/finance/balance?companyId=${activeCompany.id}`
+      : "/api/finance/balance"
+    void qc.invalidateQueries({ queryKey: [balanceBase] })
+  }
 
   const { data: companies } = useListCompanies({ query: { enabled: true, queryKey: ["/api/companies"] } })
 
@@ -232,7 +247,9 @@ export default function Finance() {
       })
       if (!res.ok) throw new Error()
       toast({ title: editing ? "Transaction updated" : "Transaction recorded" })
-      setShowDialog(false); refetch()
+      setShowDialog(false)
+      refetch()
+      invalidateAll()
     } catch {
       toast({ title: "Error", description: "Could not save transaction", variant: "destructive" })
     } finally { setSaving(false) }
@@ -248,9 +265,10 @@ export default function Finance() {
     try {
       const res = await fetch(`${API_BASE}/api/finance/transactions/${deleteTarget.id}`, { method: "DELETE", credentials: "include" })
       if (!res.ok) throw new Error()
-      toast({ title: "Transaction deleted", description: "The record has been removed." })
+      toast({ title: "Transaction deleted", description: "The record has been permanently removed." })
       setDeleteTarget(null)
       refetch()
+      invalidateAll()
     } catch {
       toast({ title: "Error", description: "Could not delete transaction", variant: "destructive" })
     } finally { setDeleting(null) }
@@ -701,7 +719,7 @@ export default function Finance() {
               <Trash2 className="w-4 h-4" /> Delete Transaction
             </DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this transaction? This action cannot be undone.
+              This will permanently remove the transaction from all balances, treasury figures, and reports. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           {deleteTarget && (

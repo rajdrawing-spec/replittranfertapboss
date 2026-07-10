@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { transactionsTable, companiesTable, insertTransactionSchema, fundAllocationsTable } from "@workspace/db";
-import { eq, and, or, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, or, sql, desc, inArray, isNotNull } from "drizzle-orm";
 import { emitNotification } from "../lib/notify";
 import { companyScope, canAccessCompany } from "../lib/company-scope";
 
@@ -141,8 +141,12 @@ router.patch("/finance/transactions/:txId", async (req, res) => {
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to update transaction" }); }
 });
 
-// DELETE is a soft-cancel: financial records are never permanently destroyed.
-// The transaction is set to status="cancelled" and remains in the audit trail.
+// DELETE: hard-delete — the row is permanently removed from the database.
+// Finance is the master ledger; removing a transaction immediately removes it
+// from all balance, treasury, and working-capital calculations.
+// Side-effect: if the transaction was created by a Fund Allocation (linked via
+// fromTransactionId / toTransactionId), those FK columns are nulled out so the
+// allocation record doesn't hold a dangling pointer to a deleted row.
 router.delete("/finance/transactions/:txId", async (req, res) => {
   try {
     const id = parseInt(req.params.txId);
@@ -150,15 +154,20 @@ router.delete("/finance/transactions/:txId", async (req, res) => {
       .from(transactionsTable).where(eq(transactionsTable.id, id)).limit(1);
     if (!existing) { res.status(404).json({ error: "Not found" }); return; }
     if (!canAccessCompany(req, existing.companyId)) { res.status(403).json({ error: "Access denied" }); return; }
-    const [t] = await db
-      .update(transactionsTable)
-      .set({ status: "cancelled" })
-      .where(eq(transactionsTable.id, id))
-      .returning();
-    if (!t) { res.status(404).json({ error: "Not found" }); return; }
-    const [c] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, t.companyId));
-    res.json(formatTransaction(t, { [t.companyId]: c?.name ?? "Unknown" }));
-  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to cancel transaction" }); }
+
+    await db.transaction(async (tx) => {
+      // Null out any fund_allocation rows that reference this transaction
+      await tx.update(fundAllocationsTable)
+        .set({ fromTransactionId: null })
+        .where(eq(fundAllocationsTable.fromTransactionId, id));
+      await tx.update(fundAllocationsTable)
+        .set({ toTransactionId: null })
+        .where(eq(fundAllocationsTable.toTransactionId, id));
+      await tx.delete(transactionsTable).where(eq(transactionsTable.id, id));
+    });
+
+    res.status(204).end();
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to delete transaction" }); }
 });
 
 /* ── GET /finance/balance ── */

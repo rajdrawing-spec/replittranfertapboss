@@ -30,4 +30,4 @@
 - [TBOS AI provider layer](tbos-ai-module.md) — Gemini via @workspace/integrations-gemini-ai; @google/* must NOT be in esbuild external or Gemini won't bundle; all AI routes need requirePermission("ai.read") + canAccessCompany on every companyId route param.
 - [TBOS DB table naming](tbos-db-table-naming.md) — Gemini template exports `conversations` and `messages` (not conversationsTable/messagesTable); always check schema export name before importing from @workspace/db.
 - [TBOS AI valuation & predictions](tbos-ai-valuation.md) — useMutation default-param pitfall + frontend raw adminApi pattern for new AI routes not yet in OpenAPI spec.
-- [TBOS AI executive reports](tbos-ai-reports.md) — scheduler 8s delay; 5 types (daily/weekly/monthly/quarterly/annual); portfolio null companyId = super-admin only; ai.reports permission; contentJson JSONB with dual cast (as unknown as Record).
+- [TBOS AI executive reports](tbos-ai-reports.md) — catch-up scheduler (not time-window); failed rows must UPDATE not INSERT (dedup index); history scoping must be SQL WHERE before LIMIT.

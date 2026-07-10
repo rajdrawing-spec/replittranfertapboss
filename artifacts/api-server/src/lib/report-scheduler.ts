@@ -8,7 +8,7 @@
 
 import { db } from "@workspace/db";
 import { aiReportSchedulesTable, aiReportHistoryTable, companiesTable } from "@workspace/db";
-import { eq, lte, and, isNull } from "drizzle-orm";
+import { eq, lte, and, isNull, isNotNull } from "drizzle-orm";
 import {
   generateExecutiveReport, computeNextRunAt, computePeriodLabel,
   storeReport, pruneReportHistory,
@@ -20,95 +20,175 @@ const log = rootLogger.child({ module: "report-scheduler" });
 
 let _interval: ReturnType<typeof setInterval> | null = null;
 
-// ── Check if a scheduled report type is due ───────────────────────────────────
-// Covers the full 02:00–02:59 UTC window (7:30–8:29 IST ≈ 8 AM).
-// computeNextRunAt also targets 02:00 UTC, so any 30-min tick inside this
-// hour window reliably triggers the due check regardless of startup offset.
-function isDue(type: string, now: Date): boolean {
-  const h    = now.getUTCHours();
-  const day  = now.getDay();   // 0=Sun, 1=Mon
-  const date = now.getDate();
-  const month = now.getMonth(); // 0-based
+// ── Compute period slots to backfill (current + recent missed) ────────────────
+//
+// Returns { label, asOfDate } pairs in chronological order.
+// Bounded so a long outage doesn't trigger an unbounded AI-call flood:
+//   daily→7, weekly→4, monthly→3, quarterly→2, annual→1
+function periodSlotsToCheck(type: string, now: Date): { label: string; asOfDate: Date }[] {
+  const slots: { label: string; asOfDate: Date }[] = [];
 
-  const inMorningWindow = h === 2; // entire 02:xx UTC hour
-
-  switch (type) {
-    case "daily":     return inMorningWindow;
-    case "weekly":    return inMorningWindow && day === 1; // Monday
-    case "monthly":   return inMorningWindow && date === 1;
-    case "quarterly":
-      return inMorningWindow && date === 1 && [0, 3, 6, 9].includes(month);
-    case "annual":
-      return inMorningWindow && date === 1 && month === 0;
-    default:
-      return false;
+  function shiftDate(d: Date, steps: number): Date {
+    const result = new Date(d);
+    switch (type) {
+      case "daily":     result.setUTCDate(result.getUTCDate() - steps);        break;
+      case "weekly":    result.setUTCDate(result.getUTCDate() - steps * 7);    break;
+      case "monthly":   result.setUTCMonth(result.getUTCMonth() - steps);      break;
+      case "quarterly": result.setUTCMonth(result.getUTCMonth() - steps * 3);  break;
+      case "annual":    result.setUTCFullYear(result.getUTCFullYear() - steps); break;
+    }
+    return result;
   }
+
+  const lookback = type === "daily" ? 7 : type === "weekly" ? 4 : type === "monthly" ? 3 : type === "quarterly" ? 2 : 1;
+  const seen = new Set<string>();
+  for (let i = lookback; i >= 0; i--) {
+    const asOfDate = shiftDate(now, i);
+    const label = computePeriodLabel(type, asOfDate);
+    if (label && !seen.has(label)) {
+      seen.add(label);
+      slots.push({ label, asOfDate });
+    }
+  }
+  return slots;
 }
 
-// ── Generate a scheduled type report for all active companies ─────────────────
-async function generateTypeReports(type: string, now: Date): Promise<void> {
-  const periodLabel = computePeriodLabel(type, now);
+// ── Catch-up: ensure current + recent missed period reports exist ──────────────
+//
+// Runs on EVERY tick (every 30 min). For each report type we compute recent
+// period slots and generate any missing ones. Each slot carries the correct
+// asOfDate so the generated report uses the right period label and data window.
+// If the server was down across multiple periods all missed slots are filled
+// on the next tick after restart — bounded by `lookback` in periodSlotsToCheck.
+// The dedup partial-unique indexes prevent double-writes under races.
+async function ensurePeriodReports(type: string, now: Date): Promise<void> {
+  const slots = periodSlotsToCheck(type, now);
+  if (slots.length === 0) return;
 
-  // Fetch all companies
   const companies = await db.select({ id: companiesTable.id, name: companiesTable.name })
     .from(companiesTable);
 
-  for (const company of companies) {
-    try {
-      const report = await generateExecutiveReport({
-        companyId:       company.id,
-        type,
-        recipientEmails: [],
-      });
+  for (const { label: periodLabel, asOfDate } of slots) {
+    for (const company of companies) {
+      // Only skip if a successfully completed record (ready or sent) exists.
+      // A "failed" or missing record must still be retried.
+      const [existing] = await db
+        .select({ id: aiReportHistoryTable.id, status: aiReportHistoryTable.status })
+        .from(aiReportHistoryTable)
+        .where(
+          and(
+            eq(aiReportHistoryTable.companyId, company.id),
+            eq(aiReportHistoryTable.type, type),
+            eq(aiReportHistoryTable.periodLabel, periodLabel),
+          )
+        )
+        .limit(1);
 
-      // ON CONFLICT: if same (companyId, type, periodLabel) already exists, skip
+      if (existing && (existing.status === "ready" || existing.status === "sent")) continue;
+
       try {
-        await storeReport({
-          companyId:   company.id,
+        // Pass asOfDate so the generator uses the correct period label + data window.
+        const report = await generateExecutiveReport({
+          companyId:       company.id,
           type,
-          periodLabel: report.periodLabel,
-          status:      "ready",
-          subject:     report.subject,
-          htmlContent: report.htmlContent,
-          aiSummary:   report.aiSummary,
-          contentJson: report.contentJson,
+          recipientEmails: [],
+          asOfDate,
         });
-        void pruneReportHistory(company.id);
-        log.info({ companyId: company.id, type, periodLabel }, "Scheduled report generated");
-      } catch (e: unknown) {
-        // Unique constraint violation = already generated for this period
-        // (catches both ai_report_history_dedup_company and ai_report_history_dedup_portfolio)
-        if (e instanceof Error && e.message.includes("ai_report_history_dedup")) {
-          log.debug({ companyId: company.id, type, periodLabel }, "Report already exists for period, skipping");
+
+        if (existing) {
+          // Update the existing failed/generating row in-place — avoids dedup collision.
+          await db.update(aiReportHistoryTable).set({
+            status:      "ready",
+            subject:     report.subject,
+            htmlContent: report.htmlContent,
+            aiSummary:   report.aiSummary,
+            contentJson: report.contentJson as unknown as Record<string, unknown>,
+            errorMessage: null,
+          }).where(eq(aiReportHistoryTable.id, existing.id));
+          void pruneReportHistory(company.id);
+          log.info({ companyId: company.id, type, periodLabel, rowId: existing.id }, "Catch-up report repaired (was failed)");
         } else {
-          throw e;
+          try {
+            await storeReport({
+              companyId:   company.id,
+              type,
+              // Use the slot's label (not report.periodLabel) as the authoritative key.
+              periodLabel,
+              status:      "ready",
+              subject:     report.subject,
+              htmlContent: report.htmlContent,
+              aiSummary:   report.aiSummary,
+              contentJson: report.contentJson,
+            });
+            void pruneReportHistory(company.id);
+            log.info({ companyId: company.id, type, periodLabel }, "Catch-up report generated");
+          } catch (e: unknown) {
+            // Race: another instance inserted first — ignore dedup constraint violations
+            // (catches both ai_report_history_dedup_company and ai_report_history_dedup_portfolio)
+            if (e instanceof Error && e.message.includes("ai_report_history_dedup")) {
+              log.debug({ companyId: company.id, type, periodLabel }, "Report already exists (race), skipping");
+            } else {
+              throw e;
+            }
+          }
+        }
+      } catch (err) {
+        log.error({ err, companyId: company.id, type, periodLabel }, "Catch-up report generation failed");
+      }
+    }
+
+    // Portfolio-level report for annual/quarterly (companyId IS NULL)
+    if (type === "annual" || type === "quarterly") {
+      const [portfolioExisting] = await db
+        .select({ id: aiReportHistoryTable.id, status: aiReportHistoryTable.status })
+        .from(aiReportHistoryTable)
+        .where(
+          and(
+            isNull(aiReportHistoryTable.companyId),
+            eq(aiReportHistoryTable.type, type),
+            eq(aiReportHistoryTable.periodLabel, periodLabel),
+          )
+        )
+        .limit(1);
+
+      if (!portfolioExisting || (portfolioExisting.status !== "ready" && portfolioExisting.status !== "sent")) {
+        try {
+          const report = await generateExecutiveReport({
+            companyId: null, type, recipientEmails: [], asOfDate,
+          });
+
+          if (portfolioExisting) {
+            // Update the existing failed row in-place — avoids dedup collision.
+            await db.update(aiReportHistoryTable).set({
+              status:       "ready",
+              subject:      report.subject,
+              htmlContent:  report.htmlContent,
+              aiSummary:    report.aiSummary,
+              contentJson:  report.contentJson as unknown as Record<string, unknown>,
+              errorMessage: null,
+            }).where(eq(aiReportHistoryTable.id, portfolioExisting.id));
+            log.info({ type, periodLabel, rowId: portfolioExisting.id }, "Portfolio catch-up report repaired (was failed)");
+          } else {
+            try {
+              await storeReport({
+                companyId:   null,
+                type,
+                periodLabel,
+                status:      "ready",
+                subject:     report.subject,
+                htmlContent: report.htmlContent,
+                aiSummary:   report.aiSummary,
+                contentJson: report.contentJson,
+              });
+              log.info({ type, periodLabel }, "Portfolio catch-up report generated");
+            } catch {
+              // Dedup constraint race — already exists
+            }
+          }
+        } catch (err) {
+          log.error({ err, type, periodLabel }, "Portfolio catch-up report generation failed");
         }
       }
-    } catch (err) {
-      log.error({ err, companyId: company.id, type }, "Scheduled type report generation failed");
-    }
-  }
-
-  // Also generate a portfolio-level report for annual/quarterly
-  if (type === "annual" || type === "quarterly") {
-    try {
-      const report = await generateExecutiveReport({ companyId: null, type, recipientEmails: [] });
-      try {
-        await storeReport({
-          companyId:   null,
-          type,
-          periodLabel: report.periodLabel,
-          status:      "ready",
-          subject:     report.subject,
-          htmlContent: report.htmlContent,
-          aiSummary:   report.aiSummary,
-          contentJson: report.contentJson,
-        });
-      } catch {
-        // Dedup constraint — already exists
-      }
-    } catch (err) {
-      log.error({ err, type }, "Portfolio report generation failed");
     }
   }
 }
@@ -222,12 +302,11 @@ async function processEmailSchedules(now: Date): Promise<void> {
 async function tick() {
   const now = new Date();
   try {
-    // 1. Check if any scheduled report types are due for auto-generation
+    // 1. Ensure the current period's report exists for every company.
+    //    Catch-up approach: runs every tick; skips companies/periods that already
+    //    have a record, so missed windows (server downtime) are filled on resume.
     for (const type of ["daily", "weekly", "monthly", "quarterly", "annual"]) {
-      if (isDue(type, now)) {
-        log.info({ type }, "Auto-generating scheduled reports");
-        await generateTypeReports(type, now);
-      }
+      await ensurePeriodReports(type, now);
     }
 
     // 2. Process user-configured email delivery schedules

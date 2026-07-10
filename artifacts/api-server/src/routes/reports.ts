@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, aiReportSchedulesTable, aiReportHistoryTable } from "@workspace/db";
-import { eq, desc, and, isNull, or } from "drizzle-orm";
+import { eq, desc, and, isNull, isNotNull, inArray } from "drizzle-orm";
 import { requirePermission, requireSuperAdmin } from "../middleware/authz";
 import { canAccessCompany, companyScope } from "../lib/company-scope";
 import { generateExecutiveReport, computeNextRunAt, storeReport } from "../lib/report-generator";
@@ -129,6 +129,27 @@ router.get("/reports/history", requirePermission("ai.reports"), async (req, res)
       : Number.isFinite(parseInt(cqp)) ? parseInt(cqp)
       : undefined;
 
+    // Build WHERE conditions in SQL so LIMIT 50 applies AFTER scoping.
+    // Scoped users only see their own companies; portfolio rows (null companyId) are super-admin only.
+    const whereClauses = [];
+
+    if (scope !== null) {
+      // Non-super-admin: restrict to their company IDs (portfolio rows are excluded)
+      whereClauses.push(
+        scope.length > 0
+          ? and(isNotNull(aiReportHistoryTable.companyId), inArray(aiReportHistoryTable.companyId, scope))
+          : eq(aiReportHistoryTable.id, -1) // impossible condition → empty
+      );
+    }
+
+    if (companyIdFilter !== undefined) {
+      if (companyIdFilter === null) {
+        whereClauses.push(isNull(aiReportHistoryTable.companyId));
+      } else {
+        whereClauses.push(eq(aiReportHistoryTable.companyId, companyIdFilter));
+      }
+    }
+
     const rows = await db.select({
       id:             aiReportHistoryTable.id,
       companyId:      aiReportHistoryTable.companyId,
@@ -144,22 +165,11 @@ router.get("/reports/history", requirePermission("ai.reports"), async (req, res)
       sentAt:         aiReportHistoryTable.sentAt,
       createdAt:      aiReportHistoryTable.createdAt,
     }).from(aiReportHistoryTable)
+      .where(whereClauses.length > 0 ? and(...whereClauses) : undefined)
       .orderBy(desc(aiReportHistoryTable.createdAt))
       .limit(50);
 
-    // Scoped users only see their own companies; portfolio rows (companyId null) are super-admin only.
-    const visible = scope === null
-      ? rows
-      : rows.filter(r => r.companyId != null && scope.includes(r.companyId));
-
-    const filtered =
-      companyIdFilter === undefined
-        ? visible                                                    // no filter
-        : companyIdFilter === null
-          ? visible.filter(r => r.companyId == null)               // portfolio only
-          : visible.filter(r => r.companyId === companyIdFilter);  // specific company
-
-    res.json(filtered.map(r => ({
+    res.json(rows.map(r => ({
       ...r,
       sentAt:    r.sentAt?.toISOString() ?? null,
       createdAt: r.createdAt.toISOString(),

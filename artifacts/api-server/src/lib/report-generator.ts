@@ -245,10 +245,12 @@ async function buildStructuredContent(
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 export interface GenerateReportOptions {
-  companyId:      number | null;
-  type:           string;
+  companyId:       number | null;
+  type:            string;
   recipientEmails: string[];
-  scheduleId?:    number;
+  scheduleId?:     number;
+  /** Pass a historical date for catch-up backfill so period label + data window are correct. */
+  asOfDate?:       Date;
 }
 
 export interface GeneratedReport {
@@ -277,7 +279,7 @@ export async function generateExecutiveReport(opts: GenerateReportOptions): Prom
     quarterly: "Quarterly", annual: "Annual", manual: "Executive",
   };
   const typeLabel = TYPE_LABELS[type] ?? "Executive";
-  const now = new Date();
+  const now = opts.asOfDate ?? new Date();
   const dateStr = now.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
   const periodLabel = computePeriodLabel(type, now);
   const subject = `${typeLabel} AI Report — ${companyName} — ${now.toLocaleDateString("en-IN", { month: "short", year: "numeric" })}`;

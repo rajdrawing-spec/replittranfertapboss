@@ -15,7 +15,7 @@ import { eq, desc, and, sql } from "drizzle-orm";
 import { getActiveProvider, getActiveProviderName } from "./ai-provider";
 import {
   buildCompanyContext, buildPortfolioContext,
-  formatContextForPrompt, buildMonthlyFinanceTrend,
+  formatContextForPrompt, formatPortfolioContextForPrompt, buildMonthlyFinanceTrend,
 } from "./ai-context";
 import { appUrl } from "./email";
 
@@ -328,7 +328,7 @@ export async function generateExecutiveReport(opts: GenerateReportOptions): Prom
     if (ctx) contextText = formatContextForPrompt(ctx);
   } else {
     const pCtx = await buildPortfolioContext(undefined);
-    if (pCtx) contextText = formatContextForPrompt(pCtx as unknown as Parameters<typeof formatContextForPrompt>[0]);
+    if (pCtx) contextText = formatPortfolioContextForPrompt(pCtx);
   }
 
   // ── 5. Get AI provider ─────────────────────────────────────────────────────

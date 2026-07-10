@@ -270,8 +270,24 @@ export function formatContextForPrompt(ctx: CompanyContext): string {
   lines.push(`CRM: ${ctx.totalLeads} leads (${ctx.activeLeads} active, ${ctx.wonLeads} won), ${ctx.totalCustomers} customers`);
   lines.push(`HR: ${ctx.activeEmployees} active employees, estimated payroll ${fmt(ctx.estimatedPayrollCost)}/month`);
   lines.push(`Inventory: ${ctx.totalProducts} products, ${ctx.lowStockItems} low stock, ${ctx.outOfStockItems} out of stock`);
-  if (ctx.topExpenseCategories.length > 0) {
-    lines.push(`Top expense categories: ${ctx.topExpenseCategories.map((e) => `${e.category} ${fmt(e.total)}`).join(", ")}`);
+  // Guard: topExpenseCategories may be undefined for companies with no expense data
+  const cats = ctx.topExpenseCategories ?? [];
+  if (cats.length > 0) {
+    lines.push(`Top expense categories: ${cats.map((e) => `${e.category} ${fmt(e.total)}`).join(", ")}`);
+  }
+  return lines.join("\n");
+}
+
+/** Serialise a portfolio context into a concise prose block for use in AI prompts. */
+export function formatPortfolioContextForPrompt(ctx: PortfolioContext): string {
+  const fmt = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+  const lines: string[] = [
+    `Portfolio: ${ctx.companies.length} companies`,
+    `Group Finance: Revenue ${fmt(ctx.groupRevenue)}, Expenses ${fmt(ctx.groupExpenses)}, Net Profit ${fmt(ctx.groupNetProfit)}`,
+    `Total active employees: ${ctx.activeEmployees}`,
+  ];
+  for (const co of ctx.companies.slice(0, 5)) {
+    lines.push(`  • ${co.companyName}: Revenue ${fmt(co.totalIncome)}, Profit ${fmt(co.netProfit)}, Employees ${co.activeEmployees}`);
   }
   return lines.join("\n");
 }

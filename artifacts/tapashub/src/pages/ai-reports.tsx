@@ -550,7 +550,6 @@ export default function AiReports() {
             <div className="text-base font-medium mb-1">No reports yet</div>
             <p className="text-sm text-muted-foreground mb-4">
               Click "Generate Report Now" to create your first executive report.
-              Reports are also generated automatically on a schedule.
             </p>
             <Button onClick={() => generateNow.mutate()} disabled={generateNow.isPending} variant="outline" className="gap-2">
               <RefreshCw className="w-4 h-4" /> Generate First Report
@@ -586,35 +585,6 @@ export default function AiReports() {
         </div>
       )}
 
-      {/* Info panel */}
-      <Card className="border-primary/10 bg-primary/3">
-        <CardContent className="py-4 px-5">
-          <h3 className="text-sm font-medium flex items-center gap-2 mb-2">
-            <Bot className="w-4 h-4 text-primary" /> Automated Report Schedule
-          </h3>
-          <div className="grid sm:grid-cols-2 gap-x-8 gap-y-1 text-xs text-muted-foreground">
-            {[
-              ["Daily", "Every day at 8:00 AM"],
-              ["Weekly", "Every Monday at 8:00 AM"],
-              ["Monthly", "1st of each month at 8:00 AM"],
-              ["Quarterly", "1st of Jan, Apr, Jul, Oct at 8:00 AM"],
-              ["Annual", "1st of January at 8:00 AM"],
-            ].map(([type, schedule]) => (
-              <div key={type} className="flex items-center gap-2">
-                <ChevronRight className="w-3 h-3 text-primary/50" />
-                <span className="font-medium text-foreground/80">{type}:</span>
-                <span>{schedule}</span>
-              </div>
-            ))}
-          </div>
-          {isSuperAdmin && (
-            <p className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border/40">
-              To configure email delivery of automated reports, go to{" "}
-              <a href="/ai-assistant" className="text-primary hover:underline">AI Assistant → Executive Reports</a>.
-            </p>
-          )}
-        </CardContent>
-      </Card>
     </div>
   )
 }

@@ -1064,6 +1064,109 @@ export interface AiInsight {
   createdAt: string;
 }
 
+export interface AiAnalysis {
+  id: number;
+  companyId: number;
+  provider: string;
+  strengths: string[];
+  weaknesses: string[];
+  opportunities: string[];
+  threats: string[];
+  revenueleaks: string[];
+  costOpportunities: string[];
+  cashRisks: string[];
+  growthOpportunities: string[];
+  /** @nullable */
+  summary?: string | null;
+  createdAt: string;
+}
+
+export type AiAnalysisOrNull = AiAnalysis | null;
+
+export interface AiExecutiveInput {
+  question: string;
+  /** @nullable */
+  companyId?: number | null;
+  companyIds?: number[];
+}
+
+export type AiExecutiveResultPriority = typeof AiExecutiveResultPriority[keyof typeof AiExecutiveResultPriority];
+
+
+export const AiExecutiveResultPriority = {
+  critical: 'critical',
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+} as const;
+
+export interface AiExecutiveResult {
+  answer: string;
+  reasoning: string;
+  supportingData?: string[];
+  /** @nullable */
+  financialImpact?: string | null;
+  /** @nullable */
+  effort?: string | null;
+  confidence: number;
+  priority: AiExecutiveResultPriority;
+}
+
+export type AiProviderConfigProvidersItem = {
+  name: string;
+  label: string;
+  requiresKey: boolean;
+  hasKey: boolean;
+};
+
+export interface AiProviderConfig {
+  activeProvider: string;
+  providers: AiProviderConfigProvidersItem[];
+}
+
+export interface AiProviderConfigInput {
+  activeProvider?: string;
+  groqApiKey?: string;
+  openrouterApiKey?: string;
+  deepseekApiKey?: string;
+}
+
+export interface AiProviderTestResult {
+  ok: boolean;
+  latencyMs: number;
+  /** @nullable */
+  error?: string | null;
+}
+
+export interface GeminiConversation {
+  id: number;
+  title: string;
+  createdAt: string;
+}
+
+export interface GeminiMessage {
+  id: number;
+  conversationId: number;
+  role: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface GeminiConversationInput {
+  title: string;
+}
+
+export interface GeminiMessageInput {
+  content: string;
+}
+
+export interface GeminiConversationWithMessages {
+  id: number;
+  title: string;
+  createdAt: string;
+  messages: GeminiMessage[];
+}
+
 export type UserRole = typeof UserRole[keyof typeof UserRole];
 
 
@@ -1342,6 +1445,14 @@ export type GetAiInsightsParams = {
  * @nullable
  */
 companyId?: number | null;
+};
+
+export type RunAiAnalysisParams = {
+force?: boolean;
+};
+
+export type TestAiProviderBody = {
+  provider: string;
 };
 
 export type ListUsersParams = {

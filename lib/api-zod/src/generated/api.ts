@@ -1538,6 +1538,214 @@ export const GetAiInsightsResponse = zod.array(GetAiInsightsResponseItem)
 
 
 /**
+ * @summary Run SWOT + insights analysis for a company
+ */
+export const RunAiAnalysisParams = zod.object({
+  "companyId": zod.coerce.number()
+})
+
+export const RunAiAnalysisQueryParams = zod.object({
+  "force": zod.coerce.boolean().optional()
+})
+
+export const RunAiAnalysisResponse = zod.object({
+  "id": zod.number(),
+  "companyId": zod.number(),
+  "provider": zod.string(),
+  "strengths": zod.array(zod.string()),
+  "weaknesses": zod.array(zod.string()),
+  "opportunities": zod.array(zod.string()),
+  "threats": zod.array(zod.string()),
+  "revenueleaks": zod.array(zod.string()),
+  "costOpportunities": zod.array(zod.string()),
+  "cashRisks": zod.array(zod.string()),
+  "growthOpportunities": zod.array(zod.string()),
+  "summary": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Get cached analysis (null if expired/missing)
+ */
+export const GetAiAnalysisCachedParams = zod.object({
+  "companyId": zod.coerce.number()
+})
+
+export const GetAiAnalysisCachedResponse = zod.union([zod.object({
+  "id": zod.number(),
+  "companyId": zod.number(),
+  "provider": zod.string(),
+  "strengths": zod.array(zod.string()),
+  "weaknesses": zod.array(zod.string()),
+  "opportunities": zod.array(zod.string()),
+  "threats": zod.array(zod.string()),
+  "revenueleaks": zod.array(zod.string()),
+  "costOpportunities": zod.array(zod.string()),
+  "cashRisks": zod.array(zod.string()),
+  "growthOpportunities": zod.array(zod.string()),
+  "summary": zod.string().nullish(),
+  "createdAt": zod.string()
+}),zod.null()])
+
+
+/**
+ * @summary Ask the Executive AI Decision Engine a strategic question
+ */
+export const RunAiExecutiveBody = zod.object({
+  "question": zod.string(),
+  "companyId": zod.number().nullish(),
+  "companyIds": zod.array(zod.number()).optional()
+})
+
+export const RunAiExecutiveResponse = zod.object({
+  "answer": zod.string(),
+  "reasoning": zod.string(),
+  "supportingData": zod.array(zod.string()).optional(),
+  "financialImpact": zod.string().nullish(),
+  "effort": zod.string().nullish(),
+  "confidence": zod.number(),
+  "priority": zod.enum(['critical', 'high', 'medium', 'low'])
+})
+
+
+/**
+ * @summary Get current AI provider config
+ */
+export const GetAiProviderConfigResponse = zod.object({
+  "activeProvider": zod.string(),
+  "providers": zod.array(zod.object({
+  "name": zod.string(),
+  "label": zod.string(),
+  "requiresKey": zod.boolean(),
+  "hasKey": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Update AI provider selection and API keys (super admin only)
+ */
+export const UpdateAiProviderConfigBody = zod.object({
+  "activeProvider": zod.string().optional(),
+  "groqApiKey": zod.string().optional(),
+  "openrouterApiKey": zod.string().optional(),
+  "deepseekApiKey": zod.string().optional()
+})
+
+export const UpdateAiProviderConfigResponse = zod.object({
+  "activeProvider": zod.string(),
+  "providers": zod.array(zod.object({
+  "name": zod.string(),
+  "label": zod.string(),
+  "requiresKey": zod.boolean(),
+  "hasKey": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Test connectivity for a provider (super admin only)
+ */
+export const TestAiProviderBody = zod.object({
+  "provider": zod.string()
+})
+
+export const TestAiProviderResponse = zod.object({
+  "ok": zod.boolean(),
+  "latencyMs": zod.number(),
+  "error": zod.string().nullish()
+})
+
+
+/**
+ * @summary List all conversations
+ */
+export const ListGeminiConversationsResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const ListGeminiConversationsResponse = zod.array(ListGeminiConversationsResponseItem)
+
+
+/**
+ * @summary Create a new conversation
+ */
+export const CreateGeminiConversationBody = zod.object({
+  "title": zod.string()
+})
+
+export const CreateGeminiConversationResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get conversation with messages
+ */
+export const GetGeminiConversationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetGeminiConversationResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "messages": zod.array(zod.object({
+  "id": zod.number(),
+  "conversationId": zod.number(),
+  "role": zod.string(),
+  "content": zod.string(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Delete a conversation
+ */
+export const DeleteGeminiConversationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteGeminiConversationResponse = zod.void()
+
+
+/**
+ * @summary List messages in a conversation
+ */
+export const ListGeminiMessagesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListGeminiMessagesResponseItem = zod.object({
+  "id": zod.number(),
+  "conversationId": zod.number(),
+  "role": zod.string(),
+  "content": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const ListGeminiMessagesResponse = zod.array(ListGeminiMessagesResponseItem)
+
+
+/**
+ * @summary Send a message and receive an AI response (SSE stream)
+ */
+export const SendGeminiMessageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const SendGeminiMessageBody = zod.object({
+  "content": zod.string()
+})
+
+export const SendGeminiMessageResponse = zod.unknown()
+
+
+/**
  * @summary List users
  */
 export const ListUsersQueryParams = zod.object({

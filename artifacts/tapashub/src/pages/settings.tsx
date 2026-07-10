@@ -1,13 +1,24 @@
-import { useListUsers, getListUsersQueryKey } from "@workspace/api-client-react"
+import { useState } from "react"
+import {
+  useListUsers, getListUsersQueryKey,
+  useGetAiProviderConfig, useUpdateAiProviderConfig, useTestAiProvider,
+  getGetAiProviderConfigQueryKey
+} from "@workspace/api-client-react"
+import { useAuth } from "@/contexts/auth-context"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Switch } from "@/components/ui/switch"
-import { Settings2, Shield, Users } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Settings2, Shield, Users, Brain, CheckCircle2, XCircle, Loader2, ChevronDown, ChevronRight } from "lucide-react"
+import { useQueryClient } from "@tanstack/react-query"
 
 export default function Settings() {
+  const { isSuperAdmin } = useAuth()
   const { data: users, isLoading } = useListUsers({}, {
     query: { enabled: true, queryKey: getListUsersQueryKey({}) }
   })
@@ -49,7 +60,7 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card className="bg-card/50">
             <CardHeader>
               <CardTitle className="text-base">System Preferences</CardTitle>
@@ -64,6 +75,9 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
+
+          {/* AI Provider card — super admin only */}
+          {isSuperAdmin && <AiProviderCard />}
         </div>
 
         <div className="md:col-span-2">
@@ -138,5 +152,119 @@ export default function Settings() {
         </div>
       </div>
     </div>
+  )
+}
+
+function AiProviderCard() {
+  const qc = useQueryClient()
+  const { data: config, isLoading } = useGetAiProviderConfig({
+    query: { queryKey: getGetAiProviderConfigQueryKey() }
+  })
+
+  const update = useUpdateAiProviderConfig({
+    mutation: {
+      onSuccess: () => qc.invalidateQueries({ queryKey: getGetAiProviderConfigQueryKey() })
+    }
+  })
+
+  const testMutation = useTestAiProvider()
+
+  const [keys, setKeys] = useState<Record<string, string>>({})
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; latencyMs: number }>>({})
+  const [expanded, setExpanded] = useState(false)
+
+  const handleSelect = (name: string) => {
+    update.mutate({ data: { activeProvider: name } })
+  }
+
+  const handleSaveKey = (provider: string, keyField: string) => {
+    const val = keys[keyField]
+    if (!val?.trim()) return
+    update.mutate({ data: { [keyField]: val.trim() } })
+    setKeys(prev => ({ ...prev, [keyField]: "" }))
+  }
+
+  const handleTest = async (name: string) => {
+    const result = await testMutation.mutateAsync({ data: { provider: name } })
+    setTestResults(prev => ({ ...prev, [name]: { ok: result.ok, latencyMs: result.latencyMs } }))
+  }
+
+  return (
+    <Card className="bg-card/50">
+      <CardHeader className="pb-2 cursor-pointer" onClick={() => setExpanded(v => !v)}>
+        <CardTitle className="text-base flex items-center gap-2 justify-between">
+          <span className="flex items-center gap-2"><Brain className="w-4 h-4 text-primary" /> AI Provider</span>
+          {expanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+        </CardTitle>
+        <CardDescription className="text-xs">Configure which AI model powers the intelligence features</CardDescription>
+      </CardHeader>
+
+      {expanded && (
+        <CardContent className="space-y-3 pt-0">
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ) : (
+            config?.providers?.map(p => {
+              const isActive = config.activeProvider === p.name
+              const keyField = p.name === "groq" ? "groqApiKey" : p.name === "openrouter" ? "openrouterApiKey" : p.name === "deepseek" ? "deepseekApiKey" : null
+              const testRes = testResults[p.name]
+              return (
+                <div
+                  key={p.name}
+                  className={`border rounded-lg p-3 space-y-2 transition-colors cursor-pointer ${isActive ? "border-primary bg-primary/5" : "hover:border-primary/40"}`}
+                  onClick={() => !isActive && handleSelect(p.name)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${isActive ? "bg-primary" : "bg-muted-foreground/30"}`} />
+                      <div className="text-sm font-medium">{p.label}</div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {isActive && <Badge className="text-[10px]">Active</Badge>}
+                      {p.hasKey && <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />}
+                      {p.requiresKey && !p.hasKey && <XCircle className="w-3.5 h-3.5 text-muted-foreground" />}
+                      {testRes && (
+                        <Badge variant={testRes.ok ? "success" : "destructive"} className="text-[10px]">
+                          {testRes.ok ? `${testRes.latencyMs}ms` : "failed"}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {keyField && (
+                    <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                      <Input
+                        type="password"
+                        placeholder={p.hasKey ? "••••••• (set — update)" : "Enter API key"}
+                        value={keys[keyField] ?? ""}
+                        onChange={e => setKeys(prev => ({ ...prev, [keyField]: e.target.value }))}
+                        className="h-7 text-xs"
+                      />
+                      <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => handleSaveKey(p.name, keyField)} disabled={!keys[keyField]?.trim()}>
+                        Save
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end" onClick={e => e.stopPropagation()}>
+                    <Button
+                      size="sm" variant="ghost" className="h-6 text-[11px] px-2 gap-1"
+                      onClick={() => handleTest(p.name)}
+                      disabled={testMutation.isPending}
+                    >
+                      {testMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                      Test connection
+                    </Button>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </CardContent>
+      )}
+    </Card>
   )
 }

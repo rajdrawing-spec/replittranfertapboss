@@ -48,6 +48,66 @@ export async function applyMigrations(): Promise<void> {
       CREATE INDEX IF NOT EXISTS treasury_entries_date_idx ON treasury_entries(date)
     `);
 
+    // ── AI config & analyses ──────────────────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ai_config (
+        id          SERIAL PRIMARY KEY,
+        key         TEXT        NOT NULL UNIQUE,
+        value       TEXT,
+        iv          TEXT,
+        updated_at  TIMESTAMP   NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ai_analyses (
+        id                    SERIAL PRIMARY KEY,
+        company_id            INTEGER   NOT NULL,
+        provider              TEXT      NOT NULL,
+        strengths             JSONB     NOT NULL DEFAULT '[]',
+        weaknesses            JSONB     NOT NULL DEFAULT '[]',
+        opportunities         JSONB     NOT NULL DEFAULT '[]',
+        threats               JSONB     NOT NULL DEFAULT '[]',
+        revenue_leaks         JSONB     NOT NULL DEFAULT '[]',
+        cost_opportunities    JSONB     NOT NULL DEFAULT '[]',
+        cash_risks            JSONB     NOT NULL DEFAULT '[]',
+        growth_opportunities  JSONB     NOT NULL DEFAULT '[]',
+        summary               TEXT,
+        created_at            TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // ── Gemini conversation tables ────────────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS conversations (
+        id            SERIAL PRIMARY KEY,
+        title         TEXT      NOT NULL,
+        owner_user_id INTEGER,
+        created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS messages (
+        id               SERIAL PRIMARY KEY,
+        conversation_id  INTEGER   NOT NULL,
+        role             TEXT      NOT NULL,
+        content          TEXT      NOT NULL,
+        created_at       TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // ── Additive column patches (idempotent via IF NOT EXISTS) ────────────────
+    // Add iv column to ai_config if missing (added to support encrypted API keys)
+    await db.execute(sql`
+      ALTER TABLE ai_config ADD COLUMN IF NOT EXISTS iv TEXT
+    `);
+
+    // Add owner_user_id to conversations if missing
+    await db.execute(sql`
+      ALTER TABLE conversations ADD COLUMN IF NOT EXISTS owner_user_id INTEGER
+    `);
+
     logger.info("Startup migrations applied (schema)");
   } catch (e) {
     // Log but never crash the server — missing tables are better discovered

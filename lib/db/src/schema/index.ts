@@ -25,3 +25,6 @@ export * from "./documents";
 export * from "./campaigns";
 export * from "./marketing";
 export * from "./treasury";
+export * from "./ai";
+export * from "./conversations";
+export * from "./messages";

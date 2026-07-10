@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: gemini
+    description: Gemini AI chat and image operations
   - name: companies
     description: Company management
   - name: dashboard
@@ -1169,6 +1171,231 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AiInsight"
+
+  /ai/analyse/{companyId}:
+    post:
+      operationId: runAiAnalysis
+      tags: [ai]
+      summary: Run SWOT + insights analysis for a company
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: force
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiAnalysis"
+
+  /ai/analyse/{companyId}/cached:
+    get:
+      operationId: getAiAnalysisCached
+      tags: [ai]
+      summary: Get cached analysis (null if expired/missing)
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Cached analysis or null
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiAnalysisOrNull"
+
+  /ai/executive:
+    post:
+      operationId: runAiExecutive
+      tags: [ai]
+      summary: Ask the Executive AI Decision Engine a strategic question
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiExecutiveInput"
+      responses:
+        "200":
+          description: Executive AI response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiExecutiveResult"
+
+  /ai/provider:
+    get:
+      operationId: getAiProviderConfig
+      tags: [ai]
+      summary: Get current AI provider config
+      responses:
+        "200":
+          description: Provider config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiProviderConfig"
+    patch:
+      operationId: updateAiProviderConfig
+      tags: [ai]
+      summary: Update AI provider selection and API keys (super admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiProviderConfigInput"
+      responses:
+        "200":
+          description: Updated config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiProviderConfig"
+
+  /ai/provider/test:
+    post:
+      operationId: testAiProvider
+      tags: [ai]
+      summary: Test connectivity for a provider (super admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider]
+              properties:
+                provider:
+                  type: string
+      responses:
+        "200":
+          description: Test result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiProviderTestResult"
+
+  # ─── Gemini ──────────────────────────────────────────────────────
+  /gemini/conversations:
+    get:
+      operationId: listGeminiConversations
+      tags: [gemini]
+      summary: List all conversations
+      responses:
+        "200":
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GeminiConversation"
+    post:
+      operationId: createGeminiConversation
+      tags: [gemini]
+      summary: Create a new conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GeminiConversationInput"
+      responses:
+        "201":
+          description: Created conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeminiConversation"
+  /gemini/conversations/{id}:
+    get:
+      operationId: getGeminiConversation
+      tags: [gemini]
+      summary: Get conversation with messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation with messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeminiConversationWithMessages"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    delete:
+      operationId: deleteGeminiConversation
+      tags: [gemini]
+      summary: Delete a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+  /gemini/conversations/{id}/messages:
+    get:
+      operationId: listGeminiMessages
+      tags: [gemini]
+      summary: List messages in a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GeminiMessage"
+    post:
+      operationId: sendGeminiMessage
+      tags: [gemini]
+      summary: Send a message and receive an AI response (SSE stream)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GeminiMessageInput"
+      responses:
+        "200":
+          description: SSE stream of assistant response chunks
+          content:
+            text/event-stream: {}
 
   # ─── Users ───────────────────────────────────────────────────────
   /users:
@@ -2419,6 +2646,207 @@ components:
           type: ["string", "null"]
         createdAt:
           type: string
+
+    # ─── AI Analysis ───────────────────────────────────────────────
+    AiAnalysis:
+      type: object
+      required: [id, companyId, provider, strengths, weaknesses, opportunities, threats, revenueleaks, costOpportunities, cashRisks, growthOpportunities, createdAt]
+      properties:
+        id:
+          type: integer
+        companyId:
+          type: integer
+        provider:
+          type: string
+        strengths:
+          type: array
+          items:
+            type: string
+        weaknesses:
+          type: array
+          items:
+            type: string
+        opportunities:
+          type: array
+          items:
+            type: string
+        threats:
+          type: array
+          items:
+            type: string
+        revenueleaks:
+          type: array
+          items:
+            type: string
+        costOpportunities:
+          type: array
+          items:
+            type: string
+        cashRisks:
+          type: array
+          items:
+            type: string
+        growthOpportunities:
+          type: array
+          items:
+            type: string
+        summary:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    AiAnalysisOrNull:
+      oneOf:
+        - $ref: "#/components/schemas/AiAnalysis"
+        - type: "null"
+
+    AiExecutiveInput:
+      type: object
+      required: [question]
+      properties:
+        question:
+          type: string
+        companyId:
+          type: ["integer", "null"]
+        companyIds:
+          type: array
+          items:
+            type: integer
+
+    AiExecutiveResult:
+      type: object
+      required: [answer, reasoning, confidence, priority]
+      properties:
+        answer:
+          type: string
+        reasoning:
+          type: string
+        supportingData:
+          type: array
+          items:
+            type: string
+        financialImpact:
+          type: ["string", "null"]
+        effort:
+          type: ["string", "null"]
+        confidence:
+          type: integer
+        priority:
+          type: string
+          enum: [critical, high, medium, low]
+
+    AiProviderConfig:
+      type: object
+      required: [activeProvider, providers]
+      properties:
+        activeProvider:
+          type: string
+        providers:
+          type: array
+          items:
+            type: object
+            required: [name, label, requiresKey, hasKey]
+            properties:
+              name:
+                type: string
+              label:
+                type: string
+              requiresKey:
+                type: boolean
+              hasKey:
+                type: boolean
+
+    AiProviderConfigInput:
+      type: object
+      properties:
+        activeProvider:
+          type: string
+        groqApiKey:
+          type: string
+        openrouterApiKey:
+          type: string
+        deepseekApiKey:
+          type: string
+
+    AiProviderTestResult:
+      type: object
+      required: [ok, latencyMs]
+      properties:
+        ok:
+          type: boolean
+        latencyMs:
+          type: integer
+        error:
+          type: ["string", "null"]
+
+    # ─── Gemini ─────────────────────────────────────────────────────
+    GeminiConversation:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - createdAt
+    GeminiMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        role:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - conversationId
+        - role
+        - content
+        - createdAt
+    GeminiConversationInput:
+      type: object
+      properties:
+        title:
+          type: string
+      required:
+        - title
+    GeminiMessageInput:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+    GeminiConversationWithMessages:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeminiMessage"
+      required:
+        - id
+        - title
+        - createdAt
+        - messages
 
     # ─── Users ─────────────────────────────────────────────────────
     User:

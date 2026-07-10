@@ -42,15 +42,24 @@ function RoleAssignDialog({
   })
 
   const toggle = (key: string) =>
-    setSelected((prev) =>
-      prev.includes(key)
-        ? prev.length === 1 ? prev // keep at least one role
-          : prev.filter((k) => k !== key)
-        : [...prev, key]
-    )
+    setSelected((prev) => {
+      if (prev.includes(key)) {
+        if (prev.length === 1) return prev // keep at least one
+        return prev.filter((k) => k !== key)
+      }
+      // super_admin must always be primary — put it first
+      if (key === "super_admin") return ["super_admin", ...prev]
+      return [...prev, key]
+    })
 
   const primaryKey = selected[0] ?? user.role
-  const assignable = roles.filter((r) => r.key !== "super_admin")
+  const grantingSuperAdmin = selected.includes("super_admin")
+
+  // super_admin first, then others
+  const assignable = [
+    ...roles.filter((r) => r.key === "super_admin"),
+    ...roles.filter((r) => r.key !== "super_admin"),
+  ]
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
@@ -62,25 +71,40 @@ function RoleAssignDialog({
           Select one or more roles. The first selected role is the primary. Permissions are the union of all assigned roles.
         </p>
         <div className="max-h-64 overflow-y-auto space-y-1.5 rounded-md border p-3">
-          {assignable.map((r) => (
-            <label key={r.key} className="flex items-start gap-2.5 cursor-pointer">
-              <Checkbox
-                checked={selected.includes(r.key)}
-                onCheckedChange={() => toggle(r.key)}
-                className="mt-0.5"
-              />
-              <div>
-                <span className="text-sm font-medium">{r.name}</span>
-                {r.key === primaryKey && selected.length > 1 && (
-                  <Badge variant="outline" className="ml-2 text-[10px] py-0">primary</Badge>
-                )}
-                {r.description && (
-                  <p className="text-xs text-muted-foreground leading-tight">{r.description}</p>
-                )}
-              </div>
-            </label>
-          ))}
+          {assignable.map((r) => {
+            const isSA = r.key === "super_admin"
+            return (
+              <label
+                key={r.key}
+                className={`flex items-start gap-2.5 cursor-pointer rounded-md px-2 py-1.5 -mx-2 transition-colors ${isSA ? "bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800" : "hover:bg-muted/50"}`}
+              >
+                <Checkbox
+                  checked={selected.includes(r.key)}
+                  onCheckedChange={() => toggle(r.key)}
+                  className="mt-0.5"
+                />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {isSA && <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                    <span className="text-sm font-medium">{r.name}</span>
+                    {r.key === primaryKey && selected.length > 1 && (
+                      <Badge variant="outline" className="text-[10px] py-0">primary</Badge>
+                    )}
+                    {isSA && <Badge className="text-[10px] py-0 bg-amber-500/20 text-amber-700 border-amber-300 dark:text-amber-400">Full access</Badge>}
+                  </div>
+                  {r.description && (
+                    <p className="text-xs text-muted-foreground leading-tight">{r.description}</p>
+                  )}
+                </div>
+              </label>
+            )
+          })}
         </div>
+        {grantingSuperAdmin && (
+          <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-md px-3 py-2">
+            ⚠️ Granting <strong>Super Admin</strong> gives this user unrestricted access to the entire platform.
+          </p>
+        )}
         <ErrorNote error={save.error} />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
@@ -240,11 +264,21 @@ function InviteDialog({ roles }: { roles: AdminRole[] }) {
             <Select value={role} onValueChange={setRole}>
               <SelectTrigger><SelectValue placeholder="Select a role" /></SelectTrigger>
               <SelectContent>
-                {roles.filter((r) => r.key !== "super_admin").map((r) => (
-                  <SelectItem key={r.key} value={r.key}>{r.name}</SelectItem>
+                {[
+                  ...roles.filter((r) => r.key === "super_admin"),
+                  ...roles.filter((r) => r.key !== "super_admin"),
+                ].map((r) => (
+                  <SelectItem key={r.key} value={r.key}>
+                    {r.key === "super_admin" ? `👑 ${r.name}` : r.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {role === "super_admin" && (
+              <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-md px-3 py-2 mt-1.5">
+                ⚠️ This user will have unrestricted access to the entire platform.
+              </p>
+            )}
           </div>
           <div><Label>Department (optional)</Label><Input value={department} onChange={(e) => setDepartment(e.target.value)} /></div>
           <div>

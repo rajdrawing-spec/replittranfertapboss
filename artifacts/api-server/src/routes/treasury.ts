@@ -153,11 +153,11 @@ router.get("/treasury/summary", requireSuperAdmin, async (req, res) => {
     }
 
     const totalRaised = Number(raised?.total ?? 0);
-    // Available = capital raised minus what has been deployed to subsidiaries.
-    // Fund Allocations are the mechanism that moves capital from the main treasury
-    // into sub-brands — each executed allocation reduces the treasury balance.
-    // Sub-brands then spend from their own allocated budget (tracked in their Finance).
-    const available = totalRaised - allocated;
+    // Available = capital raised minus what has actually been spent across all companies.
+    // Finance expenses are the source of truth — every completed expense is a direct draw
+    // on the treasury, so the available balance decreases automatically when Finance is updated.
+    // Fund Allocations are a budgeting/approval reference but do NOT drive this number.
+    const available = totalRaised - totalExpenses;
 
     // ── Total group revenue (all subsidiary operational income) ────────────
     const subIds = subsidiaries.map(s => s.id);
@@ -227,12 +227,12 @@ router.get("/treasury/summary", requireSuperAdmin, async (req, res) => {
 
     res.json({
       totalRaised,
-      allocated,           // capital deployed to subsidiaries → what reduces the treasury
-      totalExpenses,       // actual expenses across all companies (for reference / per-sub tracking)
-      available,           // totalRaised − allocated (undeployed treasury balance)
+      allocated,           // formal fund-allocation budget (reference only)
+      totalExpenses,       // actual Finance spend — drives available & utilization
+      available,           // totalRaised − totalExpenses (live treasury balance)
       groupRevenue,
       netGroupPosition: totalRaised + groupRevenue - totalExpenses,
-      utilizationPercent: totalRaised > 0 ? (allocated / totalRaised) * 100 : 0,
+      utilizationPercent: totalRaised > 0 ? (totalExpenses / totalRaised) * 100 : 0,
       pendingCount: Number(pendingRow?.count ?? 0),
       pendingAmount: Number(pendingRow?.total ?? 0),
       parentCompany: parent ? { id: parent.id, name: parent.name } : null,
@@ -305,10 +305,10 @@ router.get("/treasury/working-capital", requireSuperAdmin, async (req, res) => {
 
     res.json({
       totalCapital,
-      allocated: totalAllocated,   // capital deployed to sub-brands → reduces treasury
-      totalSpent,                  // actual expenses (reference only)
-      available: totalCapital - totalAllocated,  // undeployed treasury balance
-      utilizationPercent: totalCapital > 0 ? Math.round((totalAllocated / totalCapital) * 100) : 0,
+      allocated: totalAllocated,   // formal fund-allocation budget (reference)
+      totalSpent,                  // actual Finance expenses — drives treasury available
+      available: totalCapital - totalSpent,   // undeployed = raised − what has been spent
+      utilizationPercent: totalCapital > 0 ? Math.round((totalSpent / totalCapital) * 100) : 0,
       groupRevenue,
       byCompany,
     });

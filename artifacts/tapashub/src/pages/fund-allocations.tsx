@@ -328,7 +328,8 @@ export default function FundAllocations() {
             </div>
             <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground pt-2 border-t">
               <span>Available: <span className="text-green-400 font-medium">{inr(wcData.available)}</span></span>
-              <span>Deployed: <span className="text-amber-400 font-medium">{wcData.utilizationPercent}%</span></span>
+              <span>Total spent: <span className="text-amber-400 font-medium">{inr(wcData.totalSpent ?? 0)}</span></span>
+              <span>Utilisation: <span className="text-amber-400 font-medium">{wcData.utilizationPercent}%</span></span>
             </div>
           </CardContent>
         </Card>

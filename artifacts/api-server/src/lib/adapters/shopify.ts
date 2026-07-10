@@ -145,6 +145,11 @@ async function upsertOrders(companyId: number, orders: any[]): Promise<number> {
     const shippingAddress = sa
       ? [sa.address1, sa.address2, sa.city, sa.province, sa.zip, sa.country].filter(Boolean).join(", ")
       : null;
+    // Preserve the original Shopify order date so analytics date-range queries
+    // work correctly. Guard against malformed/empty values from the API.
+    const _parsedDate = o.created_at ? new Date(o.created_at) : null;
+    const shopifyCreatedAt = _parsedDate && !isNaN(_parsedDate.getTime()) ? _parsedDate : new Date();
+
     const values = {
       orderNumber,
       companyId,
@@ -156,6 +161,7 @@ async function upsertOrders(companyId: number, orders: any[]): Promise<number> {
       itemCount: itemCount || 1,
       channel: "shopify",
       shippingAddress,
+      createdAt: shopifyCreatedAt,
     };
 
     const [existing] = await db
@@ -166,6 +172,7 @@ async function upsertOrders(companyId: number, orders: any[]): Promise<number> {
 
     let row: Order;
     if (existing) {
+      // Never overwrite createdAt on update — preserve the original order date.
       const [updated] = await db.update(ordersTable)
         .set({ customerName: values.customerName, customerEmail: values.customerEmail, customerPhone: values.customerPhone, status: values.status, totalAmount: values.totalAmount, itemCount: values.itemCount, shippingAddress: values.shippingAddress, updatedAt: new Date() })
         .where(eq(ordersTable.id, existing.id))

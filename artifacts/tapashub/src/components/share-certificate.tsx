@@ -40,14 +40,19 @@ function certNo(id: number, date: Date) {
   return `TAPAB/SH/${date.getFullYear()}/${String(id).padStart(5, "0")}`
 }
 
-// ── TapasHub triangle logo ────────────────────────────────────────────────────
+// Base path from Vite (e.g. "/tapashub/") — resolved at build time, safe for any deployment base.
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+// ── TapasHub logo (real brand image) ─────────────────────────────────────────
 function TapasHubLogo({ size = 72 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M40 5 L74 65 L6 65 Z" fill="#1a1a2e"/>
-      <path d="M40 24 L57 55 L23 55 Z" fill="white"/>
-      <circle cx="40" cy="36" r="7" fill="#1a1a2e"/>
-    </svg>
+    <img
+      src={`${BASE}/tapashub-logo.png`}
+      alt="TapasHub"
+      width={size}
+      height={size}
+      style={{ objectFit: "contain", display: "block" }}
+    />
   )
 }
 
@@ -111,20 +116,7 @@ function CertificateBody({ data }: { data: ShareCertificateData }) {
       {/* Top gradient bar */}
       <div style={{ height: 6, background: "linear-gradient(90deg, #1a1a2e, #1d90e8, #1a1a2e)" }} />
 
-      {/* Corner triangles */}
-      {([
-        { pos: { top: 0,    left: 0   } as React.CSSProperties, rotate: 0 },
-        { pos: { top: 0,    right: 0  } as React.CSSProperties, rotate: 90 },
-        { pos: { bottom: 0, right: 0  } as React.CSSProperties, rotate: 180 },
-        { pos: { bottom: 0, left: 0   } as React.CSSProperties, rotate: 270 },
-      ]).map((corner, i) => (
-        <div key={i} style={{ position: "absolute", width: 48, height: 48, overflow: "hidden", ...corner.pos }}>
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none"
-            style={{ transform: `rotate(${corner.rotate}deg)` }}>
-            <path d="M0 0 L48 0 L0 48 Z" fill="#1a1a2e" opacity="0.8"/>
-          </svg>
-        </div>
-      ))}
+      {/* No corner decorations */}
 
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 44px 0" }}>

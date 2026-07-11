@@ -106,13 +106,8 @@ function buildCertHTML(data: ShareCertificateData): string {
   const dateStr   = issueDate.toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })
   const shareType = data.shareType ?? "EQUITY SHARES"
   const faceValue = data.sharePrice && data.sharePrice > 0 ? data.sharePrice : 10
-  // Priority: actual invested amount → real company valuation per share → face value fallback
-  const effectivePrice = data.estimatedSharePrice && data.estimatedSharePrice > 0
-    ? data.estimatedSharePrice
-    : faceValue
-  const totalVal = data.investmentAmount && data.investmentAmount > 0
-    ? data.investmentAmount
-    : data.shares * effectivePrice
+  // Total value on a share certificate = Face Value × Number of Shares
+  const totalVal = data.shares * faceValue
   const ownershipPct = data.ownershipPercent != null ? data.ownershipPercent.toFixed(2) : null
 
   // Escape helper
@@ -302,13 +297,8 @@ function CertificateBody({ data }: { data: ShareCertificateData }) {
   const dateStr   = issueDate.toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })
   const shareType = data.shareType ?? "EQUITY SHARES"
   const faceValue = data.sharePrice && data.sharePrice > 0 ? data.sharePrice : 10
-  // Priority: actual invested amount → real company valuation per share → face value fallback
-  const effectivePrice = data.estimatedSharePrice && data.estimatedSharePrice > 0
-    ? data.estimatedSharePrice
-    : faceValue
-  const totalVal = data.investmentAmount && data.investmentAmount > 0
-    ? data.investmentAmount
-    : data.shares * effectivePrice
+  // Total value on a share certificate = Face Value × Number of Shares
+  const totalVal = data.shares * faceValue
   const ownershipPct = data.ownershipPercent != null ? data.ownershipPercent.toFixed(2) : null
 
   const certStyle: React.CSSProperties = {

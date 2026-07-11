@@ -676,6 +676,8 @@ function AdminShareholdersView() {
                           shares: h.shares,
                           sharePrice: h.sharePrice,
                           investmentAmount: h.investmentAmount,
+                          // Real per-share value from company cap-table valuation
+                          estimatedSharePrice: cap && cap.totalShares > 0 ? cap.valuation / cap.totalShares : undefined,
                           shareType: SHARE_TYPE_LABELS[h.role] ?? "EQUITY SHARES",
                           ownershipPercent: h.ownershipPercent,
                           joinedDate: h.joinedDate,

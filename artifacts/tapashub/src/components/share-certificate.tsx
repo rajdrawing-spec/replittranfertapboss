@@ -12,8 +12,9 @@ export interface ShareCertificateData {
   holderName:       string
   companyName:      string
   shares:           number
-  sharePrice:       number
-  investmentAmount: number
+  sharePrice:       number       // price per share at issue (face value shown on cert)
+  investmentAmount: number       // actual cash invested by this shareholder
+  estimatedSharePrice?: number   // current fair-value per share from company valuation
   shareType?:       string
   ownershipPercent?: number
   joinedDate?:      string | null
@@ -105,10 +106,13 @@ function buildCertHTML(data: ShareCertificateData): string {
   const dateStr   = issueDate.toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })
   const shareType = data.shareType ?? "EQUITY SHARES"
   const faceValue = data.sharePrice && data.sharePrice > 0 ? data.sharePrice : 10
-  // If investmentAmount is missing or zero, derive it from shares × face value
-  const totalVal  = data.investmentAmount && data.investmentAmount > 0
+  // Priority: actual invested amount → real company valuation per share → face value fallback
+  const effectivePrice = data.estimatedSharePrice && data.estimatedSharePrice > 0
+    ? data.estimatedSharePrice
+    : faceValue
+  const totalVal = data.investmentAmount && data.investmentAmount > 0
     ? data.investmentAmount
-    : data.shares * faceValue
+    : data.shares * effectivePrice
   const ownershipPct = data.ownershipPercent != null ? data.ownershipPercent.toFixed(2) : null
 
   // Escape helper
@@ -298,10 +302,13 @@ function CertificateBody({ data }: { data: ShareCertificateData }) {
   const dateStr   = issueDate.toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })
   const shareType = data.shareType ?? "EQUITY SHARES"
   const faceValue = data.sharePrice && data.sharePrice > 0 ? data.sharePrice : 10
-  // If investmentAmount is missing or zero, derive it from shares × face value
-  const totalVal  = data.investmentAmount && data.investmentAmount > 0
+  // Priority: actual invested amount → real company valuation per share → face value fallback
+  const effectivePrice = data.estimatedSharePrice && data.estimatedSharePrice > 0
+    ? data.estimatedSharePrice
+    : faceValue
+  const totalVal = data.investmentAmount && data.investmentAmount > 0
     ? data.investmentAmount
-    : data.shares * faceValue
+    : data.shares * effectivePrice
   const ownershipPct = data.ownershipPercent != null ? data.ownershipPercent.toFixed(2) : null
 
   const certStyle: React.CSSProperties = {

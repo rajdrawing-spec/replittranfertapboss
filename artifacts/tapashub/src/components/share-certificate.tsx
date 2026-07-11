@@ -50,6 +50,28 @@ const LOGO_URL = `${BASE}/tapashub-logo.png`
 const DOT_MATRIX = `'VT323', 'Share Tech Mono', 'Courier New', monospace`
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');`
 
+// ── Currency paper palette ─────────────────────────────────────────────────────
+const PAPER   = "#fffef0"   // warm ivory — Indian banknote paper colour
+const INK     = "#1a1a2e"   // deep navy ink
+const BLUE    = "#1d90e8"   // TapasHub accent
+const GREEN   = "#1a6b3c"   // RBI-style currency green for outer border
+const GOLD    = "#b8860b"   // muted gold for grid dividers
+
+// Guilloche wave pattern — tiled across the background like security printing
+const GUILLOCHE_SVG = `<svg xmlns='http://www.w3.org/2000/svg' width='220' height='64'>
+  <path d='M0 32 Q55 8 110 32 Q165 56 220 32' stroke='rgba(29,144,232,0.11)' stroke-width='1.1' fill='none'/>
+  <path d='M0 32 Q55 56 110 32 Q165 8 220 32' stroke='rgba(29,144,232,0.08)' stroke-width='0.8' fill='none'/>
+  <path d='M0 16 Q55 40 110 16 Q165 -8 220 16' stroke='rgba(0,120,55,0.07)' stroke-width='0.65' fill='none'/>
+  <path d='M0 48 Q55 24 110 48 Q165 72 220 48' stroke='rgba(0,120,55,0.07)' stroke-width='0.65' fill='none'/>
+  <path d='M0 8  Q55 30 110 8  Q165 -14 220 8'  stroke='rgba(29,144,232,0.05)' stroke-width='0.5' fill='none'/>
+  <path d='M0 56 Q55 34 110 56 Q165 78 220 56' stroke='rgba(29,144,232,0.05)' stroke-width='0.5' fill='none'/>
+</svg>`
+
+// Inline the guilloche as a CSS url() — works in both React and the print window
+function guillocheUrl(): string {
+  return `url("data:image/svg+xml,${encodeURIComponent(GUILLOCHE_SVG)}")`
+}
+
 // ── Approved seal ─────────────────────────────────────────────────────────────
 function ApprovedSeal({ size = 110 }: { size?: number }) {
   const r = size / 2
@@ -92,6 +114,8 @@ function buildCertHTML(data: ShareCertificateData): string {
   // Escape helper
   const esc = (s: string) => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
 
+  const guillocheCSS = `url("data:image/svg+xml,${encodeURIComponent(GUILLOCHE_SVG)}")`
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -101,134 +125,167 @@ function buildCertHTML(data: ShareCertificateData): string {
 ${FONT_IMPORT}
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
-  background: white !important;
-  color: #1a1a2e !important;
+  background: #e8e4d8 !important;
+  color: ${INK} !important;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
   color-scheme: light;
 }
-@page { size: A4 landscape; margin: 10mm; }
-body { display: flex; justify-content: center; align-items: flex-start; padding: 16px; }
+@page { size: A4 landscape; margin: 8mm; }
+body { display: flex; justify-content: center; align-items: flex-start; padding: 12px; }
 </style>
 </head>
 <body>
 <div style="
   width:794px;
-  background:white;
-  font-family:${DOT_MATRIX};
-  color:#1a1a2e;
-  border:2.5px solid #1d90e8;
-  border-radius:6px;
-  overflow:hidden;
   position:relative;
+  background-color:${PAPER};
+  background-image:${guillocheCSS};
+  background-size:220px 64px;
+  font-family:${DOT_MATRIX};
+  color:${INK};
+  border:4px solid ${GREEN};
+  border-radius:4px;
+  overflow:hidden;
 ">
 
-  <!-- top bar -->
-  <div style="height:6px;background:linear-gradient(90deg,#1a1a2e,#1d90e8,#1a1a2e);"></div>
+  <!-- inner border ring (decorative double border) -->
+  <div style="position:absolute;inset:7px;border:1.5px solid ${BLUE};border-radius:2px;pointer-events:none;z-index:1;"></div>
+
+  <!-- left security thread strip -->
+  <div style="position:absolute;top:0;left:14px;bottom:0;width:5px;background:linear-gradient(180deg,${GREEN},${BLUE},${GREEN},${BLUE},${GREEN});opacity:0.18;z-index:1;"></div>
+
+  <!-- right security thread strip -->
+  <div style="position:absolute;top:0;right:14px;bottom:0;width:5px;background:linear-gradient(180deg,${BLUE},${GREEN},${BLUE},${GREEN},${BLUE});opacity:0.18;z-index:1;"></div>
+
+  <!-- large ₹ watermark -->
+  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:0;">
+    <div style="font-size:280px;color:rgba(29,144,232,0.045);font-family:Georgia,serif;font-weight:900;line-height:1;user-select:none;">₹</div>
+  </div>
+
+  <!-- corner ornaments -->
+  <div style="position:absolute;top:11px;left:11px;font-size:18px;color:${GOLD};opacity:0.6;line-height:1;z-index:2;">◆</div>
+  <div style="position:absolute;top:11px;right:11px;font-size:18px;color:${GOLD};opacity:0.6;line-height:1;z-index:2;">◆</div>
+  <div style="position:absolute;bottom:22px;left:11px;font-size:18px;color:${GOLD};opacity:0.6;line-height:1;z-index:2;">◆</div>
+  <div style="position:absolute;bottom:22px;right:11px;font-size:18px;color:${GOLD};opacity:0.6;line-height:1;z-index:2;">◆</div>
+
+  <!-- top colour bar -->
+  <div style="height:6px;background:linear-gradient(90deg,${GREEN},${BLUE},${GREEN});position:relative;z-index:2;"></div>
+
+  <!-- all content sits above the watermark -->
+  <div style="position:relative;z-index:2;">
 
   <!-- header: 3-col grid keeps logo truly centred regardless of side-column widths -->
-  <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:20px 44px 0;">
+  <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:20px 54px 0;">
     <!-- cert no -->
     <div>
-      <div style="font-size:8.5px;font-weight:800;letter-spacing:2px;color:#888;text-transform:uppercase;">Certificate No.</div>
-      <div style="font-size:13px;font-weight:700;color:#1d90e8;margin-top:2px;font-family:${DOT_MATRIX};">${esc(no)}</div>
+      <div style="font-size:8.5px;font-weight:800;letter-spacing:2px;color:#7a6a40;text-transform:uppercase;">Certificate No.</div>
+      <div style="font-size:13px;font-weight:700;color:${BLUE};margin-top:2px;font-family:${DOT_MATRIX};">${esc(no)}</div>
     </div>
     <!-- logo + wordmark (centred column) -->
     <div style="text-align:center;">
       <img src="${LOGO_URL}" alt="TapasHub" width="64" height="64"
            style="object-fit:contain;display:block;margin:0 auto;"/>
       <div style="margin-top:4px;">
-        <span style="font-size:22px;font-weight:900;letter-spacing:-0.5px;color:#1a1a2e;font-family:${DOT_MATRIX};">TAPAS</span>
-        <span style="font-size:22px;font-weight:900;letter-spacing:-0.5px;color:#1d90e8;margin-left:4px;font-family:${DOT_MATRIX};">HUB</span>
+        <span style="font-size:22px;font-weight:900;letter-spacing:-0.5px;color:${INK};font-family:${DOT_MATRIX};">TAPAS</span>
+        <span style="font-size:22px;font-weight:900;letter-spacing:-0.5px;color:${BLUE};margin-left:4px;font-family:${DOT_MATRIX};">HUB</span>
       </div>
-      <div style="font-size:8px;font-weight:600;letter-spacing:3px;color:#aaa;margin-top:1px;font-family:${DOT_MATRIX};">CONNECT · EMPOWER · GROW</div>
+      <div style="font-size:8px;font-weight:600;letter-spacing:3px;color:#9a8a60;margin-top:1px;font-family:${DOT_MATRIX};">CONNECT · EMPOWER · GROW</div>
     </div>
     <!-- date (right-aligned) -->
     <div style="text-align:right;">
-      <div style="font-size:8.5px;font-weight:800;letter-spacing:2px;color:#888;text-transform:uppercase;">Date of Issue</div>
-      <div style="font-size:13px;font-weight:700;color:#1a1a2e;margin-top:2px;font-family:${DOT_MATRIX};">${esc(dateStr)}</div>
+      <div style="font-size:8.5px;font-weight:800;letter-spacing:2px;color:#7a6a40;text-transform:uppercase;">Date of Issue</div>
+      <div style="font-size:13px;font-weight:700;color:${INK};margin-top:2px;font-family:${DOT_MATRIX};">${esc(dateStr)}</div>
     </div>
   </div>
 
+  <!-- divider -->
+  <div style="margin:10px 54px 0;height:1px;background:linear-gradient(90deg,transparent,${GOLD},transparent);"></div>
+
   <!-- title -->
-  <div style="text-align:center;margin:16px 0 12px;">
-    <div style="display:inline-block;padding:4px 0;border-top:2px solid #1d90e8;border-bottom:2px solid #1d90e8;">
-      <span style="font-size:28px;font-weight:900;letter-spacing:6px;color:#1a1a2e;font-family:${DOT_MATRIX};">SHARE </span>
-      <span style="font-size:28px;font-weight:900;letter-spacing:6px;color:#1d90e8;font-family:${DOT_MATRIX};">CERTIFICATE</span>
+  <div style="text-align:center;margin:14px 0 10px;">
+    <div style="display:inline-block;padding:4px 18px;border-top:2px solid ${BLUE};border-bottom:2px solid ${BLUE};">
+      <span style="font-size:28px;font-weight:900;letter-spacing:6px;color:${INK};font-family:${DOT_MATRIX};">SHARE </span>
+      <span style="font-size:28px;font-weight:900;letter-spacing:6px;color:${BLUE};font-family:${DOT_MATRIX};">CERTIFICATE</span>
     </div>
   </div>
 
   <!-- certify + holder -->
-  <div style="text-align:center;padding:0 44px;">
-    <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#666;text-transform:uppercase;margin-bottom:8px;font-family:${DOT_MATRIX};">
+  <div style="text-align:center;padding:0 54px;">
+    <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:#7a6a40;text-transform:uppercase;margin-bottom:8px;font-family:${DOT_MATRIX};">
       This is to certify that
     </div>
-    <div style="font-size:34px;font-family:${DOT_MATRIX};color:#1a1a2e;border-bottom:1px dashed #bbb;padding-bottom:6px;margin-bottom:10px;">
+    <div style="font-size:34px;font-family:${DOT_MATRIX};color:${INK};border-bottom:1px dashed ${GOLD};padding-bottom:6px;margin-bottom:10px;">
       ${esc(data.holderName)}
     </div>
-    <div style="font-size:11px;line-height:1.8;color:#444;font-family:${DOT_MATRIX};">
+    <div style="font-size:11px;line-height:1.8;color:#4a3a1a;font-family:${DOT_MATRIX};">
       is the registered shareholder of
-      <span style="color:#1d90e8;font-weight:700;"> ${esc(data.companyName.toUpperCase())}</span>
-      and is hereby allotted the fully paid-up equity shares of the Company${ownershipPct ? `,<br/>holding <span style="font-weight:700;color:#1a1a2e;">${ownershipPct}%</span> equity ownership,` : ""}<br/>
+      <span style="color:${BLUE};font-weight:700;"> ${esc(data.companyName.toUpperCase())}</span>
+      and is hereby allotted the fully paid-up equity shares of the Company${ownershipPct ? `,<br/>holding <span style="font-weight:700;color:${INK};">${ownershipPct}%</span> equity ownership,` : ""}<br/>
       subject to the Memorandum and Articles of Association of the Company.
     </div>
   </div>
 
   <!-- share details grid -->
-  <div style="margin:16px 44px;border:1.5px solid #1d90e8;border-radius:8px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;">
+  <div style="margin:14px 54px;border:1.5px solid ${GOLD};border-radius:6px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;background:rgba(255,252,220,0.6);">
     ${[
       { label: "NUMBER OF SHARES", value: data.shares.toLocaleString("en-IN"), sub: numToWords(data.shares) },
       { label: "TYPE OF SHARES",   value: shareType,  sub: "", blue: true },
       { label: "FACE VALUE",       value: inr(faceValue),  sub: inrWords(faceValue) },
       { label: "TOTAL VALUE",      value: inr(totalVal),   sub: inrWords(totalVal) },
     ].map((col, i) => `
-    <div style="text-align:center;padding:12px 8px;${i < 3 ? "border-right:1px solid #1d90e8;" : ""}">
-      <div style="font-size:8px;font-weight:700;letter-spacing:1.5px;color:#888;text-transform:uppercase;margin-bottom:4px;font-family:${DOT_MATRIX};">${esc(col.label)}</div>
-      <div style="font-size:16px;font-weight:900;color:${col.blue ? "#1d90e8" : "#1a1a2e"};font-family:${DOT_MATRIX};">${esc(col.value)}</div>
-      ${col.sub ? `<div style="font-size:7.5px;color:#888;margin-top:2px;font-family:${DOT_MATRIX};">${esc(col.sub)}</div>` : ""}
+    <div style="text-align:center;padding:12px 8px;${i < 3 ? `border-right:1px solid ${GOLD};` : ""}">
+      <div style="font-size:8px;font-weight:700;letter-spacing:1.5px;color:#7a6a40;text-transform:uppercase;margin-bottom:4px;font-family:${DOT_MATRIX};">${esc(col.label)}</div>
+      <div style="font-size:17px;font-weight:900;color:${col.blue ? BLUE : INK};font-family:${DOT_MATRIX};">${esc(col.value)}</div>
+      ${col.sub ? `<div style="font-size:7.5px;color:#8a7a50;margin-top:2px;font-family:${DOT_MATRIX};">${esc(col.sub)}</div>` : ""}
     </div>`).join("")}
   </div>
 
-  <!-- seal + approval (left removed, seal centre-left, approval right) -->
-  <div style="display:flex;align-items:center;justify-content:center;gap:48px;padding:8px 64px 20px;">
+  <!-- divider -->
+  <div style="margin:0 54px;height:1px;background:linear-gradient(90deg,transparent,${GOLD},transparent);"></div>
+
+  <!-- seal + approval -->
+  <div style="display:flex;align-items:center;justify-content:center;gap:48px;padding:10px 64px 18px;">
     <!-- Approved seal SVG inline -->
     <svg width="108" height="108" viewBox="0 0 108 108" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="54" cy="54" r="52" stroke="#1d90e8" stroke-width="3" fill="#f0f7ff"/>
-      <circle cx="54" cy="54" r="40" stroke="#1d90e8" stroke-width="1.2" stroke-dasharray="4 3" fill="white"/>
+      <circle cx="54" cy="54" r="52" stroke="${BLUE}" stroke-width="3" fill="rgba(29,144,232,0.07)"/>
+      <circle cx="54" cy="54" r="40" stroke="${BLUE}" stroke-width="1.2" stroke-dasharray="4 3" fill="rgba(255,254,240,0.9)"/>
       <path id="sarc" d="M 54,54 m -44,0 a 44,44 0 1,1 88,0" fill="none"/>
-      <text font-size="11.3" font-family="Arial, sans-serif" font-weight="800" fill="#1d90e8" letter-spacing="1.5">
+      <text font-size="11.3" font-family="Arial, sans-serif" font-weight="800" fill="${BLUE}" letter-spacing="1.5">
         <textPath href="#sarc" startOffset="5%">APPROVED · TAPASHUB ·</textPath>
       </text>
       <g transform="translate(40,36)">
-        <path d="M14 2 L26 23 L2 23 Z" fill="#1a1a2e"/>
+        <path d="M14 2 L26 23 L2 23 Z" fill="${INK}"/>
         <path d="M14 9 L20 20 L8 20 Z" fill="white"/>
-        <circle cx="14" cy="13" r="3" fill="#1a1a2e"/>
+        <circle cx="14" cy="13" r="3" fill="${INK}"/>
       </g>
-      <text x="54" y="70" text-anchor="middle" font-size="12.4" font-family="Arial, sans-serif" font-weight="900" fill="#1a1a2e">SHARE TEAM</text>
-      <text x="54" y="84" text-anchor="middle" font-size="9.7" font-family="Arial, sans-serif" fill="#1d90e8" letter-spacing="2">★ ★ ★</text>
+      <text x="54" y="70" text-anchor="middle" font-size="12.4" font-family="Arial, sans-serif" font-weight="900" fill="${INK}">SHARE TEAM</text>
+      <text x="54" y="84" text-anchor="middle" font-size="9.7" font-family="Arial, sans-serif" fill="${BLUE}" letter-spacing="2">★ ★ ★</text>
     </svg>
 
     <!-- TapasHub Team approval -->
     <div style="text-align:center;">
-      <div style="font-size:28px;font-family:${DOT_MATRIX};color:#1d90e8;border-bottom:1.5px solid #bbb;padding-bottom:4px;margin-bottom:6px;">
+      <div style="font-size:28px;font-family:${DOT_MATRIX};color:${BLUE};border-bottom:1.5px solid ${GOLD};padding-bottom:4px;margin-bottom:6px;">
         TapasHub Team
       </div>
-      <div style="font-size:10px;font-weight:800;letter-spacing:2px;color:#1a1a2e;text-transform:uppercase;font-family:${DOT_MATRIX};">
+      <div style="font-size:10px;font-weight:800;letter-spacing:2px;color:${INK};text-transform:uppercase;font-family:${DOT_MATRIX};">
         APPROVED BY TAPASHUB TEAM
       </div>
-      <div style="font-size:9px;color:#666;margin-top:2px;font-family:${DOT_MATRIX};">Official Approval</div>
+      <div style="font-size:9px;color:#7a6a40;margin-top:2px;font-family:${DOT_MATRIX};">Official Approval</div>
     </div>
   </div>
 
+  </div><!-- end z-index:2 content wrapper -->
+
   <!-- footer -->
-  <div style="background:#f0f7ff;border-top:1px solid #c8dff8;text-align:center;padding:8px 36px;">
-    <div style="font-size:9px;font-weight:700;letter-spacing:2px;color:#666;text-transform:uppercase;font-family:${DOT_MATRIX};">
+  <div style="background:rgba(26,107,60,0.08);border-top:1px solid ${GOLD};text-align:center;padding:7px 36px;position:relative;z-index:2;">
+    <div style="font-size:8.5px;font-weight:700;letter-spacing:2.5px;color:#7a6a40;text-transform:uppercase;font-family:${DOT_MATRIX};">
       THANK YOU FOR BEING A VALUED PART OF OUR JOURNEY. · TAPASHUB.COM
     </div>
   </div>
 
-  <!-- bottom bar -->
-  <div style="height:6px;background:linear-gradient(90deg,#1a1a2e,#1d90e8,#1a1a2e);"></div>
+  <!-- bottom colour bar -->
+  <div style="height:6px;background:linear-gradient(90deg,${GREEN},${BLUE},${GREEN});position:relative;z-index:2;"></div>
 </div>
 </body>
 </html>`
@@ -247,122 +304,142 @@ function CertificateBody({ data }: { data: ShareCertificateData }) {
     : data.shares * faceValue
   const ownershipPct = data.ownershipPercent != null ? data.ownershipPercent.toFixed(2) : null
 
-  const cert: React.CSSProperties = {
+  const certStyle: React.CSSProperties = {
     width: "794px",
-    background: "white",
-    fontFamily: DOT_MATRIX,
-    color: "#1a1a2e",
-    border: "2.5px solid #1d90e8",
-    borderRadius: "6px",
-    overflow: "hidden",
     position: "relative",
+    backgroundColor: PAPER,
+    backgroundImage: guillocheUrl(),
+    backgroundSize: "220px 64px",
+    fontFamily: DOT_MATRIX,
+    color: INK,
+    border: `4px solid ${GREEN}`,
+    borderRadius: "4px",
+    overflow: "hidden",
   }
 
   return (
     <>
-      {/* Load VT323 dot-matrix font for the preview */}
       <style>{FONT_IMPORT}</style>
 
-      <div id="share-cert-root" style={cert}>
-        {/* Top bar */}
-        <div style={{ height: 6, background: "linear-gradient(90deg, #1a1a2e, #1d90e8, #1a1a2e)" }} />
+      <div id="share-cert-root" style={certStyle}>
+        {/* Inner border ring */}
+        <div style={{ position: "absolute", inset: 7, border: `1.5px solid ${BLUE}`, borderRadius: 2, pointerEvents: "none", zIndex: 1 }} />
 
-        {/* Header — 3-col grid: true centre for logo regardless of side widths */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "20px 44px 0" }}>
-          {/* Cert no */}
-          <div>
-            <div style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 2, color: "#888", textTransform: "uppercase" }}>Certificate No.</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#1d90e8", marginTop: 2 }}>{no}</div>
-          </div>
+        {/* Left security thread */}
+        <div style={{ position: "absolute", top: 0, left: 14, bottom: 0, width: 5, background: `linear-gradient(180deg,${GREEN},${BLUE},${GREEN},${BLUE},${GREEN})`, opacity: 0.18, zIndex: 1 }} />
+        {/* Right security thread */}
+        <div style={{ position: "absolute", top: 0, right: 14, bottom: 0, width: 5, background: `linear-gradient(180deg,${BLUE},${GREEN},${BLUE},${GREEN},${BLUE})`, opacity: 0.18, zIndex: 1 }} />
 
-          {/* Logo + wordmark — auto-width column, always centred */}
-          <div style={{ textAlign: "center" }}>
-            <img
-              src={LOGO_URL}
-              alt="TapasHub"
-              width={64} height={64}
-              style={{ objectFit: "contain", display: "block", margin: "0 auto" }}
-            />
-            <div style={{ marginTop: 4 }}>
-              <span style={{ fontSize: 22, fontWeight: 900, letterSpacing: -0.5, color: "#1a1a2e" }}>TAPAS</span>
-              <span style={{ fontSize: 22, fontWeight: 900, letterSpacing: -0.5, color: "#1d90e8", marginLeft: 4 }}>HUB</span>
+        {/* Large ₹ watermark */}
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none", zIndex: 0 }}>
+          <div style={{ fontSize: 280, color: "rgba(29,144,232,0.045)", fontFamily: "Georgia,serif", fontWeight: 900, lineHeight: 1, userSelect: "none" }}>₹</div>
+        </div>
+
+        {/* Corner ornaments */}
+        {[{top:11,left:11},{top:11,right:11},{bottom:22,left:11},{bottom:22,right:11}].map((pos,i) => (
+          <div key={i} style={{ position: "absolute", ...pos, fontSize: 18, color: GOLD, opacity: 0.6, lineHeight: 1, zIndex: 2 }}>◆</div>
+        ))}
+
+        {/* Top colour bar */}
+        <div style={{ height: 6, background: `linear-gradient(90deg,${GREEN},${BLUE},${GREEN})`, position: "relative", zIndex: 2 }} />
+
+        {/* ── All content above the watermark ── */}
+        <div style={{ position: "relative", zIndex: 2 }}>
+
+          {/* Header */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "20px 54px 0" }}>
+            <div>
+              <div style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 2, color: "#7a6a40", textTransform: "uppercase" }}>Certificate No.</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: BLUE, marginTop: 2 }}>{no}</div>
             </div>
-            <div style={{ fontSize: 8, fontWeight: 600, letterSpacing: 3, color: "#aaa", marginTop: 1 }}>CONNECT · EMPOWER · GROW</div>
-          </div>
-
-          {/* Date */}
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 2, color: "#888", textTransform: "uppercase" }}>Date of Issue</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1a2e", marginTop: 2 }}>{dateStr}</div>
-          </div>
-        </div>
-
-        {/* Title */}
-        <div style={{ textAlign: "center", margin: "16px 0 12px" }}>
-          <div style={{ display: "inline-block", padding: "4px 0", borderTop: "2px solid #1d90e8", borderBottom: "2px solid #1d90e8" }}>
-            <span style={{ fontSize: 28, fontWeight: 900, letterSpacing: 6, color: "#1a1a2e" }}>SHARE </span>
-            <span style={{ fontSize: 28, fontWeight: 900, letterSpacing: 6, color: "#1d90e8" }}>CERTIFICATE</span>
-          </div>
-        </div>
-
-        {/* Certify + holder */}
-        <div style={{ textAlign: "center", padding: "0 44px" }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#666", textTransform: "uppercase", marginBottom: 8 }}>
-            This is to certify that
-          </div>
-          <div style={{ fontSize: 34, color: "#1a1a2e", borderBottom: "1px dashed #bbb", paddingBottom: 6, marginBottom: 10 }}>
-            {data.holderName}
-          </div>
-          <div style={{ fontSize: 11, lineHeight: 1.8, color: "#444" }}>
-            is the registered shareholder of{" "}
-            <span style={{ color: "#1d90e8", fontWeight: 700 }}>{data.companyName.toUpperCase()}</span>
-            {" "}and is hereby allotted the fully paid-up equity shares of the Company
-            {ownershipPct && (
-              <>, <br/>holding <span style={{ fontWeight: 700, color: "#1a1a2e" }}>{ownershipPct}%</span> equity ownership,</>
-            )}
-            <br/>subject to the Memorandum and Articles of Association of the Company.
-          </div>
-        </div>
-
-        {/* Share details grid */}
-        <div style={{ margin: "16px 44px", border: "1.5px solid #1d90e8", borderRadius: 8, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
-          {[
-            { label: "NUMBER OF SHARES", value: data.shares.toLocaleString("en-IN"), sub: numToWords(data.shares) },
-            { label: "TYPE OF SHARES",   value: shareType, sub: "", blue: true },
-            { label: "FACE VALUE",       value: inr(faceValue),  sub: inrWords(faceValue) },
-            { label: "TOTAL VALUE",      value: inr(totalVal),   sub: inrWords(totalVal) },
-          ].map((col, i) => (
-            <div key={i} style={{ textAlign: "center", padding: "12px 8px", borderRight: i < 3 ? "1px solid #1d90e8" : "none" }}>
-              <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1.5, color: "#888", textTransform: "uppercase", marginBottom: 4 }}>{col.label}</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: col.blue ? "#1d90e8" : "#1a1a2e" }}>{col.value}</div>
-              {col.sub && <div style={{ fontSize: 7.5, color: "#888", marginTop: 2 }}>{col.sub}</div>}
+            <div style={{ textAlign: "center" }}>
+              <img src={LOGO_URL} alt="TapasHub" width={64} height={64} style={{ objectFit: "contain", display: "block", margin: "0 auto" }} />
+              <div style={{ marginTop: 4 }}>
+                <span style={{ fontSize: 22, fontWeight: 900, letterSpacing: -0.5, color: INK }}>TAPAS</span>
+                <span style={{ fontSize: 22, fontWeight: 900, letterSpacing: -0.5, color: BLUE, marginLeft: 4 }}>HUB</span>
+              </div>
+              <div style={{ fontSize: 8, fontWeight: 600, letterSpacing: 3, color: "#9a8a60", marginTop: 1 }}>CONNECT · EMPOWER · GROW</div>
             </div>
-          ))}
-        </div>
-
-        {/* Seal + approval only (left signature removed) */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 48, padding: "8px 64px 20px" }}>
-          <ApprovedSeal size={108} />
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 28, color: "#1d90e8", borderBottom: "1.5px solid #bbb", paddingBottom: 4, marginBottom: 6 }}>
-              TapasHub Team
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 2, color: "#7a6a40", textTransform: "uppercase" }}>Date of Issue</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: INK, marginTop: 2 }}>{dateStr}</div>
             </div>
-            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, color: "#1a1a2e", textTransform: "uppercase" }}>
-              APPROVED BY TAPASHUB TEAM
-            </div>
-            <div style={{ fontSize: 9, color: "#666", marginTop: 2 }}>Official Approval</div>
           </div>
-        </div>
+
+          {/* Gold divider */}
+          <div style={{ margin: "10px 54px 0", height: 1, background: `linear-gradient(90deg,transparent,${GOLD},transparent)` }} />
+
+          {/* Title */}
+          <div style={{ textAlign: "center", margin: "14px 0 10px" }}>
+            <div style={{ display: "inline-block", padding: "4px 18px", borderTop: `2px solid ${BLUE}`, borderBottom: `2px solid ${BLUE}` }}>
+              <span style={{ fontSize: 28, fontWeight: 900, letterSpacing: 6, color: INK }}>SHARE </span>
+              <span style={{ fontSize: 28, fontWeight: 900, letterSpacing: 6, color: BLUE }}>CERTIFICATE</span>
+            </div>
+          </div>
+
+          {/* Certify + holder */}
+          <div style={{ textAlign: "center", padding: "0 54px" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#7a6a40", textTransform: "uppercase", marginBottom: 8 }}>
+              This is to certify that
+            </div>
+            <div style={{ fontSize: 34, color: INK, borderBottom: `1px dashed ${GOLD}`, paddingBottom: 6, marginBottom: 10 }}>
+              {data.holderName}
+            </div>
+            <div style={{ fontSize: 11, lineHeight: 1.8, color: "#4a3a1a" }}>
+              is the registered shareholder of{" "}
+              <span style={{ color: BLUE, fontWeight: 700 }}>{data.companyName.toUpperCase()}</span>
+              {" "}and is hereby allotted the fully paid-up equity shares of the Company
+              {ownershipPct && (
+                <>, <br/>holding <span style={{ fontWeight: 700, color: INK }}>{ownershipPct}%</span> equity ownership,</>
+              )}
+              <br/>subject to the Memorandum and Articles of Association of the Company.
+            </div>
+          </div>
+
+          {/* Share details grid */}
+          <div style={{ margin: "14px 54px", border: `1.5px solid ${GOLD}`, borderRadius: 6, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", background: "rgba(255,252,220,0.6)" }}>
+            {[
+              { label: "NUMBER OF SHARES", value: data.shares.toLocaleString("en-IN"), sub: numToWords(data.shares) },
+              { label: "TYPE OF SHARES",   value: shareType, sub: "", blue: true },
+              { label: "FACE VALUE",       value: inr(faceValue), sub: inrWords(faceValue) },
+              { label: "TOTAL VALUE",      value: inr(totalVal),  sub: inrWords(totalVal) },
+            ].map((col, i) => (
+              <div key={i} style={{ textAlign: "center", padding: "12px 8px", borderRight: i < 3 ? `1px solid ${GOLD}` : "none" }}>
+                <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1.5, color: "#7a6a40", textTransform: "uppercase", marginBottom: 4 }}>{col.label}</div>
+                <div style={{ fontSize: 17, fontWeight: 900, color: col.blue ? BLUE : INK }}>{col.value}</div>
+                {col.sub && <div style={{ fontSize: 7.5, color: "#8a7a50", marginTop: 2 }}>{col.sub}</div>}
+              </div>
+            ))}
+          </div>
+
+          {/* Gold divider */}
+          <div style={{ margin: "0 54px", height: 1, background: `linear-gradient(90deg,transparent,${GOLD},transparent)` }} />
+
+          {/* Seal + approval */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 48, padding: "10px 64px 18px" }}>
+            <ApprovedSeal size={108} />
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 28, color: BLUE, borderBottom: `1.5px solid ${GOLD}`, paddingBottom: 4, marginBottom: 6 }}>
+                TapasHub Team
+              </div>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, color: INK, textTransform: "uppercase" }}>
+                APPROVED BY TAPASHUB TEAM
+              </div>
+              <div style={{ fontSize: 9, color: "#7a6a40", marginTop: 2 }}>Official Approval</div>
+            </div>
+          </div>
+
+        </div>{/* end content wrapper */}
 
         {/* Footer */}
-        <div style={{ background: "#f0f7ff", borderTop: "1px solid #c8dff8", textAlign: "center", padding: "8px 36px" }}>
-          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: "#666", textTransform: "uppercase" }}>
+        <div style={{ background: "rgba(26,107,60,0.08)", borderTop: `1px solid ${GOLD}`, textAlign: "center", padding: "7px 36px", position: "relative", zIndex: 2 }}>
+          <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: 2.5, color: "#7a6a40", textTransform: "uppercase" }}>
             THANK YOU FOR BEING A VALUED PART OF OUR JOURNEY. · TAPASHUB.COM
           </div>
         </div>
 
-        {/* Bottom bar */}
-        <div style={{ height: 6, background: "linear-gradient(90deg, #1a1a2e, #1d90e8, #1a1a2e)" }} />
+        {/* Bottom colour bar */}
+        <div style={{ height: 6, background: `linear-gradient(90deg,${GREEN},${BLUE},${GREEN})`, position: "relative", zIndex: 2 }} />
       </div>
     </>
   )

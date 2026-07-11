@@ -79,7 +79,10 @@ const geminiProvider: AiProvider = {
       model: "gemini-2.5-flash",
       contents,
       config: {
-        maxOutputTokens: 8192,
+        // Disable thinking for structured JSON tasks — thinking tokens consume
+        // output budget and cause the JSON to be truncated mid-response.
+        thinkingConfig: { thinkingBudget: 0 },
+        maxOutputTokens: 16384,
         systemInstruction: systemPrompt,
       },
     });

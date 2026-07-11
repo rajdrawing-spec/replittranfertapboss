@@ -77,3 +77,6 @@ channel = "stable-25_05"
 [userenv.shared]
 EMAIL_FROM = "team@tapashub.com"
 APP_URL = "https://tapboss.tapashub.com"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-8067da3a-3800-4a0f-8aa6-026d2343b53d"

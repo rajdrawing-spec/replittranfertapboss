@@ -82,8 +82,11 @@ function buildCertHTML(data: ShareCertificateData): string {
   const no        = certNo(data.id, issueDate)
   const dateStr   = issueDate.toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })
   const shareType = data.shareType ?? "EQUITY SHARES"
-  const faceValue = data.sharePrice ?? 10
-  const totalVal  = data.investmentAmount ?? (data.shares * faceValue)
+  const faceValue = data.sharePrice && data.sharePrice > 0 ? data.sharePrice : 10
+  // If investmentAmount is missing or zero, derive it from shares × face value
+  const totalVal  = data.investmentAmount && data.investmentAmount > 0
+    ? data.investmentAmount
+    : data.shares * faceValue
   const ownershipPct = data.ownershipPercent != null ? data.ownershipPercent.toFixed(2) : null
 
   // Escape helper
@@ -237,8 +240,11 @@ function CertificateBody({ data }: { data: ShareCertificateData }) {
   const no        = certNo(data.id, issueDate)
   const dateStr   = issueDate.toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })
   const shareType = data.shareType ?? "EQUITY SHARES"
-  const faceValue = data.sharePrice ?? 10
-  const totalVal  = data.investmentAmount ?? (data.shares * faceValue)
+  const faceValue = data.sharePrice && data.sharePrice > 0 ? data.sharePrice : 10
+  // If investmentAmount is missing or zero, derive it from shares × face value
+  const totalVal  = data.investmentAmount && data.investmentAmount > 0
+    ? data.investmentAmount
+    : data.shares * faceValue
   const ownershipPct = data.ownershipPercent != null ? data.ownershipPercent.toFixed(2) : null
 
   const cert: React.CSSProperties = {

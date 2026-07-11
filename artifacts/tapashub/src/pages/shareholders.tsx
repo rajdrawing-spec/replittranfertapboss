@@ -59,6 +59,14 @@ const pct = (n: number | null | undefined) => n != null ? `${n > 0 ? "+" : ""}${
 const ROLE_LABELS: Record<string, string> = {
   founder: "Founder", investor: "Investor", employee: "Employee (ESOP)", advisor: "Advisor", institutional: "Institutional",
 }
+// Maps shareholder role → share type label printed on the certificate
+const SHARE_TYPE_LABELS: Record<string, string> = {
+  founder: "FOUNDER SHARES",
+  investor: "EQUITY SHARES",
+  employee: "EMPLOYEE ESOP",
+  advisor: "ADVISOR SHARES",
+  institutional: "INSTITUTIONAL SHARES",
+}
 const ROLE_STYLES: Record<string, string> = {
   founder: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   investor: "bg-green-500/10 text-green-400 border-green-500/20",
@@ -160,6 +168,8 @@ function MyHoldingsView() {
                           shares: h.shares,
                           sharePrice: h.sharePrice,
                           investmentAmount: h.investmentAmount,
+                          shareType: SHARE_TYPE_LABELS[h.role] ?? "EQUITY SHARES",
+                          ownershipPercent: h.ownershipPercent,
                           joinedDate: h.joinedDate,
                         })}
                       >
@@ -551,6 +561,8 @@ function AdminShareholdersView() {
                           shares: h.shares,
                           sharePrice: h.sharePrice,
                           investmentAmount: h.investmentAmount,
+                          shareType: SHARE_TYPE_LABELS[h.role] ?? "EQUITY SHARES",
+                          ownershipPercent: h.ownershipPercent,
                           joinedDate: h.joinedDate,
                         })}
                       >

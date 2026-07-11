@@ -15,6 +15,7 @@ export interface ShareCertificateData {
   sharePrice:       number
   investmentAmount: number
   shareType?:       string
+  ownershipPercent?: number
   joinedDate?:      string | null
 }
 
@@ -83,6 +84,7 @@ function buildCertHTML(data: ShareCertificateData): string {
   const shareType = data.shareType ?? "EQUITY SHARES"
   const faceValue = data.sharePrice ?? 10
   const totalVal  = data.investmentAmount ?? (data.shares * faceValue)
+  const ownershipPct = data.ownershipPercent != null ? data.ownershipPercent.toFixed(2) : null
 
   // Escape helper
   const esc = (s: string) => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
@@ -164,7 +166,7 @@ body { display: flex; justify-content: center; align-items: flex-start; padding:
     <div style="font-size:11px;line-height:1.8;color:#444;font-family:${DOT_MATRIX};">
       is the registered shareholder of
       <span style="color:#1d90e8;font-weight:700;"> ${esc(data.companyName.toUpperCase())}</span>
-      and is hereby allotted the fully paid-up equity shares of the Company<br/>
+      and is hereby allotted the fully paid-up equity shares of the Company${ownershipPct ? `,<br/>holding <span style="font-weight:700;color:#1a1a2e;">${ownershipPct}%</span> equity ownership,` : ""}<br/>
       subject to the Memorandum and Articles of Association of the Company.
     </div>
   </div>
@@ -237,6 +239,7 @@ function CertificateBody({ data }: { data: ShareCertificateData }) {
   const shareType = data.shareType ?? "EQUITY SHARES"
   const faceValue = data.sharePrice ?? 10
   const totalVal  = data.investmentAmount ?? (data.shares * faceValue)
+  const ownershipPct = data.ownershipPercent != null ? data.ownershipPercent.toFixed(2) : null
 
   const cert: React.CSSProperties = {
     width: "794px",
@@ -308,6 +311,9 @@ function CertificateBody({ data }: { data: ShareCertificateData }) {
             is the registered shareholder of{" "}
             <span style={{ color: "#1d90e8", fontWeight: 700 }}>{data.companyName.toUpperCase()}</span>
             {" "}and is hereby allotted the fully paid-up equity shares of the Company
+            {ownershipPct && (
+              <>, <br/>holding <span style={{ fontWeight: 700, color: "#1a1a2e" }}>{ownershipPct}%</span> equity ownership,</>
+            )}
             <br/>subject to the Memorandum and Articles of Association of the Company.
           </div>
         </div>

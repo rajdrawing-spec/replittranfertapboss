@@ -1,0 +1,447 @@
+Here's a comprehensive prompt you can give to Replit to build a professional share valuation and cap table system for TapasHub and all parent/subsidiary companies.
+
+---
+
+# Replit Prompt: Build Enterprise Share Management & Valuation System for TapasHub
+
+## Objective
+
+Replace the current static Share Certificate module with a professional Company Equity Management System that automatically calculates company valuation, share price, shareholder ownership, and group-wide equity across TapasHub and all subsidiaries.
+
+This should work similar to professional ERP systems and startup cap table software.
+
+---
+
+# Company Structure
+
+```
+TapasHub Holdings (Parent Company)
+│
+├── HugFab
+├── TikkaTails
+├── TottoToy
+├── TargetGum
+├── Future Companies...
+```
+
+Every company should have:
+
+* Independent finances
+* Independent shareholders
+* Independent valuation
+* Independent cap table
+
+The parent company should also display consolidated group ownership.
+
+---
+
+# Share Types
+
+Support multiple share classes.
+
+* Equity Shares
+* Founder Shares
+* Preference Shares
+* Employee ESOP
+* Angel Investment
+* Venture Capital
+* Treasury Shares
+
+Each type must have different rights if needed.
+
+---
+
+# Face Value
+
+Store permanently.
+
+Example
+
+```
+Face Value = ₹10
+
+or
+
+₹100
+```
+
+Face value should NEVER automatically change.
+
+---
+
+# Issue Price
+
+When issuing shares
+
+Example
+
+```
+Face Value = ₹10
+
+Issue Price = ₹250
+```
+
+The premium should automatically go into
+
+```
+Share Premium Account
+```
+
+---
+
+# Outstanding Shares
+
+Track
+
+* Authorized Shares
+* Issued Shares
+* Outstanding Shares
+* Treasury Shares
+* Cancelled Shares
+
+Automatically update after every transaction.
+
+---
+
+# Company Valuation
+
+Automatically calculate.
+
+Formula
+
+```
+Company Net Worth
+
+=
+
+Total Assets
+
+-
+
+Total Liabilities
+```
+
+Assets include
+
+* Treasury Balance
+* Bank Accounts
+* Inventory
+* Fixed Assets
+* Investments
+* Receivables
+* Cash
+* Digital Assets
+* IP Value (optional)
+
+Liabilities
+
+* Loans
+* Vendor Payments
+* Salaries
+* Taxes
+* Creditors
+
+---
+
+# Book Value Per Share
+
+Automatically calculate
+
+```
+Book Value Per Share
+
+=
+
+Net Worth
+
+/
+
+Outstanding Shares
+```
+
+Update instantly whenever finances change.
+
+---
+
+# Market Value (Estimated)
+
+Create an AI-powered valuation engine.
+
+AI should consider
+
+* Revenue Growth
+* Profit Growth
+* Cash Flow
+* Active Customers
+* Company Age
+* Industry Multiples
+* Inventory Value
+* Monthly Growth Rate
+* Assets
+* Liabilities
+
+Generate
+
+```
+Estimated Market Value
+
+Estimated Share Price
+```
+
+This should be separate from Book Value.
+
+---
+
+# Shareholder Portfolio
+
+Every shareholder should see
+
+* Shares Owned
+* Ownership %
+* Investment Amount
+* Current Book Value
+* Current Estimated Market Value
+* Profit/Loss
+* Dividend Received
+* Voting Rights
+
+Formula
+
+```
+Ownership %
+
+=
+
+Shares Owned
+
+/
+
+Outstanding Shares
+
+×100
+```
+
+---
+
+# Share Certificate
+
+Certificate must always display
+
+* Certificate Number
+* Issue Date
+* Shareholder Name
+* Company Name
+* Share Type
+* Number of Shares
+* Face Value
+* Issue Price
+* Total Investment
+* Current Book Value
+* Ownership Percentage
+* QR Verification
+* Digital Signature
+* Blockchain-style Verification Hash (optional)
+
+Do NOT use current market value on the certificate because it changes frequently.
+
+---
+
+# Parent Company Dashboard
+
+TapasHub should automatically display
+
+```
+Total Group Assets
+
+Total Group Liabilities
+
+Total Group Net Worth
+
+Total Companies
+
+Total Shareholders
+
+Total Shares Issued
+
+Group Book Value
+
+Group Estimated Market Value
+```
+
+---
+
+# Subsidiary Dashboard
+
+Each company should have
+
+```
+Revenue
+
+Expenses
+
+Profit
+
+Treasury
+
+Working Capital
+
+Net Worth
+
+Book Value
+
+Estimated Market Value
+
+Shareholders
+
+Cap Table
+```
+
+---
+
+# Cap Table
+
+Professional cap table.
+
+Display
+
+| Shareholder | Shares | % Ownership | Investment | Current Value |
+
+Automatically update after every transaction.
+
+---
+
+# Investment Module
+
+When new investment arrives
+
+Automatically
+
+Increase Treasury
+
+Issue Shares
+
+Update Cap Table
+
+Update Ownership %
+
+Update Company Valuation
+
+Generate Share Certificate
+
+Update Parent Company
+
+---
+
+# Buyback Module
+
+Support
+
+* Share Buyback
+* Share Cancellation
+* Treasury Shares
+* Reissue Shares
+
+Automatically update ownership.
+
+---
+
+# Dividend Module
+
+When dividend declared
+
+Calculate
+
+```
+Dividend
+
+=
+
+Dividend Per Share
+
+×
+
+Shares Owned
+```
+
+Automatically credit shareholder accounts.
+
+---
+
+# AI Business Intelligence
+
+AI should continuously monitor
+
+* Revenue
+* Expenses
+* Cash Flow
+* Burn Rate
+* Growth Rate
+* Profit Margin
+* Company Valuation
+* Share Dilution
+* Funding Needs
+
+Provide recommendations such as
+
+* Raise new funding
+* Buy back shares
+* Declare dividends
+* Reduce expenses
+* Improve cash flow
+* Optimize working capital
+* Predict next 12 months valuation
+
+---
+
+# Charts
+
+Create professional charts
+
+* Company Valuation History
+* Book Value Per Share
+* Estimated Share Price
+* Revenue Growth
+* Profit Growth
+* Share Ownership Pie Chart
+* Cap Table Changes
+* Treasury Growth
+* Parent vs Subsidiary Performance
+
+---
+
+# Audit Trail
+
+Every equity transaction must be logged.
+
+Record
+
+* User
+* Date
+* Time
+* IP
+* Previous Value
+* New Value
+* Approval Status
+
+No share transaction should ever be deleted.
+
+Only allow reversal with a complete audit trail.
+
+---
+
+# Validation Rules
+
+Prevent inconsistent data.
+
+For example:
+
+* `Outstanding Shares × Face Value` should equal the recorded share capital.
+* Ownership percentages across all shareholders must total **100%** (unless treasury shares are excluded by design).
+* Prevent issuing more shares than the authorized share capital.
+* Automatically recalculate all ownership percentages after issuing, transferring, buying back, or cancelling shares.
+* Keep parent and subsidiary valuations separate while also maintaining a consolidated group view.
+* Prevent duplicate certificate numbers and duplicate share issuance.
+
+---
+
+This implementation will give TapasHub an enterprise-grade equity management system comparable to professional cap table and ERP platforms, with automatic valuation, shareholder management, consolidated parent-company reporting, AI-driven insights, and a complete audit trail.

@@ -97,7 +97,7 @@ router.post("/ai/analyse/:companyId", requirePermission("ai.read"), async (req, 
     );
 
     // Parse JSON — strip any accidental markdown fences
-    const jsonStr = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+    const jsonStr = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(jsonStr);
@@ -217,7 +217,7 @@ router.post("/ai/executive", requirePermission("ai.read"), async (req, res) => {
       EXECUTIVE_SYSTEM_PROMPT,
     );
 
-    const jsonStr = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+    const jsonStr = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(jsonStr);
@@ -605,7 +605,7 @@ router.post("/ai/valuation/:companyId", requirePermission("ai.read"), async (req
       VALUATION_SYSTEM_PROMPT,
     );
 
-    const jsonStr = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+    const jsonStr = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
     let parsed: Record<string, unknown>;
     try { parsed = JSON.parse(jsonStr); }
     catch {
@@ -746,7 +746,7 @@ router.post("/ai/predictions/:companyId", requirePermission("ai.read"), async (r
       PREDICTIONS_SYSTEM_PROMPT,
     );
 
-    const jsonStr = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+    const jsonStr = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
     let parsed: Record<string, unknown>;
     try { parsed = JSON.parse(jsonStr); }
     catch {
@@ -831,7 +831,7 @@ router.post("/ai/market/:companyId", requirePermission("ai.read"), async (req, r
       MARKET_SYSTEM_PROMPT,
     );
 
-    const jsonStr = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+    const jsonStr = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
     let parsed: Record<string, unknown>;
     try { parsed = JSON.parse(jsonStr); }
     catch {

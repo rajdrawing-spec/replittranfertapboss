@@ -1,0 +1,171 @@
+Here's a professional Replit prompt you can use:
+
+---
+
+# Improve Share Certificate & Investment Tracking
+
+The current share certificate only displays the **Face Value** of the shares. While this is legally correct, TapasHub is an AI-powered business and investment platform, so shareholders should also be able to see how much they actually invested and how their investment has grown over time.
+
+## Do NOT change the accounting logic
+
+Keep the existing accounting structure:
+
+* **Share Capital = Number of Shares × Face Value**
+* **Share Premium = Investment Amount − Share Capital**
+* Store both separately in the database.
+
+Example:
+
+* Shares: 769
+* Face Value: ₹100
+* Share Capital: ₹76,900
+* Investment Amount: ₹1,25,000
+* Share Premium: ₹48,100
+
+This follows standard corporate accounting practices.
+
+---
+
+# Improve the Share Certificate
+
+Add the following fields to every share certificate:
+
+* Number of Shares
+* Share Type
+* Face Value per Share
+* Issue Price per Share
+* Total Face Value
+* **Total Amount Paid (Investment Amount)**
+* Share Premium
+* Ownership Percentage
+* Certificate Number
+* Issue Date
+* QR Verification Code
+* Digital Signature
+
+Do **not** replace Face Value with Investment Amount. Display both clearly.
+
+---
+
+# Add Live Investment Information
+
+Each shareholder should also see:
+
+* Initial Investment
+* Current Book Value
+* Estimated Market Value (AI Estimated)
+* Profit / Loss
+* Return %
+* Ownership Percentage
+
+Example:
+
+Initial Investment: ₹1,25,000
+
+Current Book Value: ₹1,48,300
+
+Estimated Market Value: ₹2,35,000
+
+Profit: ₹1,10,000 (+88%)
+
+Ownership: 12.45%
+
+---
+
+# Company Valuation Engine
+
+Automatically calculate:
+
+### Share Capital
+
+Share Capital = Outstanding Shares × Face Value
+
+### Share Premium
+
+Share Premium = Total Investment Received − Share Capital
+
+### Net Worth
+
+Net Worth = Total Assets − Total Liabilities
+
+### Book Value Per Share
+
+Book Value Per Share = Net Worth ÷ Outstanding Shares
+
+### Estimated Market Value
+
+Use AI to estimate market value based on:
+
+* Revenue
+* Profit
+* Cash Flow
+* Growth Rate
+* Assets
+* Liabilities
+* Industry Multiples
+* Customer Growth
+* Business Performance
+
+Clearly label this as **"AI Estimated Market Value"** since it is an estimate and not an official valuation.
+
+---
+
+# Cap Table Improvements
+
+For every shareholder display:
+
+* Shareholder Name
+* Shares Owned
+* Ownership %
+* Face Value
+* Issue Price
+* Investment Amount
+* Share Premium
+* Current Book Value
+* Estimated Market Value
+* Profit/Loss
+
+---
+
+# Parent & Subsidiary Support
+
+This system must work for:
+
+* TapasHub (Parent Company)
+* HugFab
+* TikkaTails
+* TottoToy
+* TargetGum
+* Any future subsidiary
+
+Each company should have:
+
+* Independent Cap Table
+* Independent Share Certificates
+* Independent Share Capital
+* Independent Share Premium
+* Independent Valuation
+
+The parent dashboard should also display a **consolidated group valuation** across all subsidiaries.
+
+---
+
+# AI Insights
+
+Add an AI section explaining valuation changes.
+
+Example:
+
+* Book Value increased by 8.2% this month because retained earnings increased.
+* Estimated Market Value increased due to 25% revenue growth.
+* Ownership remained unchanged because no new shares were issued.
+* Consider raising investment after reaching your next revenue milestone.
+
+---
+
+# Important
+
+* Do **not** overwrite or replace legal accounting values.
+* Face Value, Share Capital, Investment Amount, Share Premium, Book Value, and AI Estimated Market Value are all different concepts and must be stored and displayed separately.
+* Ensure every transaction automatically updates the cap table, shareholder portfolio, certificates (where appropriate), company valuation, and parent company consolidated reports.
+* Keep a complete audit trail for all equity-related transactions. This ensures the system remains compliant, transparent, and suitable for future investors and due diligence.

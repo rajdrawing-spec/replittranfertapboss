@@ -521,6 +521,12 @@ function AdminShareholdersView() {
     enabled: !!companyId,
   })
 
+  const { data: aiValuation } = useQuery<AiValuation | null>({
+    queryKey: ["/api/ai/valuation", companyId],
+    queryFn: () => companyId ? adminApi.get(`/ai/valuation/${companyId}`).catch(() => null) : Promise.resolve(null),
+    enabled: !!companyId,
+  })
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["/api/shareholders"] })
     qc.invalidateQueries({ queryKey: ["/api/shareholders/cap-table"] })
@@ -631,6 +637,9 @@ function AdminShareholdersView() {
                 <TableHead className="text-right">Ownership</TableHead>
                 <TableHead className="text-right">Invested</TableHead>
                 <TableHead className="text-right">Equity Value</TableHead>
+                <TableHead className="text-right">Share Premium</TableHead>
+                {aiValuation && <TableHead className="text-right">Book Value</TableHead>}
+                {aiValuation && <TableHead className="text-right">Est. Mkt Val</TableHead>}
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Certificate</TableHead>
                 {canManage && <TableHead className="text-right">Actions</TableHead>}
@@ -660,6 +669,11 @@ function AdminShareholdersView() {
                     <TableCell className="text-right font-semibold">{h.ownershipPercent.toFixed(2)}%</TableCell>
                     <TableCell className="text-right text-muted-foreground">{inr(h.investmentAmount)}</TableCell>
                     <TableCell className="text-right">{cap && cap.totalShares > 0 ? inr((h.shares / cap.totalShares) * cap.valuation) : "—"}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {h.investmentAmount > 0 && h.sharePrice > 0 ? inr(h.investmentAmount - h.shares * h.sharePrice) : "—"}
+                    </TableCell>
+                    {aiValuation && <TableCell className="text-right">{aiValuation.bookValuePerShare ? inr(h.shares * aiValuation.bookValuePerShare) : "—"}</TableCell>}
+                    {aiValuation && <TableCell className={`text-right ${aiValuation.estimatedSharePrice && h.investmentAmount > 0 ? (h.shares * aiValuation.estimatedSharePrice > h.investmentAmount ? "text-green-400" : "text-red-400") : ""}`}>{aiValuation.estimatedSharePrice ? inr(h.shares * aiValuation.estimatedSharePrice) : "—"}</TableCell>}
                     <TableCell>
                       <Badge variant="outline" className={h.status === "active" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-muted text-muted-foreground"}>
                         {h.status === "active" ? "Active" : "Exited"}
@@ -676,8 +690,9 @@ function AdminShareholdersView() {
                           shares: h.shares,
                           sharePrice: h.sharePrice,
                           investmentAmount: h.investmentAmount,
-                          // Real per-share value from company cap-table valuation
-                          estimatedSharePrice: cap && cap.totalShares > 0 ? cap.valuation / cap.totalShares : undefined,
+                          // AI estimated price preferred; fall back to cap-table derived price
+                          estimatedSharePrice: aiValuation?.estimatedSharePrice ?? (cap && cap.totalShares > 0 ? cap.valuation / cap.totalShares : undefined),
+                          bookValuePerShare: aiValuation?.bookValuePerShare ?? undefined,
                           shareType: SHARE_TYPE_LABELS[h.role] ?? "EQUITY SHARES",
                           ownershipPercent: h.ownershipPercent,
                           joinedDate: h.joinedDate,

@@ -15,6 +15,7 @@ export interface ShareCertificateData {
   sharePrice:       number       // price per share at issue (face value shown on cert)
   investmentAmount: number       // actual cash invested by this shareholder
   estimatedSharePrice?: number   // current fair-value per share from company valuation
+  bookValuePerShare?: number      // book value per share from AI valuation
   shareType?:       string
   ownershipPercent?: number
   joinedDate?:      string | null
@@ -105,13 +106,55 @@ function buildCertHTML(data: ShareCertificateData): string {
   const no        = certNo(data.id, issueDate)
   const dateStr   = issueDate.toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })
   const shareType = data.shareType ?? "EQUITY SHARES"
-  const faceValue = data.sharePrice && data.sharePrice > 0 ? data.sharePrice : 10
-  // Total value on a share certificate = Face Value × Number of Shares
-  const totalVal = data.shares * faceValue
-  const ownershipPct = data.ownershipPercent != null ? data.ownershipPercent.toFixed(2) : null
+  const faceValue      = data.sharePrice && data.sharePrice > 0 ? data.sharePrice : 10
+  const issuePrice     = data.investmentAmount > 0 && data.shares > 0 ? data.investmentAmount / data.shares : faceValue
+  const totalFaceValue = data.shares * faceValue
+  const sharePremium   = data.investmentAmount > 0 ? data.investmentAmount - totalFaceValue : 0
+  const bookVal        = data.bookValuePerShare && data.bookValuePerShare > 0 ? data.shares * data.bookValuePerShare : null
+  const estMktVal      = data.estimatedSharePrice && data.estimatedSharePrice > 0 ? data.shares * data.estimatedSharePrice : null
+  const pl             = estMktVal != null && data.investmentAmount > 0 ? estMktVal - data.investmentAmount : null
+  const retPct         = pl != null && data.investmentAmount > 0 ? (pl / data.investmentAmount) * 100 : null
+  const hasAI          = bookVal != null || estMktVal != null
+  const ownershipPct   = data.ownershipPercent != null ? data.ownershipPercent.toFixed(2) : null
 
   // Escape helper
   const esc = (s: string) => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+
+  // Grid row builder for the share details table
+  const gridRow = (cells: Array<{label: string; val: string; sub: string; color: string}>, borderBottom: boolean, bg = "") =>
+    `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;${borderBottom ? `border-bottom:1px solid ${GOLD};` : ""}${bg}">` +
+    cells.map((c, i) =>
+      `<div style="text-align:center;padding:10px 6px;${i < 3 ? `border-right:1px solid ${GOLD};` : ""}">` +
+      `<div style="font-size:7px;font-weight:700;letter-spacing:1.5px;color:#7a6a40;text-transform:uppercase;margin-bottom:3px;font-family:${DOT_MATRIX};">${c.label}</div>` +
+      `<div style="font-size:14px;font-weight:900;color:${c.color};font-family:${DOT_MATRIX};">${c.val}</div>` +
+      (c.sub ? `<div style="font-size:7px;color:#8a7a50;margin-top:2px;font-family:${DOT_MATRIX};">${c.sub}</div>` : "") +
+      `</div>`
+    ).join("") + `</div>`
+
+  const plColor  = pl != null ? (pl >= 0 ? GREEN : "#c0392b") : INK
+  const retColor = retPct != null ? (retPct >= 0 ? GREEN : "#c0392b") : INK
+
+  const gridHtml =
+    `<div style="margin:14px 54px;border:1.5px solid ${GOLD};border-radius:6px;overflow:hidden;background:rgba(255,252,220,0.6);">` +
+    gridRow([
+      { label: "NUMBER OF SHARES",    val: esc(data.shares.toLocaleString("en-IN")), sub: esc(numToWords(data.shares)),    color: INK  },
+      { label: "TYPE OF SHARES",      val: esc(shareType),                            sub: "",                              color: BLUE },
+      { label: "FACE VALUE / SHARE",  val: esc(inr(faceValue)),                       sub: esc(inrWords(faceValue)),        color: INK  },
+      { label: "ISSUE PRICE / SHARE", val: esc(inr(issuePrice)),                      sub: issuePrice !== faceValue ? "AT PREMIUM" : "AT PAR", color: INK },
+    ], true) +
+    gridRow([
+      { label: "TOTAL FACE VALUE", val: esc(inr(totalFaceValue)),   sub: esc(inrWords(totalFaceValue)), color: INK  },
+      { label: "AMOUNT PAID",      val: data.investmentAmount > 0 ? esc(inr(data.investmentAmount)) : "&#8212;", sub: data.investmentAmount > 0 ? esc(inrWords(data.investmentAmount)) : "", color: INK },
+      { label: "SHARE PREMIUM",    val: sharePremium > 0 ? esc(inr(sharePremium)) : "&#8212;", sub: sharePremium > 0 ? esc(inrWords(sharePremium)) : "", color: sharePremium > 0 ? GOLD : INK },
+      { label: "OWNERSHIP",        val: ownershipPct ? esc(ownershipPct + "%") : "&#8212;", sub: "EQUITY STAKE", color: INK },
+    ], hasAI) +
+    (hasAI ? gridRow([
+      { label: "BOOK VALUE",        val: bookVal != null ? esc(inr(bookVal)) : "&#8212;",     sub: "AI ESTIMATED", color: INK  },
+      { label: "EST. MARKET VALUE", val: estMktVal != null ? esc(inr(estMktVal)) : "&#8212;", sub: "AI ESTIMATED", color: BLUE },
+      { label: "PROFIT / LOSS",     val: pl != null ? esc((pl >= 0 ? "+" : "\u2212") + inr(Math.abs(Math.round(pl)))) : "&#8212;", sub: retPct != null ? (retPct >= 0 ? "+" : "") + retPct.toFixed(1) + "%" : "", color: plColor },
+      { label: "RETURN %",          val: retPct != null ? esc((retPct >= 0 ? "+" : "") + retPct.toFixed(1) + "%") : "&#8212;", sub: "ON INVESTMENT", color: retColor },
+    ], false, "background:rgba(29,144,232,0.06);") : "") +
+    `</div>`
 
   const guillocheCSS = `url("data:image/svg+xml,${encodeURIComponent(GUILLOCHE_SVG)}")`
 
@@ -225,20 +268,8 @@ body { display: flex; justify-content: center; align-items: flex-start; padding:
     </div>
   </div>
 
-  <!-- share details grid -->
-  <div style="margin:14px 54px;border:1.5px solid ${GOLD};border-radius:6px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;background:rgba(255,252,220,0.6);">
-    ${[
-      { label: "NUMBER OF SHARES", value: data.shares.toLocaleString("en-IN"), sub: numToWords(data.shares) },
-      { label: "TYPE OF SHARES",   value: shareType,  sub: "", blue: true },
-      { label: "FACE VALUE",       value: inr(faceValue),  sub: inrWords(faceValue) },
-      { label: "TOTAL VALUE",      value: inr(totalVal),   sub: inrWords(totalVal) },
-    ].map((col, i) => `
-    <div style="text-align:center;padding:12px 8px;${i < 3 ? `border-right:1px solid ${GOLD};` : ""}">
-      <div style="font-size:8px;font-weight:700;letter-spacing:1.5px;color:#7a6a40;text-transform:uppercase;margin-bottom:4px;font-family:${DOT_MATRIX};">${esc(col.label)}</div>
-      <div style="font-size:17px;font-weight:900;color:${col.blue ? BLUE : INK};font-family:${DOT_MATRIX};">${esc(col.value)}</div>
-      ${col.sub ? `<div style="font-size:7.5px;color:#8a7a50;margin-top:2px;font-family:${DOT_MATRIX};">${esc(col.sub)}</div>` : ""}
-    </div>`).join("")}
-  </div>
+  <!-- share details grid (2 rows + optional AI row) -->
+  ${gridHtml}
 
   <!-- divider -->
   <div style="margin:0 54px;height:1px;background:linear-gradient(90deg,transparent,${GOLD},transparent);"></div>
@@ -296,10 +327,18 @@ function CertificateBody({ data }: { data: ShareCertificateData }) {
   const no        = certNo(data.id, issueDate)
   const dateStr   = issueDate.toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })
   const shareType = data.shareType ?? "EQUITY SHARES"
-  const faceValue = data.sharePrice && data.sharePrice > 0 ? data.sharePrice : 10
-  // Total value on a share certificate = Face Value × Number of Shares
-  const totalVal = data.shares * faceValue
-  const ownershipPct = data.ownershipPercent != null ? data.ownershipPercent.toFixed(2) : null
+  const faceValue      = data.sharePrice && data.sharePrice > 0 ? data.sharePrice : 10
+  const issuePrice     = data.investmentAmount > 0 && data.shares > 0 ? data.investmentAmount / data.shares : faceValue
+  const totalFaceValue = data.shares * faceValue
+  const sharePremium   = data.investmentAmount > 0 ? data.investmentAmount - totalFaceValue : 0
+  const bookVal        = data.bookValuePerShare && data.bookValuePerShare > 0 ? data.shares * data.bookValuePerShare : null
+  const estMktVal      = data.estimatedSharePrice && data.estimatedSharePrice > 0 ? data.shares * data.estimatedSharePrice : null
+  const pl             = estMktVal != null && data.investmentAmount > 0 ? estMktVal - data.investmentAmount : null
+  const retPct         = pl != null && data.investmentAmount > 0 ? (pl / data.investmentAmount) * 100 : null
+  const hasAI          = bookVal != null || estMktVal != null
+  const ownershipPct   = data.ownershipPercent != null ? data.ownershipPercent.toFixed(2) : null
+  const plColor        = pl != null ? (pl >= 0 ? GREEN : "#c0392b") : INK
+  const retColor       = retPct != null ? (retPct >= 0 ? GREEN : "#c0392b") : INK
 
   const certStyle: React.CSSProperties = {
     width: "794px",
@@ -393,20 +432,55 @@ function CertificateBody({ data }: { data: ShareCertificateData }) {
             </div>
           </div>
 
-          {/* Share details grid */}
-          <div style={{ margin: "14px 54px", border: `1.5px solid ${GOLD}`, borderRadius: 6, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", background: "rgba(255,252,220,0.6)" }}>
-            {[
-              { label: "NUMBER OF SHARES", value: data.shares.toLocaleString("en-IN"), sub: numToWords(data.shares) },
-              { label: "TYPE OF SHARES",   value: shareType, sub: "", blue: true },
-              { label: "FACE VALUE",       value: inr(faceValue), sub: inrWords(faceValue) },
-              { label: "TOTAL VALUE",      value: inr(totalVal),  sub: inrWords(totalVal) },
-            ].map((col, i) => (
-              <div key={i} style={{ textAlign: "center", padding: "12px 8px", borderRight: i < 3 ? `1px solid ${GOLD}` : "none" }}>
-                <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1.5, color: "#7a6a40", textTransform: "uppercase", marginBottom: 4 }}>{col.label}</div>
-                <div style={{ fontSize: 17, fontWeight: 900, color: col.blue ? BLUE : INK }}>{col.value}</div>
-                {col.sub && <div style={{ fontSize: 7.5, color: "#8a7a50", marginTop: 2 }}>{col.sub}</div>}
+          {/* Share details grid — 2 rows + optional AI row */}
+          <div style={{ margin: "14px 54px", border: `1.5px solid ${GOLD}`, borderRadius: 6, overflow: "hidden", background: "rgba(255,252,220,0.6)" }}>
+            {/* Row 1: Shares | Type | Face Value/Share | Issue Price/Share */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", borderBottom: `1px solid ${GOLD}` }}>
+              {[
+                { label: "NUMBER OF SHARES",    val: data.shares.toLocaleString("en-IN"), sub: numToWords(data.shares),    color: INK  },
+                { label: "TYPE OF SHARES",      val: shareType,                            sub: "",                         color: BLUE },
+                { label: "FACE VALUE / SHARE",  val: inr(faceValue),                       sub: inrWords(faceValue),        color: INK  },
+                { label: "ISSUE PRICE / SHARE", val: inr(issuePrice),                      sub: issuePrice !== faceValue ? "AT PREMIUM" : "AT PAR", color: INK },
+              ].map((c, i) => (
+                <div key={i} style={{ textAlign: "center", padding: "10px 6px", borderRight: i < 3 ? `1px solid ${GOLD}` : "none" }}>
+                  <div style={{ fontSize: 7, fontWeight: 700, letterSpacing: 1.5, color: "#7a6a40", textTransform: "uppercase" as const, marginBottom: 3 }}>{c.label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 900, color: c.color }}>{c.val}</div>
+                  {c.sub && <div style={{ fontSize: 7, color: "#8a7a50", marginTop: 2 }}>{c.sub}</div>}
+                </div>
+              ))}
+            </div>
+            {/* Row 2: Total Face Value | Amount Paid | Share Premium | Ownership */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", borderBottom: hasAI ? `1px solid ${GOLD}` : "none" }}>
+              {[
+                { label: "TOTAL FACE VALUE", val: inr(totalFaceValue),   sub: inrWords(totalFaceValue),  color: INK  },
+                { label: "AMOUNT PAID",      val: data.investmentAmount > 0 ? inr(data.investmentAmount) : "—",  sub: data.investmentAmount > 0 ? inrWords(data.investmentAmount) : "", color: INK },
+                { label: "SHARE PREMIUM",    val: sharePremium > 0 ? inr(sharePremium) : "—", sub: sharePremium > 0 ? inrWords(sharePremium) : "", color: sharePremium > 0 ? GOLD : INK },
+                { label: "OWNERSHIP",        val: ownershipPct ? ownershipPct + "%" : "—", sub: "EQUITY STAKE", color: INK },
+              ].map((c, i) => (
+                <div key={i} style={{ textAlign: "center", padding: "10px 6px", borderRight: i < 3 ? `1px solid ${GOLD}` : "none" }}>
+                  <div style={{ fontSize: 7, fontWeight: 700, letterSpacing: 1.5, color: "#7a6a40", textTransform: "uppercase" as const, marginBottom: 3 }}>{c.label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 900, color: c.color }}>{c.val}</div>
+                  {c.sub && <div style={{ fontSize: 7, color: "#8a7a50", marginTop: 2 }}>{c.sub}</div>}
+                </div>
+              ))}
+            </div>
+            {/* Row 3: AI estimated values — only shown when AI valuation has been run */}
+            {hasAI && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", background: "rgba(29,144,232,0.06)" }}>
+                {[
+                  { label: "BOOK VALUE",        val: bookVal != null ? inr(bookVal) : "—",     sub: "AI ESTIMATED",  color: INK  },
+                  { label: "EST. MARKET VALUE", val: estMktVal != null ? inr(estMktVal) : "—", sub: "AI ESTIMATED",  color: BLUE },
+                  { label: "PROFIT / LOSS",     val: pl != null ? (pl >= 0 ? "+" : "−") + inr(Math.abs(Math.round(pl))) : "—", sub: retPct != null ? (retPct >= 0 ? "+" : "") + retPct.toFixed(1) + "%" : "", color: plColor },
+                  { label: "RETURN %",          val: retPct != null ? (retPct >= 0 ? "+" : "") + retPct.toFixed(1) + "%" : "—", sub: "ON INVESTMENT", color: retColor },
+                ].map((c, i) => (
+                  <div key={i} style={{ textAlign: "center", padding: "10px 6px", borderRight: i < 3 ? `1px solid ${GOLD}` : "none" }}>
+                    <div style={{ fontSize: 7, fontWeight: 700, letterSpacing: 1.5, color: "#7a6a40", textTransform: "uppercase" as const, marginBottom: 3 }}>{c.label}</div>
+                    <div style={{ fontSize: 14, fontWeight: 900, color: c.color }}>{c.val}</div>
+                    {c.sub && <div style={{ fontSize: 7, color: "#8a7a50", marginTop: 2 }}>{c.sub}</div>}
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
 
           {/* Gold divider */}

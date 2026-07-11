@@ -1,0 +1,155 @@
+Yes, **Replit is mostly correct**, but I would improve the design because TapasHub is intended to be an investment and business management platform.
+
+### What Replit said
+
+Example:
+
+* Face Value = ₹100/share
+* Shares = 769
+* Investor Paid = ₹1,25,000
+
+Legal Share Capital:
+
+```
+769 × ₹100 = ₹76,900
+```
+
+The remaining amount:
+
+```
+₹1,25,000 - ₹76,900 = ₹48,100
+```
+
+is **Share Premium**.
+
+Accounting entry:
+
+| Account              |    Amount |
+| -------------------- | --------: |
+| Share Capital        |   ₹76,900 |
+| Share Premium        |   ₹48,100 |
+| Total Money Received | ₹1,25,000 |
+
+This follows standard corporate accounting.
+
+---
+
+# But for TapasHub, I recommend showing both values.
+
+A shareholder wants to know:
+
+* How much they invested.
+* What their shares are currently worth.
+
+Your certificate should include:
+
+| Field                          |   Example |
+| ------------------------------ | --------: |
+| Number of Shares               |       769 |
+| Face Value                     |      ₹100 |
+| Issue Price per Share          |   ₹162.55 |
+| Total Face Value               |   ₹76,900 |
+| Total Amount Paid (Investment) | ₹1,25,000 |
+| Share Premium                  |   ₹48,100 |
+| Current Book Value             | ₹1,48,300 |
+| Estimated Market Value         | ₹2,35,000 |
+| Ownership                      |    12.45% |
+
+This is much more useful than showing only face value.
+
+---
+
+# Keep these values separate in your database
+
+```text
+Shareholder
+
+shares_owned
+
+face_value
+
+issue_price
+
+investment_amount
+
+share_premium
+
+book_value
+
+estimated_market_value
+
+ownership_percentage
+```
+
+---
+
+# Certificate
+
+I would redesign it like this:
+
+```
+Number of Shares        769
+
+Face Value             ₹100
+
+Issue Price            ₹162.55
+
+Total Face Value       ₹76,900
+
+Amount Paid            ₹1,25,000
+
+Current Book Value     ₹1,48,300
+
+Estimated Market Value ₹2,35,000
+
+Ownership              12.45%
+```
+
+---
+
+# Investor Dashboard
+
+The dashboard should also show:
+
+```
+Invested Amount
+
+₹1,25,000
+
+↓
+
+Current Book Value
+
+₹1,48,300
+
+↓
+
+Estimated Market Value
+
+₹2,35,000
+
+↓
+
+Gain/Loss
+
++₹1,10,000 (+88%)
+
+↓
+
+Ownership
+
+12.45%
+```
+
+---
+
+## My recommendation for TapasHub
+
+Since TapasHub is more than a legal record system—it's an AI-powered investment and business platform—you should **not hide the invested amount**. Keep the legal **face value** for compliance, but also display:
+
+* Total Amount Paid (Investment)
+* Share Premium
+* Current Book Value
+* Estimated Market Value (AI estimate, clearly labeled as an estimate)
+
+This gives founders, shareholders, and investors a complete picture of both the legal share details and the financial performance of their investment.

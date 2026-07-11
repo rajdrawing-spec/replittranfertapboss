@@ -1,0 +1,205 @@
+Investors generally **do not value a company based only on revenue or assets**. They look at many factors to determine a company's valuation. Since you're building TapasHub as an AI-powered business operating system, your AI can estimate a company's valuation using multiple factors and explain why it arrived at that estimate.
+
+You can give Replit the following prompt:
+
+---
+
+# AI Investor Valuation Engine
+
+## Objective
+
+Build an **AI Investor Valuation Engine** that estimates the value of every company in TapasHub. The AI should calculate an estimated valuation using multiple methods and provide a confidence score and explanation. This is an estimate only and should not replace a professional valuation.
+
+## Inputs
+
+The AI should analyze:
+
+### Financial Performance
+
+* Monthly Revenue
+* Annual Revenue
+* Revenue Growth Rate
+* Gross Profit
+* Net Profit
+* EBITDA (if available)
+* Cash Flow
+* Burn Rate
+* Working Capital
+* Assets
+* Liabilities
+* Cash Reserves
+
+### Business Growth
+
+* Month-over-Month Growth
+* Year-over-Year Growth
+* Customer Growth
+* Active Users
+* Retention Rate
+* Churn Rate
+* Order Volume
+* Average Order Value
+* Customer Lifetime Value (LTV)
+* Customer Acquisition Cost (CAC)
+
+### Business Quality
+
+* Founder Experience
+* Team Size
+* Technology/IP
+* Brand Value
+* Patents
+* Product Quality
+* Market Position
+* Competitive Advantage (Moat)
+* Business Model
+* Recurring Revenue
+
+### Market Factors
+
+* Industry Size (TAM)
+* Serviceable Market (SAM)
+* Target Market (SOM)
+* Industry Growth Rate
+* Competitor Valuations
+* Market Multiples
+* Country Risk
+* Economic Conditions
+
+### Investment Risk
+
+* Customer Concentration
+* Debt Level
+* Legal Risks
+* Operational Risks
+* Supply Chain Risks
+* Dependency on Key Employees
+
+---
+
+# AI Valuation Methods
+
+The AI should calculate multiple estimates.
+
+### 1. Asset-Based Valuation
+
+Company Value = Total Assets − Total Liabilities
+
+### 2. Revenue Multiple
+
+Company Value = Annual Revenue × Industry Multiple
+
+Examples:
+
+* SaaS: 5–15× Revenue
+* Ecommerce: 0.5–3× Revenue
+* Manufacturing: 1–3× Revenue
+
+(The AI should allow these multiples to be customized by industry.)
+
+### 3. EBITDA Multiple
+
+Company Value = EBITDA × Industry Multiple
+
+### 4. Discounted Cash Flow (DCF)
+
+Estimate future cash flows and calculate present value.
+
+### 5. Scorecard Method (Startup)
+
+Compare against similar startups using:
+
+* Team
+* Product
+* Market
+* Traction
+* Competition
+* Technology
+
+### 6. Venture Capital Method
+
+Estimate:
+
+* Exit Value
+* Investor Return Requirement
+* Present Valuation
+
+---
+
+# Final AI Valuation
+
+The AI should combine all valuation methods using configurable weights.
+
+Example:
+
+* Asset Value: 20%
+* Revenue Multiple: 30%
+* EBITDA: 20%
+* DCF: 15%
+* Startup Scorecard: 15%
+
+Final Estimated Valuation = Weighted Average
+
+---
+
+# Share Price
+
+Current Share Price = Estimated Company Valuation ÷ Outstanding Shares
+
+Also display:
+
+* Face Value
+* Book Value Per Share
+* Estimated Fair Value Per Share
+* Last Investment Price Per Share
+
+---
+
+# AI Explanation
+
+The AI should explain the valuation in plain language.
+
+Example:
+
+"Your estimated company valuation is ₹1.85 crore because revenue grew 32% over the last year, net profit margin is 18%, customer retention is 86%, and your cash reserves cover 10 months of operations. The main factors reducing the valuation are declining monthly growth and increasing customer acquisition costs."
+
+---
+
+# Investor Pitch Score
+
+Create an Investor Readiness Score (0–100) based on:
+
+* Revenue Growth
+* Profitability
+* Cash Flow
+* Team Strength
+* Market Size
+* Customer Retention
+* Product Quality
+* Financial Health
+* Competitive Advantage
+* Legal & Compliance
+
+Example:
+
+* 90–100: Excellent investment opportunity
+* 75–89: Strong investment opportunity
+* 60–74: Moderate risk
+* Below 60: Needs improvement
+
+---
+
+# AI Recommendations
+
+The AI should provide actionable suggestions such as:
+
+* Increase recurring revenue before raising funds.
+* Improve gross margins to increase valuation.
+* Reduce customer acquisition costs.
+* Expand into larger markets.
+* Raise a seed round within the next 6–12 months.
+* Delay fundraising until revenue reaches ₹1 crore ARR.
+
+---
+
+This approach gives founders an investor-style valuation and a clear explanation of the factors driving it. It also helps them understand what improvements could increase their company's value before approaching investors. Keep in mind that any AI valuation is an estimate—actual investors may value a company differently based on negotiations, market conditions, and their own investment strategy.

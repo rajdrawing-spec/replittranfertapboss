@@ -479,21 +479,43 @@ router.get("/ai/insights", requirePermission("ai.read"), async (req, res) => {
 });
 
 // ── Valuation system prompt ───────────────────────────────────────────────────
-const VALUATION_SYSTEM_PROMPT = `You are a business valuation expert using the Revenue Multiplier method.
-Based on the provided financial data, estimate the company's value and return ONLY valid JSON:
+const VALUATION_SYSTEM_PROMPT = `You are a senior investment analyst and business valuation expert.
+Analyse the provided financial data using SIX valuation methods, then produce a weighted-average final estimate.
+
+Valuation Methods and Weights:
+  1. Asset-Based        (20%): Net Worth = Total Assets − Total Liabilities
+  2. Revenue Multiple   (30%): Annual Revenue × industry multiple (0.5–3× ecommerce/retail; 1–3× manufacturing; 5–15× SaaS)
+  3. EBITDA Multiple    (20%): EBITDA × 4–8× (use net profit as EBITDA proxy when EBITDA unavailable)
+  4. DCF                (15%): Estimate 3-year free cash flow, discount at 20% WACC, add terminal value
+  5. Startup Scorecard  (10%): Score team, product, market, traction, competition (0–100 each), scale to INR
+  6. VC Method          ( 5%): Estimate exit value in 5 years at 3–5× revenue, discount at 30% required return
+
+Return ONLY valid JSON — no markdown, no text outside the JSON:
 {
-  "estimated_value":    number,               // INR total estimated company value
-  "enterprise_value":   number,               // INR (estimated_value + debt - cash proxy)
-  "shareholder_equity": number,               // INR (estimated_value - estimated liabilities)
-  "nav":                number,               // Net Asset Value in INR
-  "growth_score":       number,               // 0-100 composite growth score
-  "health_trend":       "growing"|"stable"|"declining",
-  "revenue_growth_rate": number,              // % (positive or negative)
-  "profit_growth_rate":  number,              // % (positive or negative)
-  "explanation":        string               // 2-3 sentence explanation of the valuation
+  "asset_valuation":           number,   // INR
+  "revenue_multiple_valuation": number,  // INR
+  "ebitda_valuation":          number,   // INR
+  "dcf_valuation":             number,   // INR
+  "scorecard_valuation":       number,   // INR
+  "vc_valuation":              number,   // INR
+  "estimated_value":           number,   // INR — weighted average of all 6 methods
+  "enterprise_value":          number,   // INR — estimated_value + estimated debt − cash
+  "shareholder_equity":        number,   // INR — estimated_value − estimated liabilities
+  "nav":                       number,   // INR — net asset value
+  "book_value_per_share":      number,   // INR — shareholder_equity ÷ outstanding_shares (0 if no share data)
+  "estimated_share_price":     number,   // INR — estimated_value ÷ outstanding_shares (0 if no share data)
+  "growth_score":              number,   // 0–100 composite growth quality score
+  "health_trend":              "growing"|"stable"|"declining",
+  "revenue_growth_rate":       number,   // % MoM or YoY (positive or negative)
+  "profit_growth_rate":        number,   // %
+  "investor_score":            number,   // 0–100 Investor Readiness Score
+  "investor_rating":           "excellent"|"strong"|"moderate"|"needs_improvement",
+  "recommendations":           string[], // 4–6 specific, actionable investor-readiness suggestions
+  "explanation":               string    // 3–4 sentence plain-language explanation citing actual numbers
 }
-Use conservative multipliers (2-5x revenue for profitable businesses, 1-2x for loss-making).
-All values in Indian Rupees (INR). Return ONLY JSON — no markdown.`;
+
+Investor Readiness Score bands: 90–100 = excellent, 75–89 = strong, 60–74 = moderate, <60 = needs_improvement.
+All monetary values in Indian Rupees (INR). Return ONLY JSON — no markdown.`;
 
 // ── Predictions system prompt ─────────────────────────────────────────────────
 const PREDICTIONS_SYSTEM_PROMPT = `You are a financial forecasting expert.
@@ -559,15 +581,27 @@ router.post("/ai/valuation/:companyId", requirePermission("ai.read"), async (req
     const ctx = await buildCompanyContext(companyId);
     if (!ctx) { res.status(404).json({ error: "Company not found" }); return; }
 
-    // Also pull 12-month trend for richer context
-    const trend = await buildMonthlyFinanceTrend(companyId, 12);
-    const trendText = formatMonthlyTrendForPrompt(trend);
+    // Pull 12-month trend + outstanding shares for share price calculations
+    const [trend, sharesRow] = await Promise.all([
+      buildMonthlyFinanceTrend(companyId, 12),
+      db.select({ totalShares: sql<number>`coalesce(sum(shares), 0)` })
+        .from(shareholdersTable)
+        .where(and(eq(shareholdersTable.companyId, companyId), eq(shareholdersTable.status, "active"))),
+    ]);
+    const trendText      = formatMonthlyTrendForPrompt(trend);
+    const outstandingShares = Number(sharesRow[0]?.totalShares ?? 0);
 
-    const provider = await getActiveProvider();
+    const provider     = await getActiveProvider();
     const providerName = await getActiveProviderName();
 
+    const userMsg = [
+      `Company data:\n${formatContextForPrompt(ctx)}`,
+      `\n12-Month Trend:\n${trendText}`,
+      `\nOutstanding Shares: ${outstandingShares > 0 ? outstandingShares.toLocaleString("en-IN") : "unknown"}`,
+    ].join("\n");
+
     const raw = await provider.chat(
-      [{ role: "user", content: `Company data:\n${formatContextForPrompt(ctx)}\n\n12-Month Trend:\n${trendText}` }],
+      [{ role: "user", content: userMsg }],
       VALUATION_SYSTEM_PROMPT,
     );
 
@@ -579,7 +613,11 @@ router.post("/ai/valuation/:companyId", requirePermission("ai.read"), async (req
       res.status(502).json({ error: "AI returned unexpected format. Please retry." }); return;
     }
 
-    const num = (v: unknown, def = 0) => Number.isFinite(Number(v)) ? Number(v) : def;
+    const num  = (v: unknown, def = 0) => Number.isFinite(Number(v)) ? Number(v) : def;
+    const clamp = (v: unknown) => Math.min(100, Math.max(0, Math.round(num(v))));
+    const VALID_RATINGS   = ["excellent", "strong", "moderate", "needs_improvement"];
+    const VALID_TRENDS    = ["growing", "stable", "declining"];
+
     const [row] = await db.insert(aiValuationsTable).values({
       companyId,
       provider: providerName,
@@ -587,12 +625,25 @@ router.post("/ai/valuation/:companyId", requirePermission("ai.read"), async (req
       enterpriseValue:   num(parsed.enterprise_value),
       shareholderEquity: num(parsed.shareholder_equity),
       nav:               num(parsed.nav),
-      growthScore:       Math.min(100, Math.max(0, Math.round(num(parsed.growth_score)))),
-      healthTrend:       ["growing", "stable", "declining"].includes(String(parsed.health_trend))
-                           ? String(parsed.health_trend) : "stable",
+      growthScore:       clamp(parsed.growth_score),
+      healthTrend:       VALID_TRENDS.includes(String(parsed.health_trend)) ? String(parsed.health_trend) : "stable",
       revenueGrowthRate: num(parsed.revenue_growth_rate),
       profitGrowthRate:  num(parsed.profit_growth_rate),
       explanation:       typeof parsed.explanation === "string" ? parsed.explanation : null,
+      // New multi-method fields
+      investorScore:          clamp(parsed.investor_score),
+      investorRating:         VALID_RATINGS.includes(String(parsed.investor_rating)) ? String(parsed.investor_rating) : "moderate",
+      assetValuation:         num(parsed.asset_valuation),
+      revenueMultipleVal:     num(parsed.revenue_multiple_valuation),
+      ebitdaValuation:        num(parsed.ebitda_valuation),
+      dcfValuation:           num(parsed.dcf_valuation),
+      scorecardValuation:     num(parsed.scorecard_valuation),
+      vcValuation:            num(parsed.vc_valuation),
+      bookValuePerShare:      num(parsed.book_value_per_share),
+      estimatedSharePrice:    num(parsed.estimated_share_price),
+      recommendations:        Array.isArray(parsed.recommendations)
+                                ? (parsed.recommendations as unknown[]).filter(r => typeof r === "string").slice(0, 8)
+                                : [],
     }).returning();
 
     res.json(formatValuation(row));
@@ -870,7 +921,19 @@ function formatValuation(v: typeof aiValuationsTable.$inferSelect) {
     revenueGrowthRate: v.revenueGrowthRate,
     profitGrowthRate:  v.profitGrowthRate,
     explanation:       v.explanation,
-    createdAt:         v.createdAt.toISOString(),
+    // Multi-method valuation engine fields
+    investorScore:        v.investorScore,
+    investorRating:       v.investorRating,
+    assetValuation:       v.assetValuation,
+    revenueMultipleVal:   v.revenueMultipleVal,
+    ebitdaValuation:      v.ebitdaValuation,
+    dcfValuation:         v.dcfValuation,
+    scorecardValuation:   v.scorecardValuation,
+    vcValuation:          v.vcValuation,
+    bookValuePerShare:    v.bookValuePerShare,
+    estimatedSharePrice:  v.estimatedSharePrice,
+    recommendations:      v.recommendations ?? [],
+    createdAt:            v.createdAt.toISOString(),
   };
 }
 

@@ -41,7 +41,15 @@ interface AiValuation {
   shareholderEquity: number | null; nav: number | null
   growthScore: number | null; healthTrend: string | null
   revenueGrowthRate: number | null; profitGrowthRate: number | null
-  explanation: string | null; createdAt: string
+  explanation: string | null
+  // Multi-method valuation engine
+  investorScore: number | null; investorRating: string | null
+  assetValuation: number | null; revenueMultipleVal: number | null
+  ebitdaValuation: number | null; dcfValuation: number | null
+  scorecardValuation: number | null; vcValuation: number | null
+  bookValuePerShare: number | null; estimatedSharePrice: number | null
+  recommendations: string[]
+  createdAt: string
 }
 interface AiShareholderValuation {
   valuation: AiValuation | null
@@ -194,13 +202,29 @@ function MyHoldingsView() {
 }
 
 // ── AI Valuation Panel ────────────────────────────────────────────────────────
+const VALUATION_METHODS = [
+  { key: "assetValuation",      label: "Asset-Based",       weight: "20%", color: "text-amber-400" },
+  { key: "revenueMultipleVal",  label: "Revenue Multiple",  weight: "30%", color: "text-blue-400" },
+  { key: "ebitdaValuation",     label: "EBITDA Multiple",   weight: "20%", color: "text-purple-400" },
+  { key: "dcfValuation",        label: "DCF",               weight: "15%", color: "text-cyan-400" },
+  { key: "scorecardValuation",  label: "Scorecard",         weight: "10%", color: "text-green-400" },
+  { key: "vcValuation",         label: "VC Method",         weight: "5%",  color: "text-rose-400" },
+] as const
+
+const RATING_CONFIG: Record<string, { label: string; color: string; bar: string }> = {
+  excellent:         { label: "Excellent Investment Opportunity",  color: "text-green-400",  bar: "bg-green-500" },
+  strong:            { label: "Strong Investment Opportunity",     color: "text-blue-400",   bar: "bg-blue-500" },
+  moderate:          { label: "Moderate Risk",                     color: "text-amber-400",  bar: "bg-amber-500" },
+  needs_improvement: { label: "Needs Improvement",                 color: "text-red-400",    bar: "bg-red-500" },
+}
+
 function AiValuationPanel({ companyId }: { companyId: string }) {
   const { toast } = useToast()
   const qc = useQueryClient()
   const [expanded, setExpanded] = React.useState(false)
   const cid = companyId ? parseInt(companyId) : null
 
-  const valuationKey = ["/api/ai/valuation", companyId]
+  const valuationKey   = ["/api/ai/valuation", companyId]
   const shareholderKey = ["/api/ai/valuation", companyId, "shareholders"]
 
   const { data: cached, isLoading: cacheLoading } = useQuery<AiValuation | null>({
@@ -225,8 +249,8 @@ function AiValuationPanel({ companyId }: { companyId: string }) {
     onError: (e: Error) => toast({ title: "Valuation failed", description: e.message, variant: "destructive" }),
   })
 
-  const valuation = runValuation.data ?? cached
-
+  const valuation   = runValuation.data ?? cached
+  const rating      = valuation?.investorRating ? RATING_CONFIG[valuation.investorRating] : null
   const healthColor = valuation?.healthTrend === "growing"
     ? "text-green-400 bg-green-500/10 border-green-500/20"
     : valuation?.healthTrend === "declining"
@@ -241,9 +265,9 @@ function AiValuationPanel({ companyId }: { companyId: string }) {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <Brain className="h-4 w-4 text-primary" />
-            <CardTitle className="text-base">AI Valuation Intelligence</CardTitle>
+            <CardTitle className="text-base">AI Investor Valuation Engine</CardTitle>
             <Badge variant="outline" className="text-[10px] gap-1">
-              <Sparkles className="w-2.5 h-2.5" /> AI estimate
+              <Sparkles className="w-2.5 h-2.5" /> 6-method AI estimate
             </Badge>
           </div>
           <div className="flex items-center gap-2">
@@ -261,33 +285,51 @@ function AiValuationPanel({ companyId }: { companyId: string }) {
           </div>
         </div>
         <CardDescription className="text-xs">
-          AI-estimated values based on financial data. <span className="text-amber-400">Not official financial advice.</span>
+          Weighted average of 6 investor-grade methods. <span className="text-amber-400">Estimate only — not official financial advice.</span>
         </CardDescription>
       </CardHeader>
 
       {(cacheLoading || runValuation.isPending) && (
         <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[1,2,3,4].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-16 w-full" />)}
           </div>
         </CardContent>
       )}
 
       {valuation && !runValuation.isPending && (
-        <CardContent className="space-y-4">
-          {/* KPI grid */}
+        <CardContent className="space-y-5">
+
+          {/* ── Investor Readiness Score ── */}
+          {valuation.investorScore != null && (
+            <div className="rounded-lg border bg-card p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold">Investor Readiness Score</span>
+                <span className={cn("text-2xl font-extrabold", rating?.color ?? "text-foreground")}>
+                  {valuation.investorScore}<span className="text-sm font-normal text-muted-foreground">/100</span>
+                </span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className={cn("h-full rounded-full transition-all", rating?.bar ?? "bg-primary")}
+                  style={{ width: `${valuation.investorScore}%` }}
+                />
+              </div>
+              {rating && (
+                <div className={cn("text-xs font-medium mt-1.5", rating.color)}>{rating.label}</div>
+              )}
+            </div>
+          )}
+
+          {/* ── Final estimate + core KPIs ── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <ValKpi label="Est. Company Value"   value={inr(valuation.estimatedValue)}    accent="text-green-400" />
-            <ValKpi label="Enterprise Value"      value={inr(valuation.enterpriseValue)}   accent="text-blue-400" />
-            <ValKpi label="Shareholder Equity"    value={inr(valuation.shareholderEquity)} accent="text-purple-400" />
-            <ValKpi label="Net Asset Value"       value={inr(valuation.nav)}               accent="text-amber-400" />
-            <ValKpi label="Revenue Growth Rate"   value={pct(valuation.revenueGrowthRate)} accent={valuation.revenueGrowthRate != null && valuation.revenueGrowthRate >= 0 ? "text-green-400" : "text-red-400"} />
-            <ValKpi label="Profit Growth Rate"    value={pct(valuation.profitGrowthRate)}  accent={valuation.profitGrowthRate != null && valuation.profitGrowthRate >= 0 ? "text-green-400" : "text-red-400"} />
-            <ValKpi
-              label="Business Growth Score"
-              value={valuation.growthScore != null ? `${valuation.growthScore}/100` : "—"}
-              accent={valuation.growthScore != null && valuation.growthScore >= 70 ? "text-green-400" : valuation.growthScore != null && valuation.growthScore >= 40 ? "text-amber-400" : "text-red-400"}
-            />
+            <ValKpi label="Est. Company Value"  value={inr(valuation.estimatedValue)}    accent="text-green-400" />
+            <ValKpi label="Enterprise Value"     value={inr(valuation.enterpriseValue)}   accent="text-blue-400" />
+            <ValKpi label="Shareholder Equity"   value={inr(valuation.shareholderEquity)} accent="text-purple-400" />
+            <ValKpi label="Net Asset Value"      value={inr(valuation.nav)}               accent="text-amber-400" />
+            <ValKpi label="Revenue Growth"       value={pct(valuation.revenueGrowthRate)} accent={valuation.revenueGrowthRate != null && valuation.revenueGrowthRate >= 0 ? "text-green-400" : "text-red-400"} />
+            <ValKpi label="Profit Growth"        value={pct(valuation.profitGrowthRate)}  accent={valuation.profitGrowthRate != null && valuation.profitGrowthRate >= 0 ? "text-green-400" : "text-red-400"} />
+            <ValKpi label="Business Growth Score" value={valuation.growthScore != null ? `${valuation.growthScore}/100` : "—"} accent={valuation.growthScore != null && valuation.growthScore >= 70 ? "text-green-400" : valuation.growthScore != null && valuation.growthScore >= 40 ? "text-amber-400" : "text-red-400"} />
             <div className="rounded-lg border p-3 bg-card">
               <div className="text-xs text-muted-foreground mb-1.5">Health Trend</div>
               {valuation.healthTrend ? (
@@ -299,6 +341,62 @@ function AiValuationPanel({ companyId }: { companyId: string }) {
             </div>
           </div>
 
+          {/* ── 6-Method Valuation Breakdown ── */}
+          {VALUATION_METHODS.some(m => valuation[m.key] != null) && (
+            <div className="rounded-lg border bg-card overflow-hidden">
+              <div className="px-4 py-2.5 border-b bg-muted/30">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Valuation Method Breakdown</span>
+              </div>
+              <div className="divide-y">
+                {VALUATION_METHODS.map(m => (
+                  <div key={m.key} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{m.label}</span>
+                      <Badge variant="outline" className="text-[10px] px-1.5 h-4">{m.weight}</Badge>
+                    </div>
+                    <span className={cn("font-semibold tabular-nums", m.color)}>
+                      {valuation[m.key] != null ? inr(valuation[m.key]) : "—"}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between px-4 py-3 text-sm bg-muted/20">
+                  <span className="font-bold">Weighted Average (Final)</span>
+                  <span className="font-extrabold text-green-400 text-base">{inr(valuation.estimatedValue)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Share Price Breakdown ── */}
+          {(valuation.bookValuePerShare != null || valuation.estimatedSharePrice != null) && (
+            <div className="rounded-lg border bg-card overflow-hidden">
+              <div className="px-4 py-2.5 border-b bg-muted/30">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Share Price Analysis</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0">
+                <div className="p-3 text-center">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Book Value / Share</div>
+                  <div className="font-bold text-purple-400">{valuation.bookValuePerShare != null && valuation.bookValuePerShare > 0 ? inr(valuation.bookValuePerShare) : "—"}</div>
+                </div>
+                <div className="p-3 text-center">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Est. Fair Value / Share</div>
+                  <div className="font-bold text-green-400">{valuation.estimatedSharePrice != null && valuation.estimatedSharePrice > 0 ? inr(valuation.estimatedSharePrice) : "—"}</div>
+                </div>
+                <div className="p-3 text-center">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Equity / Share</div>
+                  <div className="font-bold text-blue-400">{valuation.shareholderEquity != null && valuation.estimatedSharePrice != null && valuation.estimatedSharePrice > 0 ? inr(valuation.shareholderEquity / (valuation.estimatedValue! / valuation.estimatedSharePrice!)) : "—"}</div>
+                </div>
+                <div className="p-3 text-center">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Growth Score</div>
+                  <div className={cn("font-bold", valuation.growthScore != null && valuation.growthScore >= 70 ? "text-green-400" : "text-amber-400")}>
+                    {valuation.growthScore != null ? `${valuation.growthScore}/100` : "—"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── AI Explanation ── */}
           {valuation.explanation && (
             <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 text-sm text-muted-foreground">
               <span className="text-xs font-semibold text-primary uppercase tracking-wide block mb-1">AI Explanation</span>
@@ -306,7 +404,24 @@ function AiValuationPanel({ companyId }: { companyId: string }) {
             </div>
           )}
 
-          {/* Per-shareholder AI enrichment */}
+          {/* ── Recommendations ── */}
+          {valuation.recommendations && valuation.recommendations.length > 0 && (
+            <div className="rounded-lg border bg-card overflow-hidden">
+              <div className="px-4 py-2.5 border-b bg-muted/30">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">AI Recommendations</span>
+              </div>
+              <ul className="divide-y">
+                {valuation.recommendations.map((rec, i) => (
+                  <li key={i} className="flex items-start gap-2.5 px-4 py-2.5 text-sm">
+                    <span className="mt-0.5 flex-shrink-0 w-4 h-4 rounded-full bg-primary/15 text-primary text-[10px] flex items-center justify-center font-bold">{i + 1}</span>
+                    <span className="text-muted-foreground">{rec}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* ── Per-Shareholder AI Enrichment ── */}
           <div>
             <button
               className="flex w-full items-center gap-2 text-sm font-medium py-1"

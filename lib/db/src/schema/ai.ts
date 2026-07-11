@@ -57,6 +57,7 @@ export const aiValuationsTable = pgTable("ai_valuations", {
   id:                  serial("id").primaryKey(),
   companyId:           integer("company_id").notNull(),
   provider:            text("provider").notNull(),
+  // Weighted-average final estimate
   estimatedValue:      real("estimated_value"),
   enterpriseValue:     real("enterprise_value"),
   shareholderEquity:   real("shareholder_equity"),
@@ -66,6 +67,21 @@ export const aiValuationsTable = pgTable("ai_valuations", {
   revenueGrowthRate:   real("revenue_growth_rate"),   // %
   profitGrowthRate:    real("profit_growth_rate"),    // %
   explanation:         text("explanation"),
+  // Investor Readiness Score (0-100)
+  investorScore:       integer("investor_score"),
+  investorRating:      text("investor_rating"),       // excellent | strong | moderate | needs_improvement
+  // Per-method valuations (INR)
+  assetValuation:           real("asset_valuation"),
+  revenueMultipleVal:       real("revenue_multiple_val"),
+  ebitdaValuation:          real("ebitda_valuation"),
+  dcfValuation:             real("dcf_valuation"),
+  scorecardValuation:       real("scorecard_valuation"),
+  vcValuation:              real("vc_valuation"),
+  // Share price breakdown
+  bookValuePerShare:        real("book_value_per_share"),
+  estimatedSharePrice:      real("estimated_share_price"),
+  // Actionable recommendations
+  recommendations:     jsonb("recommendations").$type<string[]>().default([]),
   createdAt:           timestamp("created_at").notNull().defaultNow(),
 });
 

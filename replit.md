@@ -67,6 +67,13 @@ A production-ready SaaS ERP + CRM + AI platform for TapasHub, a parent company t
 
 _Populate as you build — explicit user instructions worth remembering across sessions._
 
+## Environment setup (imported project)
+
+- Auth: Replit-managed Clerk (`CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY` auto-provisioned).
+- AI: Gemini. User declined the Replit AI Integrations upgrade, so `lib/integrations-gemini-ai/src/client.ts` falls back to a direct `GEMINI_API_KEY` secret instead of the managed proxy — see `.agents/memory/gemini-client-fallback.md`.
+- DB: Replit Postgres via `DATABASE_URL`; schema pushed with `pnpm --filter @workspace/db run push`. Starter companies and system roles auto-seed on API server startup.
+- All three artifacts (`tapashub` web, `api-server`, `mockup-sandbox`) run via their auto-created workflows; `pnpm run typecheck` and both `test`/`test-web` suites pass.
+
 ## Gotchas
 
 - After any schema change, run `pnpm --filter @workspace/db run push` then restart the API server

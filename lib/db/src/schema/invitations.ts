@@ -1,4 +1,4 @@
-import { pgTable, serial, text, json, integer, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, json, integer, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -19,6 +19,8 @@ export const invitationsTable = pgTable("invitations", {
   // At most one pending invitation per email — makes invite-only enforcement
   // deterministic even after revoke/re-invite cycles.
   uniqueIndex("invitations_email_pending_uq").on(t.email).where(sql`${t.status} = 'pending'`),
+  index("invitations_status_idx").on(t.status),
+  index("invitations_created_at_idx").on(t.createdAt),
 ]);
 
 export const insertInvitationSchema = createInsertSchema(invitationsTable).omit({

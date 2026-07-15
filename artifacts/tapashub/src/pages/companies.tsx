@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { Link } from "wouter"
+import { LazyImage } from "@/components/lazy-image"
 import {
   Users, IndianRupee, ExternalLink, Plus, MoreVertical, Pencil, Trash2,
   Archive, ArchiveRestore, Power, PowerOff, Upload, Globe, Building2,
@@ -240,7 +241,7 @@ export default function Companies() {
                         style={{ backgroundColor: `${color}1A`, color }}
                       >
                         {company.logoUrl
-                          ? <img src={logoSrc(company.logoUrl)} alt={company.name} className="w-full h-full object-cover rounded-lg" />
+                          ? <LazyImage src={logoSrc(company.logoUrl)} alt={company.name} className="w-full h-full object-cover rounded-lg" />
                           : company.name.charAt(0)}
                       </div>
                       <div className="flex items-center gap-2">
@@ -349,7 +350,7 @@ export default function Companies() {
                 style={{ backgroundColor: `${form.brandColor}1A`, color: form.brandColor }}
               >
                 {form.logoUrl
-                  ? <img src={logoSrc(form.logoUrl)} alt="logo" className="w-full h-full object-cover rounded-xl" />
+                  ? <LazyImage src={logoSrc(form.logoUrl)} alt="logo" className="w-full h-full object-cover rounded-xl" />
                   : (form.name.charAt(0) || "?")}
               </div>
               <div>

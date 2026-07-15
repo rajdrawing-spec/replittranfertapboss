@@ -202,7 +202,7 @@ export default function AccountDirectory() {
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Edit Account" : "Add Account"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3 py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2">
             <div className="col-span-2"><Label>Platform *</Label><Input value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value })} placeholder="Shopify, Google, Meta Business…" /></div>
             <div className="col-span-2"><Label>Platform URL</Label><Input value={form.platformUrl} onChange={(e) => setForm({ ...form, platformUrl: e.target.value })} placeholder="https://admin.shopify.com" /></div>
             <div><Label>Login Email</Label><Input value={form.loginEmail} onChange={(e) => setForm({ ...form, loginEmail: e.target.value })} /></div>

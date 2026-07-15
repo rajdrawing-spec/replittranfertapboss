@@ -328,7 +328,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Link key={item.name} href={item.href} className="block">
               <span
                 className={cn(
-                  "flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all group",
+                  "flex items-center px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium transition-all group",
                   isActive
                     ? "text-white shadow-sm"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -351,7 +351,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <div className="p-3 border-t shrink-0 space-y-0.5">
         <Link href="/settings" className="block">
           <span className={cn(
-            "flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all",
+            "flex items-center px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium transition-all",
             location.startsWith("/settings")
               ? "text-white shadow-sm"
               : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -365,7 +365,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </Link>
         <button
           onClick={() => logout()}
-          className="w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-red-500/10 hover:text-red-400 transition-all"
+          className="w-full flex items-center px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium text-muted-foreground hover:bg-red-500/10 hover:text-red-400 transition-all"
           title={collapsed ? "Sign Out" : undefined}
         >
           <LogOut className="w-[18px] h-[18px] shrink-0" />

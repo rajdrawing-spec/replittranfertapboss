@@ -1,6 +1,6 @@
 import * as React from "react"
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ClerkProvider, SignIn, Show } from '@clerk/react';
+import { ClerkProvider, Show } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { Toaster } from '@/components/ui/toaster';
@@ -40,6 +40,16 @@ const AccessControl = React.lazy(() => import('@/pages/admin/access-control'));
 const AuditLogs = React.lazy(() => import('@/pages/admin/audit-logs'));
 const Treasury = React.lazy(() => import('@/pages/treasury'));
 const AiReports = React.lazy(() => import('@/pages/ai-reports'));
+// Lazy-load the sign-in shell so the public landing page does not pay for the
+// entire signed-in app bundle on first paint.
+const SignInPage = React.lazy(() => import('@/pages/sign-in'));
+
+// Prefetch the home dashboard chunk during idle time so the most common landing
+// page feels instant when the user navigates to it.
+if (typeof window !== 'undefined') {
+  setTimeout(() => import('@/pages/dashboard'), 1500);
+}
+
 import { LoadingScreen } from '@/components/loading-screen';
 import { OfflineBanner } from '@/components/offline-banner';
 import { Button } from '@/components/ui/button';
@@ -138,30 +148,19 @@ const clerkAppearance = {
   },
 };
 
-function AuthShell() {
+function SignInFallback() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
-      <div className="w-full max-w-[420px]">
-        <div className="mb-8 text-center">
-          <img
-            src={`${basePath}/tapashub-logo.png`}
-            alt="TapasHub"
-            className="mx-auto mb-4 h-20 w-20 object-contain"
-          />
-          <div className="mb-1">
-            <span className="text-3xl font-black tracking-tight text-foreground">TAPAS</span>
-            <span className="text-3xl font-black tracking-tight text-[#1d90e8]">HUB</span>
-          </div>
-          <p className="text-base font-semibold text-foreground">Welcome to TapasHub Business OS</p>
-          <p className="mt-1 text-sm text-muted-foreground">Connect · Empower · Grow · invite-only access</p>
-        </div>
-        <SignIn
-          routing="path"
-          path={`${basePath}/sign-in`}
-          signUpUrl={`${basePath}/sign-up`}
-        />
-      </div>
+    <div className="flex h-[100dvh] w-full items-center justify-center bg-background px-4">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
     </div>
+  );
+}
+
+function SignInRoute() {
+  return (
+    <React.Suspense fallback={<SignInFallback />}>
+      <SignInPage basePath={basePath} />
+    </React.Suspense>
   );
 }
 
@@ -275,8 +274,8 @@ function ClerkProviderWithRoutes() {
       <ClerkQueryClientCacheInvalidator />
       <AuthProvider>
         <Switch>
-          <Route path="/sign-in/*?" component={AuthShell} />
-          <Route path="/sign-up/*?" component={AuthShell} />
+          <Route path="/sign-in/*?" component={SignInRoute} />
+          <Route path="/sign-up/*?" component={SignInRoute} />
           <Route path="/login">{() => <Redirect to="/sign-in" />}</Route>
           <Route>
             <Show when="signed-out"><Redirect to="/sign-in" /></Show>

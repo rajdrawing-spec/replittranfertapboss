@@ -11,6 +11,20 @@ import { isSuperAdmin } from "../lib/auth-user";
 
 const router = Router();
 
+// Lightweight per-scope in-memory cache for the executive summary (30s TTL).
+// Keyed by the caller's company scope so tenant isolation is preserved.
+const EXEC_CACHE_TTL_MS = 30_000;
+const execCache = new Map<string, { data: unknown; expires: number }>();
+function getCachedExec(scopeKey: string): unknown | undefined {
+  const entry = execCache.get(scopeKey);
+  if (entry && entry.expires > Date.now()) return entry.data;
+  execCache.delete(scopeKey);
+  return undefined;
+}
+function setCachedExec(scopeKey: string, data: unknown) {
+  execCache.set(scopeKey, { data, expires: Date.now() + EXEC_CACHE_TTL_MS });
+}
+
 /**
  * The set of company IDs the caller may see.
  * - Super Admin  -> null  (no restriction: all companies)
@@ -40,10 +54,17 @@ router.get("/dashboard/executive-summary", async (req, res) => {
       return;
     }
 
+    const scopeKey = scope ? scope.sort((a, b) => a - b).join(",") : "all";
+    const cached = getCachedExec(scopeKey);
+    if (cached) {
+      res.json(cached);
+      return;
+    }
+
     const inCos = (col: any) => (scope ? inArray(col, scope) : undefined);
 
     const companies = await db
-      .select()
+      .select({ id: companiesTable.id, name: companiesTable.name, slug: companiesTable.slug })
       .from(companiesTable)
       .where(and(eq(companiesTable.status, "active"), scope ? inArray(companiesTable.id, scope) : undefined));
 
@@ -85,35 +106,52 @@ router.get("/dashboard/executive-summary", async (req, res) => {
       .from(transactionsTable)
       .where(inCos(transactionsTable.companyId));
 
-    const companySummaries = await Promise.all(
-      companies.map(async (c) => {
-        const [cs] = await db
-          .select({
-            revenue: sql<number>`coalesce(sum(total_amount), 0)`,
-            orders: sql<number>`count(*)`,
-          })
-          .from(ordersTable)
-          .where(eq(ordersTable.companyId, c.id));
-        const [es] = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(employeesTable)
-          .where(and(eq(employeesTable.companyId, c.id), eq(employeesTable.status, "active")));
-        return {
-          companyId: c.id,
-          companyName: c.name,
-          companySlug: c.slug,
-          revenue: Number(cs?.revenue ?? 0),
-          orders: Number(cs?.orders ?? 0),
-          employees: Number(es?.count ?? 0),
-          // Per-company profit and growth require expense allocation and historical
-          // baselines we do not track yet — reported as unavailable, never fabricated.
-          profit: null,
-          growth: null,
-        };
-      })
-    );
+    // Aggregate per-company orders + employees in 2 queries instead of 2N.
+    const companyIds = companies.map((c) => c.id);
+    let orderAggs: { companyId: number; revenue: number; orders: number }[] = [];
+    let employeeAggs: { companyId: number; count: number }[] = [];
+    if (companyIds.length > 0) {
+      orderAggs = await db
+        .select({
+          companyId: ordersTable.companyId,
+          revenue: sql<number>`coalesce(sum(total_amount), 0)`,
+          orders: sql<number>`count(*)`,
+        })
+        .from(ordersTable)
+        .where(inArray(ordersTable.companyId, companyIds))
+        .groupBy(ordersTable.companyId);
 
-    res.json({
+      employeeAggs = await db
+        .select({
+          companyId: employeesTable.companyId,
+          count: sql<number>`count(*)`,
+        })
+        .from(employeesTable)
+        .where(and(eq(employeesTable.status, "active"), inArray(employeesTable.companyId, companyIds)))
+        .groupBy(employeesTable.companyId);
+    }
+
+    const orderMap = new Map(orderAggs.map((o) => [o.companyId, o]));
+    const employeeMap = new Map(employeeAggs.map((e) => [e.companyId, e]));
+
+    const companySummaries = companies.map((c) => {
+      const o = orderMap.get(c.id);
+      const e = employeeMap.get(c.id);
+      return {
+        companyId: c.id,
+        companyName: c.name,
+        companySlug: c.slug,
+        revenue: Number(o?.revenue ?? 0),
+        orders: Number(o?.orders ?? 0),
+        employees: Number(e?.count ?? 0),
+        // Per-company profit and growth require expense allocation and historical
+        // baselines we do not track yet — reported as unavailable, never fabricated.
+        profit: null,
+        growth: null,
+      };
+    });
+
+    const result = {
       totalRevenue: Number(orderStats?.totalAmount ?? 0),
       dailySales: Number(orderStats?.dailyAmount ?? 0),
       monthlySales: Number(orderStats?.monthlyAmount ?? 0),
@@ -132,7 +170,10 @@ router.get("/dashboard/executive-summary", async (req, res) => {
       conversionRate: null,
       revenueGrowth: null,
       companySummaries,
-    });
+    };
+
+    setCachedExec(scopeKey, result);
+    res.json(result);
   } catch (e) {
     req.log.error(e);
     res.status(500).json({ error: "Failed to get executive summary" });
@@ -207,20 +248,38 @@ router.get("/dashboard/revenue-chart", async (req, res) => {
     const inTx = ids ? inArray(transactionsTable.companyId, ids) : undefined;
 
     const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    // Aggregate orders + expenses for the whole 12-month window in 2 queries
+    // instead of 24 per-label queries.
+    const orderRows = await db
+      .select({
+        month: sql<string>`to_char(created_at, 'YYYY-MM')`,
+        revenue: sql<number>`coalesce(sum(total_amount), 0)`,
+      })
+      .from(ordersTable)
+      .where(and(sql`created_at >= ${start}`, sql`created_at < ${end}`, inOrders))
+      .groupBy(sql`to_char(created_at, 'YYYY-MM')`);
+
+    const txRows = await db
+      .select({
+        month: sql<string>`substring(date, 1, 7)`,
+        expense: sql<number>`coalesce(sum(case when type = 'expense' then amount else 0 end), 0)`,
+      })
+      .from(transactionsTable)
+      .where(and(sql`date >= ${start.toISOString().slice(0, 7)}`, sql`date < ${end.toISOString().slice(0, 7)}`, inTx))
+      .groupBy(sql`substring(date, 1, 7)`);
+
+    const orderMap = new Map(orderRows.map((r) => [r.month, Number(r.revenue)]));
+    const txMap = new Map(txRows.map((r) => [r.month, Number(r.expense)]));
+
     const result = [];
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const nextD = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
       const label = d.toLocaleString("en-IN", { month: "short" });
-      const [orow] = await db
-        .select({ revenue: sql<number>`coalesce(sum(total_amount), 0)` })
-        .from(ordersTable)
-        .where(and(sql`created_at >= ${d}`, sql`created_at < ${nextD}`, inOrders));
-      const [trow] = await db
-        .select({ expense: sql<number>`coalesce(sum(case when type = 'expense' then amount else 0 end), 0)` })
-        .from(transactionsTable)
-        .where(and(sql`date >= ${d.toISOString().slice(0, 10)}`, sql`date < ${nextD.toISOString().slice(0, 10)}`, inTx));
-      result.push({ label, value: Number(orow?.revenue ?? 0), secondary: Number(trow?.expense ?? 0) });
+      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      result.push({ label, value: orderMap.get(monthKey) ?? 0, secondary: txMap.get(monthKey) ?? 0 });
     }
     res.json(result);
   } catch (e) {

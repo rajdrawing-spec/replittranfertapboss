@@ -1,0 +1,59 @@
+You can send this message to Replit AI:
+
+---
+
+**Performance & Mobile Optimization Request**
+
+The application is loading much slower than expected. Please perform a complete performance audit and optimize the app without changing any functionality.
+
+### Performance
+
+* Profile the application and identify all bottlenecks.
+* Measure API response times, page load time, and database query performance.
+* Optimize slow SQL queries and add missing indexes where needed.
+* Remove unnecessary API calls and duplicate requests.
+* Implement server-side caching where appropriate.
+* Optimize React rendering to prevent unnecessary re-renders.
+* Enable lazy loading and code splitting for routes and heavy components.
+* Optimize images (compression, WebP where supported, responsive image sizes).
+* Reduce JavaScript bundle size and remove unused dependencies.
+* Minify assets and verify production build optimization.
+* Check memory usage and fix memory leaks.
+* Optimize startup time and page transitions.
+* Verify Cloudflare R2 uploads/downloads are not causing delays.
+* Improve Core Web Vitals (LCP, INP, CLS).
+
+### Mobile Optimization
+
+Make the entire application fully responsive and mobile-friendly.
+
+* Support screen sizes from 320px to large tablets.
+* Improve navigation for mobile devices.
+* Add a responsive bottom navigation where appropriate.
+* Ensure buttons and touch targets are large enough.
+* Prevent horizontal scrolling.
+* Make forms easy to use on mobile.
+* Optimize images and media for smaller screens.
+* Improve spacing, typography, and readability.
+* Ensure all dialogs, modals, and menus work correctly on mobile.
+* Test in portrait and landscape orientations.
+* Verify Android Chrome, iPhone Safari, and desktop browsers.
+
+### User Experience
+
+* Improve loading states with skeleton loaders.
+* Reduce unnecessary animations that affect performance.
+* Improve scrolling smoothness.
+* Make the app feel closer to the performance and responsiveness of Facebook/Instagram.
+
+### Deliverables
+
+After completing the work, provide:
+
+1. A list of every optimization performed.
+2. Before vs. after performance metrics.
+3. Lighthouse scores (Performance, Accessibility, Best Practices, SEO).
+4. Bundle size before and after optimization.
+5. Confirmation that no existing functionality or user data was affected.
+
+Do not change business logic or remove features. Focus only on improving speed, responsiveness, and mobile usability.

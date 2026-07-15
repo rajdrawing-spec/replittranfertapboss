@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { EmptyState, NoData } from "@/components/empty-state"
 import { ArrowLeft, FileText, Brain, Sparkles, TrendingUp, TrendingDown, Activity, RefreshCw } from "lucide-react"
+import { LazyImage } from "@/components/lazy-image"
 import { cn } from "@/lib/utils"
 
 interface AiValuation {
@@ -74,7 +75,7 @@ export default function CompanyDetail() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-2xl shadow-sm">
-              {company.logoUrl ? <img src={company.logoUrl.startsWith("/objects") ? `/api/storage${company.logoUrl}` : company.logoUrl} alt={company.name} className="w-full h-full object-cover rounded-xl" /> : company.name.charAt(0)}
+              {company.logoUrl ? <LazyImage src={company.logoUrl.startsWith("/objects") ? `/api/storage${company.logoUrl}` : company.logoUrl} alt={company.name} className="w-full h-full object-cover rounded-xl" /> : company.name.charAt(0)}
             </div>
             <div>
               <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">

@@ -196,7 +196,7 @@ export default function HR() {
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing ? "Edit Employee" : "Add Employee"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
             <div className="col-span-2 space-y-1.5">
               <Label>Company *</Label>
               <Select value={form.companyId} onValueChange={v => f("companyId", v)}>

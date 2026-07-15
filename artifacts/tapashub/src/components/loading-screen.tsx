@@ -7,10 +7,10 @@ import * as React from "react"
 export function LoadingScreen() {
   return (
     <div className="min-h-screen bg-[#08080d] flex items-center justify-center relative overflow-hidden">
-      {/* Ambient glow layers */}
-      <div className="absolute w-[600px] h-[600px] rounded-full bg-violet-600/15 blur-[140px] animate-pulse" />
-      <div className="absolute w-[400px] h-[400px] rounded-full bg-blue-600/10 blur-[110px] -translate-x-52 translate-y-32" />
-      <div className="absolute w-[300px] h-[300px] rounded-full bg-indigo-400/8 blur-[90px] translate-x-64 -translate-y-24" />
+      {/* Ambient glow layers — clamp to viewport so they never overflow on mobile. */}
+      <div className="absolute w-[80vw] h-[80vw] max-w-[600px] max-h-[600px] rounded-full bg-violet-600/15 blur-[140px] animate-pulse" />
+      <div className="absolute w-[60vw] h-[60vw] max-w-[400px] max-h-[400px] rounded-full bg-blue-600/10 blur-[110px] -translate-x-52 translate-y-32" />
+      <div className="absolute w-[50vw] h-[50vw] max-w-[300px] max-h-[300px] rounded-full bg-indigo-400/8 blur-[90px] translate-x-64 -translate-y-24" />
 
       {/* Decorative grid */}
       <div

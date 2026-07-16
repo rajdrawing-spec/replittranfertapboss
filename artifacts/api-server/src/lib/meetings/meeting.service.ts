@@ -68,11 +68,27 @@ export async function createMeeting(input: CreateMeetingInput) {
     department = channel?.department || undefined;
   }
 
+  let displayName: string | undefined;
+  let email: string | undefined;
+  let avatarUrl: string | undefined;
+  if (input.organizerId) {
+    const [organizer] = await db.select({ name: usersTable.name, email: usersTable.email, avatarUrl: usersTable.avatarUrl })
+      .from(usersTable).where(eq(usersTable.id, input.organizerId)).limit(1);
+    if (organizer) {
+      displayName = organizer.name;
+      email = organizer.email;
+      avatarUrl = organizer.avatarUrl ?? undefined;
+    }
+  }
+
   const { meetingId, roomUrl, jwt } = provider.createRoom({
     companySlug: company?.slug || "TBOS",
     department,
     project,
     date: input.scheduledAt || new Date(),
+    displayName,
+    email,
+    avatarUrl,
   });
 
   const [meeting] = await db.insert(meetingsTable).values({

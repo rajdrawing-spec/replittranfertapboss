@@ -10,6 +10,9 @@ export interface MeetingContext {
   department?: string | null;
   project?: string | null;
   date: Date;
+  displayName?: string | null;
+  email?: string | null;
+  avatarUrl?: string | null;
 }
 
 export interface CreateMeetingRoomResult {

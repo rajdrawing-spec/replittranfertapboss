@@ -21,9 +21,26 @@ export function parseJaaSMagicCookie(cookie?: string): JaaSConfig | null {
   return { apiKey: match[1], appId: match[2] };
 }
 
-export function buildJaaSJwt(meetingId: string, cfg: JaaSConfig, expiresInSeconds = 86400): string {
+export interface JaaSJwtContext {
+  displayName?: string | null;
+  email?: string | null;
+  avatarUrl?: string | null;
+  moderator?: boolean;
+}
+
+export function buildJaaSJwt(
+  meetingId: string,
+  cfg: JaaSConfig,
+  ctx: JaaSJwtContext = {},
+  expiresInSeconds = 86400,
+): string {
   const now = Math.floor(Date.now() / 1000);
   const header = base64Url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const user: Record<string, unknown> = {};
+  if (ctx.displayName) user.name = ctx.displayName;
+  if (ctx.email) user.email = ctx.email;
+  if (ctx.avatarUrl) user.avatar = ctx.avatarUrl;
+  user.moderator = ctx.moderator ?? true;
   const payload = base64Url(
     JSON.stringify({
       aud: "jitsi",
@@ -31,6 +48,16 @@ export function buildJaaSJwt(meetingId: string, cfg: JaaSConfig, expiresInSecond
       sub: cfg.appId,
       room: meetingId,
       exp: now + expiresInSeconds,
+      context: {
+        user,
+        features: {
+          livestreaming: true,
+          recording: true,
+          transcription: true,
+          "outbound-call": true,
+          "sip-outbound-call": true,
+        },
+      },
     }),
   );
   const signingInput = `${header}.${payload}`;
@@ -66,7 +93,12 @@ export class JitsiProvider implements MeetingProvider {
     let roomUrl = this.generateRoomUrl(meetingId, serverUrl);
     let jwt: string | undefined;
     if (jaas) {
-      jwt = buildJaaSJwt(meetingId, jaas);
+      jwt = buildJaaSJwt(meetingId, jaas, {
+        displayName: context.displayName,
+        email: context.email,
+        avatarUrl: context.avatarUrl,
+        moderator: true,
+      });
       const jaasServerUrl = `https://8x8.vc/${jaas.appId}`;
       roomUrl = this.generateRoomUrl(meetingId, serverUrl?.includes("8x8.vc") ? serverUrl : jaasServerUrl, jwt);
     }

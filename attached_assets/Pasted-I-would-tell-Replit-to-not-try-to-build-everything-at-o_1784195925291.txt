@@ -1,0 +1,81 @@
+I would tell Replit to **not try to build everything at once**. Large AI tasks consume more Replit Agent credits, increase the chance of bugs, and are harder to review.
+
+Reply with this:
+
+---
+
+Start with **planning first**, then implement **one module at a time**.
+
+### Priority 1: AI Task Manager & Collaboration (MVP)
+
+Build this first because it has less impact on the existing database and UI.
+
+Include:
+
+* Daily AI task generation based on employee role and job description.
+* Manager approval/edit before tasks are assigned.
+* Task templates with AI customization.
+* Task caching (generate once per day, store in DB).
+* Socket.IO team chat.
+* Jitsi Meet integration for video, audio, and screen sharing.
+* Modular architecture with no changes to existing TBOS modules.
+
+Keep AI costs low:
+
+* Use templates first.
+* Call AI only once per day or when the manager requests regeneration.
+* Support Ollama first (if available), then Gemini as fallback.
+* Never call AI on every page load.
+
+### Priority 2: AI Product Creation (Phased)
+
+Do **not** build all 20 features at once.
+
+Implement in phases.
+
+**Phase 1**
+
+* Image upload
+* AI image analysis
+* Auto-fill product information
+* Auto SKU
+* AI title
+* AI description
+* Image quality validation
+
+**Phase 2**
+
+* Image optimization
+* Marketplace image generation
+* Excel/CSV import/export
+* Product variants
+* Barcode generation
+
+**Phase 3**
+
+* Background removal
+* Marketplace-specific templates
+* Product health score
+* Bulk image grouping
+* SEO optimization
+
+### Before coding
+
+Create a detailed implementation plan that includes:
+
+* Database changes (minimal and backward compatible)
+* New APIs
+* New services
+* New React components
+* Background jobs
+* AI provider abstraction
+* Performance and caching strategy
+
+### Important
+
+* Do **not** redesign any existing pages.
+* Do **not** break existing Products & Inventory, Dashboard, CRM, or Authentication.
+* Build everything as optional modules that plug into the current TBOS architecture.
+* After each phase, stop and let me review before moving to the next phase.
+
+This phased approach will reduce Replit Agent usage, make testing easier, and keep the existing application stable.

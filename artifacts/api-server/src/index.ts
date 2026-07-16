@@ -1,9 +1,11 @@
+import http from "http";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureSystemRoles } from "./lib/seed-roles";
 import { ensureStarterCompanies } from "./lib/seed-companies";
 import { startIntegrationScheduler } from "./lib/integration-sync";
 import { startAiTaskScheduler } from "./lib/ai-tasks/scheduler";
+import { initSocketServer } from "./lib/chat/socket-server";
 
 import { registerAdapters } from "./lib/adapters";
 import { applyMigrations, repairOrphanedAllocations } from "./lib/migrations";
@@ -26,9 +28,10 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// Browser workspace now uses SSE (Server-Sent Events) instead of WebSocket,
-// so a plain app.listen() is sufficient — no http.createServer() needed.
-app.listen(port, () => {
+const server = http.createServer(app);
+initSocketServer(server);
+
+server.listen(port, () => {
   logger.info({ port }, "Server listening");
   // 1. Schema migrations — create any missing tables before seeders run.
   // 2. Seed system data (roles + starter companies).

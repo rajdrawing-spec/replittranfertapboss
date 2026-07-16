@@ -1,0 +1,179 @@
+I would approve it, but tighten the requirements before moving to collaboration.
+
+Send this to Replit:
+
+---
+
+**Phase 1.2 is approved.** Great work. The architecture is clean, modular, and follows the plan.
+
+Before starting Phase 1.3, please make sure the AI Task module is production-ready with these final improvements.
+
+### Final Improvements for Phase 1.2
+
+#### 1. Multi-Time Zone Scheduler
+
+The scheduler must support **company-specific time zones**, not only UTC.
+
+Example:
+
+* India → 8:00 AM IST
+* USA → 8:00 AM local time
+* UAE → 8:00 AM GST
+
+Store the timezone in Company Settings and generate tasks according to each company's local time.
+
+---
+
+#### 2. Working Days
+
+Do not generate tasks on company holidays or weekends unless enabled.
+
+Support:
+
+* Saturday/Sunday off
+* Custom work week
+* Company holidays
+
+---
+
+#### 3. Leave Integration
+
+Skip task generation for employees who are:
+
+* On Leave
+* Sick Leave
+* Vacation
+* Inactive
+
+---
+
+#### 4. Project Priority
+
+Allow Managers to assign a priority to projects:
+
+* Critical
+* High
+* Medium
+* Low
+
+AI should prioritize tasks based on project priority.
+
+---
+
+#### 5. Notifications
+
+When tasks are generated:
+
+* Show an in-app notification.
+* Display a badge count in the AI Tasks menu.
+* Email and push notifications can be added later.
+
+---
+
+#### 6. Analytics
+
+Add simple dashboards:
+
+* Tasks Generated Today
+* Tasks Completed
+* Approval Rate
+* Regeneration Count
+* AI vs Template Usage
+* Average Completion Time
+
+No AI required for analytics.
+
+---
+
+#### 7. Prompt Versioning
+
+Store prompt versions and allow Admins to edit prompt templates without changing code.
+
+---
+
+#### 8. Safety
+
+* Prevent duplicate task generation.
+* Prevent concurrent scheduler execution.
+* Log all errors.
+* Automatically retry failed jobs once.
+
+---
+
+## Phase 1.3 – Chat & Collaboration
+
+Now begin **Phase 1.3**.
+
+### Goal
+
+Build a lightweight collaboration module that integrates seamlessly with the existing AI Tasks module.
+
+### Features
+
+#### Team Chat
+
+* Socket.IO
+* Company-scoped chat
+* Department channels
+* Direct Messages
+* Message search
+* Typing indicator
+* Online/Offline presence
+* Read receipts
+* Emoji reactions
+* File attachments (reuse existing storage)
+
+#### Collaboration
+
+* Team announcements
+* Pinned messages
+* Mentions (@user)
+* Unread message counts
+* Notifications
+
+#### Security
+
+* Company isolation
+* RBAC
+* Rate limiting
+* Message size limits
+* File type validation
+
+#### Performance
+
+* Lazy-load chat.
+* Do not initialize Socket.IO until the user opens Chat.
+* Reconnect automatically.
+* Cache recent messages locally.
+
+---
+
+## Phase 1.4 – Meetings
+
+After Chat is complete, integrate **Jitsi Meet**.
+
+Requirements:
+
+* Use **meet.jit.si** for the MVP.
+* Company-specific meeting rooms.
+* Audio
+* Video
+* Screen sharing
+* Meeting chat
+* Meeting links
+* Calendar-ready meeting URLs
+* Configurable Jitsi server URL for future self-hosting.
+
+---
+
+## Development Rules
+
+* Do **not** redesign existing TBOS pages.
+* Keep all new features modular.
+* Do not modify existing modules unless absolutely necessary.
+* Follow current coding standards.
+* Continue using feature flags.
+* Keep the application optimized for low memory and low CPU usage.
+* Minimize Replit Agent usage by implementing one phase at a time.
+
+**Stop after Phase 1.3 is complete and provide a summary, screenshots, and test results before beginning Phase 1.4.**

@@ -28,5 +28,7 @@ export * from "./treasury";
 export * from "./ai";
 export * from "./ai-reports";
 export * from "./ai-tasks";
+export * from "./ai-task-settings";
+export * from "./chat";
 export * from "./conversations";
 export * from "./messages";

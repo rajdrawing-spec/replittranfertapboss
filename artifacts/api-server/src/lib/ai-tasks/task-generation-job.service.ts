@@ -12,6 +12,8 @@ export interface JobUpdate {
   batchSize?: number;
   tasksGenerated?: number;
   nextRun?: Date | null;
+  retryCount?: number;
+  maxRetries?: number;
   error?: string | null;
 }
 
@@ -30,6 +32,8 @@ export async function startJob(
       requesterId,
       triggeredBy,
       startedAt: new Date(),
+      retryCount: 0,
+      maxRetries: 1,
     } as NewTaskGenerationJob)
     .returning({ id: taskGenerationJobsTable.id });
   return job;
@@ -87,6 +91,7 @@ export async function hasRunForDate(companyId: number, runDate: string): Promise
       and(
         eq(taskGenerationJobsTable.companyId, companyId),
         eq(taskGenerationJobsTable.runDate, runDate),
+        eq(taskGenerationJobsTable.status, "completed"),
       ),
     )
     .limit(1);
@@ -106,4 +111,11 @@ export async function countRegenerationsToday(companyId: number, runDate: string
     )
     .limit(1);
   return Number(row?.count ?? 0);
+}
+
+export async function setJobRetryCount(jobId: number, retryCount: number): Promise<void> {
+  await db
+    .update(taskGenerationJobsTable)
+    .set({ retryCount })
+    .where(eq(taskGenerationJobsTable.id, jobId));
 }

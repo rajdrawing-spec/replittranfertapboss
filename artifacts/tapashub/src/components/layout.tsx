@@ -33,18 +33,22 @@ import {
   ShieldCheck,
   ScrollText,
   Landmark,
+  MessageSquare,
 } from "lucide-react"
 import { GlobalSearch } from "@/components/global-search"
 import { WorkingCapitalWidget } from "@/components/working-capital-widget"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "")
 import { useTheme } from "@/components/theme-provider"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useListNotifications } from "@workspace/api-client-react"
 import { useCompany } from "@/contexts/company-context"
 import type { ActiveCompany } from "@/contexts/company-context"
 import { useAuth } from "@/contexts/auth-context"
+import { useQuery } from "@tanstack/react-query"
 
 interface NavItem {
   name: string
@@ -85,6 +89,7 @@ const baseSubsidiaryNav: NavItem[] = [
   { name: "Finance", href: "/finance", icon: Wallet },
   { name: "Documents", href: "/documents", icon: FileText },
   { name: "AI Tasks", href: "/ai-tasks", icon: CheckSquare },
+  { name: "Chat", href: "/chat", icon: MessageSquare },
   { name: "Account Directory", href: "/accounts", icon: Contact },
   { name: "Integrations", href: "/integrations", icon: Globe2 },
 ]
@@ -278,6 +283,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   })
   const unreadCount = notificationsData?.length || 0
 
+
   // "Team & Roles" is already in parentNav when in the TapasHub parent context;
   // only add it here (via adminNav) for subsidiary views to avoid duplication.
   const adminNav: NavItem[] = isSuperAdmin
@@ -288,6 +294,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
     : []
   const navItems = [...getNavItems(activeCompany), ...adminNav]
   const collapsed = !sidebarOpen
+
+  const { data: aiTasksUnread } = useQuery<{ count: number }>({
+    queryKey: ["/api/ai-tasks/notifications/unread-count", activeCompany?.id],
+    queryFn: async () => {
+      const res = await fetch(`${basePath}/api/ai-tasks/notifications/unread-count?companyId=${activeCompany?.id}`, {
+        credentials: "include",
+      })
+      if (!res.ok) return { count: 0 }
+      return res.json()
+    },
+    enabled: !!activeCompany?.id && navItems.some((n) => n.href === "/ai-tasks"),
+    refetchInterval: 60_000,
+  })
+  const aiTasksUnreadCount = aiTasksUnread?.count ?? 0
 
   const workspaceLabel = activeCompany?.name ?? "TapasHub"
   const workspaceColor = activeCompany?.color ?? "#2563EB"
@@ -339,6 +359,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
               >
                 <item.icon className={cn("w-[18px] h-[18px] shrink-0")} />
                 {!collapsed && <span className="ml-3 truncate">{item.name}</span>}
+                {!collapsed && item.href === "/ai-tasks" && aiTasksUnreadCount > 0 && (
+                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-medium text-white">
+                    {aiTasksUnreadCount > 99 ? "99+" : aiTasksUnreadCount}
+                  </span>
+                )}
               </span>
             </Link>
           )

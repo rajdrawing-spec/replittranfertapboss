@@ -31,6 +31,7 @@ import browserRouter from "./browser";
 import treasuryRouter from "./treasury";
 import reportsRouter from "./reports";
 import aiTasksRouter from "./ai-tasks";
+import chatRouter from "./chat";
 
 const router: IRouter = Router();
 
@@ -69,5 +70,6 @@ router.use(storageRouter);
 router.use(browserRouter);
 router.use(treasuryRouter);
 router.use(aiTasksRouter);
+router.use(chatRouter);
 
 export default router;

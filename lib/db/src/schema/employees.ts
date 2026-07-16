@@ -12,7 +12,8 @@ export const employeesTable = pgTable("employees", {
   department: text("department").notNull(),
   designation: text("designation").notNull(),
   employeeCode: text("employee_code").notNull(),
-  status: text("status").notNull().default("active"), // active|inactive|terminated|on_leave
+  status: text("status").notNull().default("active"), // active|inactive|terminated|on_leave|sick|vacation
+  leaveStatus: text("leave_status"), // sick|vacation|leave|optional detail
   joinDate: text("join_date").notNull(),
   salary: real("salary").notNull().default(0),
   managerId: integer("manager_id"),

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, real, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, real, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -23,6 +23,10 @@ export const companiesTable = pgTable("companies", {
   country: text("country"),
   currency: text("currency").notNull().default("INR"),
   timezone: text("timezone"),
+  // AI-task scheduling context (company settings)
+  workWeek: jsonb("work_week").$type<number[]>().default([1, 2, 3, 4, 5]), // 0=Sun..6=Sat
+  weekendGeneration: boolean("weekend_generation").notNull().default(false), // generate on Sat/Sun?
+  generationTime: text("generation_time"), // optional per-company override HH:mm
   brandColor: text("brand_color"),
   employeeCount: integer("employee_count").notNull().default(0),
   totalRevenue: real("total_revenue").notNull().default(0),

@@ -46,6 +46,8 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "ai.reports", label: "View & generate AI executive reports", group: "AI Intelligence" },
   { key: "ai_tasks.read", label: "View AI tasks", group: "AI Tasks" },
   { key: "ai_tasks.manage", label: "Manage AI tasks", group: "AI Tasks" },
+  { key: "chat.read", label: "View chat", group: "Chat" },
+  { key: "chat.manage", label: "Manage chat", group: "Chat" },
 ];
 
 export const ALL_MODULE_PERMISSIONS = PERMISSIONS.filter((p) => !p.key.startsWith("platform.")).map((p) => p.key);
@@ -61,14 +63,14 @@ export interface SystemRoleDef {
 export const SYSTEM_ROLES: SystemRoleDef[] = [
   { key: "super_admin", name: "Super Admin", description: "Full platform control. Only one Super Admin exists.", permissions: ["*"] },
   { key: "company_admin", name: "Company Admin", description: "Full access to all modules for assigned companies.", permissions: ALL_MODULE_PERMISSIONS },
-  { key: "marketing_manager", name: "Marketing Manager", description: "Runs marketing campaigns and analytics.", permissions: ["dashboard.view", "marketing.view", "marketing.manage", "crm.view", "documents.view"] },
-  { key: "operations_manager", name: "Operations Manager", description: "Oversees orders, inventory and shipping.", permissions: ["dashboard.view", "orders.view", "orders.manage", "inventory.view", "inventory.manage", "shipping.view", "shipping.manage", "approvals.view"] },
-  { key: "sales_manager", name: "Sales Manager", description: "Manages customers and sales orders.", permissions: ["dashboard.view", "crm.view", "crm.manage", "orders.view", "marketing.view"] },
-  { key: "inventory_manager", name: "Inventory Manager", description: "Manages stock and products.", permissions: ["dashboard.view", "inventory.view", "inventory.manage", "orders.view"] },
-  { key: "shipping_manager", name: "Shipping Manager", description: "Manages shipments and returns.", permissions: ["dashboard.view", "shipping.view", "shipping.manage", "orders.view"] },
-  { key: "customer_support", name: "Customer Support", description: "Views customers and orders to help buyers.", permissions: ["dashboard.view", "crm.view", "orders.view"] },
-  { key: "finance", name: "Finance", description: "Access to finance and documents.", permissions: ["dashboard.view", "finance.view", "finance.manage", "documents.view", "shareholders.view"] },
-  { key: "director", name: "Director", description: "Company oversight: dashboard, finance, approvals and shareholder cap table.", permissions: ["dashboard.view", "finance.view", "approvals.view", "approvals.manage", "shareholders.view", "documents.view"] },
+  { key: "marketing_manager", name: "Marketing Manager", description: "Runs marketing campaigns and analytics.", permissions: ["dashboard.view", "marketing.view", "marketing.manage", "crm.view", "documents.view", "chat.read"] },
+  { key: "operations_manager", name: "Operations Manager", description: "Oversees orders, inventory and shipping.", permissions: ["dashboard.view", "orders.view", "orders.manage", "inventory.view", "inventory.manage", "shipping.view", "shipping.manage", "approvals.view", "chat.read"] },
+  { key: "sales_manager", name: "Sales Manager", description: "Manages customers and sales orders.", permissions: ["dashboard.view", "crm.view", "crm.manage", "orders.view", "marketing.view", "chat.read"] },
+  { key: "inventory_manager", name: "Inventory Manager", description: "Manages stock and products.", permissions: ["dashboard.view", "inventory.view", "inventory.manage", "orders.view", "chat.read"] },
+  { key: "shipping_manager", name: "Shipping Manager", description: "Manages shipments and returns.", permissions: ["dashboard.view", "shipping.view", "shipping.manage", "orders.view", "chat.read"] },
+  { key: "customer_support", name: "Customer Support", description: "Views customers and orders to help buyers.", permissions: ["dashboard.view", "crm.view", "orders.view", "chat.read"] },
+  { key: "finance", name: "Finance", description: "Access to finance and documents.", permissions: ["dashboard.view", "finance.view", "finance.manage", "documents.view", "shareholders.view", "chat.read"] },
+  { key: "director", name: "Director", description: "Company oversight: dashboard, finance, approvals and shareholder cap table.", permissions: ["dashboard.view", "finance.view", "approvals.view", "approvals.manage", "shareholders.view", "documents.view", "chat.read", "chat.manage"] },
   { key: "investor", name: "Investor", description: "Read-only high-level financial view.", permissions: ["dashboard.view", "finance.view"] },
   { key: "shareholder", name: "Shareholder", description: "Views their own equity, cap table and investment history.", permissions: ["dashboard.view", "shareholders.view"] },
 ];

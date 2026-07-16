@@ -68,27 +68,14 @@ export const taskGenerationJobsTable = pgTable("task_generation_jobs", {
   batchSize: integer("batch_size").default(1),
   tasksGenerated: integer("tasks_generated").default(0),
   nextRun: timestamp("next_run"),
+  retryCount: integer("retry_count").notNull().default(0),
+  maxRetries: integer("max_retries").notNull().default(1),
   error: text("error"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export type TaskGenerationJob = typeof taskGenerationJobsTable.$inferSelect;
 export type NewTaskGenerationJob = typeof taskGenerationJobsTable.$inferInsert;
-
-// ── chat_messages: persistent team chat history ───────────────────────────────
-// Company-scoped chat messages. One room per company. Messages are retained
-// permanently in the MVP; a retention policy can be added later via admin settings.
-export const chatMessagesTable = pgTable("chat_messages", {
-  id: serial("id").primaryKey(),
-  companyId: integer("company_id").notNull(),
-  userId: integer("user_id").notNull(), // local TBOS user id mapped from Clerk
-  displayName: text("display_name").notNull(),
-  content: text("content").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
-export type ChatMessage = typeof chatMessagesTable.$inferSelect;
-export type NewChatMessage = typeof chatMessagesTable.$inferInsert;
 
 // ── Zod schemas for API validation ─────────────────────────────────────────────
 export const insertTaskTemplateSchema = createInsertSchema(taskTemplatesTable)
@@ -106,5 +93,3 @@ export const insertGeneratedTaskSchema = createInsertSchema(generatedTasksTable)
 export const insertTaskGenerationJobSchema = createInsertSchema(taskGenerationJobsTable)
   .omit({ id: true, createdAt: true });
 
-export const insertChatMessageSchema = createInsertSchema(chatMessagesTable)
-  .omit({ id: true, createdAt: true });

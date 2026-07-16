@@ -1,5 +1,5 @@
-import { db, generatedTasksTable, usersTable, type TaskTemplate } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { db, generatedTasksTable, usersTable, companiesTable, type TaskTemplate } from "@workspace/db";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { getTaskGenerationProvider, getActiveProvider } from "../ai-provider";
 import { getUserPermissions } from "../auth-user";
 import { getAiTasksConfig } from "./config.service";
@@ -14,14 +14,14 @@ import {
 } from "./task-generation-job.service";
 import {
   buildBatchPrompt,
-  getSystemPrompt,
   parseGeneratedTasks,
   chunk,
   type GeneratedTaskOutput,
 } from "./task-ai-prompt.builder";
+import { getActivePrompt, getActivePromptVersion } from "./prompts.service";
+import { getProjectPriorities, priorityRank } from "./ai-task-settings.service";
+import { notifyTasksGenerated, notifyTasksPendingApproval } from "./notification.service";
 import { logger } from "../logger";
-
-const PROMPT_VERSION = "1.0";
 
 export interface GenerateResult {
   jobId: number;
@@ -29,6 +29,8 @@ export interface GenerateResult {
   tasksGenerated: number;
   message?: string;
 }
+
+const ACTIVE_EMPLOYEE_STATUSES = ["active"];
 
 export async function generateDailyTasks(
   companyId: number,
@@ -64,16 +66,20 @@ export async function generateDailyTasks(
 
   try {
     const employees = await listEmployeesForGeneration(companyId);
-    if (employees.length === 0) {
+    const activeEmployees = employees.filter((e) => ACTIVE_EMPLOYEE_STATUSES.includes(e.status));
+    if (activeEmployees.length === 0) {
       await completeJob(job.id, { tasksGenerated: 0, executionTimeMs: Date.now() - t0, batchSize: 0 });
       return { jobId: job.id, status: "completed", tasksGenerated: 0, message: "No active employees found" };
     }
 
+    const promptVersion = await getActivePromptVersion("task_generation");
+    const systemPrompt = await getActivePrompt("task_generation");
+    const projectPriorities = await getProjectPriorities(companyId);
+
     const provider = await resolveProvider(config.provider);
     providerUsed = provider?.name ?? "template-only";
 
-    // Group employees by department; each department gets its own batch(es).
-    const byDepartment = groupByDepartment(employees);
+    const byDepartment = groupByDepartment(activeEmployees);
     const managerExists = await hasManagerInCompany(companyId);
     const autoApprove = config.autoApprove || !managerExists;
 
@@ -81,10 +87,21 @@ export async function generateDailyTasks(
       const templates = await getActiveTemplatesForScope(companyId, department);
       if (templates.length === 0) continue;
 
+      const templatesWithPriority = templates.map((t) => ({
+        ...t,
+        effectivePriority: effectivePriority(t, projectPriorities),
+      }));
+
       const employeeChunks = chunk(deptEmployees, config.batchSize);
       for (const empChunk of employeeChunks) {
         batchSize = Math.max(batchSize, empChunk.length);
-        const outputs = await generateForBatch(empChunk, templates, provider, config.promptTemplate);
+        const outputs = await generateForBatch(
+          empChunk,
+          templatesWithPriority,
+          provider,
+          systemPrompt,
+          config.promptTemplate,
+        );
         const inserted = await insertGeneratedTasks(
           outputs,
           companyId,
@@ -100,11 +117,24 @@ export async function generateDailyTasks(
     await completeJob(job.id, {
       providerUsed,
       tokensUsed,
-      promptVersion: PROMPT_VERSION,
+      promptVersion,
       executionTimeMs: Date.now() - t0,
       batchSize,
       tasksGenerated,
     });
+
+    if (tasksGenerated > 0) {
+      const [company] = await db
+        .select({ name: companiesTable.name })
+        .from(companiesTable)
+        .where(eq(companiesTable.id, companyId))
+        .limit(1);
+      await notifyTasksGenerated(companyId, company?.name || "", tasksGenerated, today);
+      if (!autoApprove) {
+        const pendingCount = await countPendingTasks(companyId, today);
+        await notifyTasksPendingApproval(companyId, company?.name || "", pendingCount);
+      }
+    }
 
     return { jobId: job.id, status: "completed", tasksGenerated };
   } catch (e) {
@@ -130,11 +160,11 @@ async function resolveProvider(
 
 async function generateForBatch(
   employees: EmployeeProfile[],
-  templates: TaskTemplate[],
+  templates: import("./task-ai-prompt.builder").TemplatedWithPriority[],
   provider: Awaited<ReturnType<typeof resolveProvider>>,
-  customPromptTemplate: string | null,
+  systemPrompt: string,
+  customPromptTemplate?: string | null,
 ): Promise<GeneratedTaskOutput[]> {
-  // If no provider is available, fall back to template-only generation (no AI customization).
   if (!provider) {
     const outputs: GeneratedTaskOutput[] = [];
     for (const emp of employees) {
@@ -144,7 +174,7 @@ async function generateForBatch(
           templateId: t.id,
           title: t.titleTemplate,
           description: t.descriptionTemplate,
-          priority: t.priority as "low" | "medium" | "high",
+          priority: (t.effectivePriority || t.priority) as "low" | "medium" | "high",
           estimatedMinutes: t.estimatedMinutes,
           aiCustomizations: { templateOnly: true },
         });
@@ -154,7 +184,7 @@ async function generateForBatch(
   }
 
   const prompt = buildBatchPrompt(employees, templates, customPromptTemplate);
-  const response = await provider.chat([{ role: "user", content: prompt }], getSystemPrompt());
+  const response = await provider.chat([{ role: "user", content: prompt }], systemPrompt);
   return parseGeneratedTasks(response);
 }
 
@@ -168,7 +198,6 @@ async function insertGeneratedTasks(
 ): Promise<number> {
   if (outputs.length === 0) return 0;
 
-  // Deduplicate: skip if a generated task already exists for this employee + template + date.
   const existingRows = await db
     .select({ employeeId: generatedTasksTable.employeeId, templateId: generatedTasksTable.templateId })
     .from(generatedTasksTable)
@@ -222,7 +251,6 @@ function groupByDepartment(employees: EmployeeProfile[]): Record<string, Employe
 }
 
 async function hasManagerInCompany(companyId: number): Promise<boolean> {
-  // A manager is any user with ai_tasks.manage permission in this company.
   const users = await db.select().from(usersTable);
   const companyUsers = users.filter((u) => (u.companyIds as number[]).includes(companyId));
   for (const u of companyUsers) {
@@ -240,4 +268,35 @@ function offsetDate(runDate: string, days: number): string {
   const d = new Date(runDate);
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+function effectivePriority(template: TaskTemplate, projectPriorities: Map<string, string>): string {
+  // If a project name matches the template title/description, elevate priority.
+  const haystack = `${template.titleTemplate} ${template.descriptionTemplate}`.toLowerCase();
+  let bestRank = priorityRank(template.priority);
+  let bestPriority = template.priority;
+  for (const [projectName, priority] of projectPriorities.entries()) {
+    if (haystack.includes(projectName)) {
+      const rank = priorityRank(priority);
+      if (rank > bestRank) {
+        bestRank = rank;
+        bestPriority = priority;
+      }
+    }
+  }
+  return bestPriority;
+}
+
+async function countPendingTasks(companyId: number, runDate: string): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(generatedTasksTable)
+    .where(
+      and(
+        eq(generatedTasksTable.companyId, companyId),
+        eq(generatedTasksTable.generatedDate, runDate),
+        eq(generatedTasksTable.status, "draft"),
+      ),
+    );
+  return Number(row?.count ?? 0);
 }

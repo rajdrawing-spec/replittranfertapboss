@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
-import { CheckSquare, ListTodo, Users, Settings, Activity, ClipboardList } from "lucide-react"
+import { CheckSquare, ListTodo, Users, Settings, Activity, ClipboardList, BarChart3, Building2, FolderKanban, FileCode2 } from "lucide-react"
 import { useCompany } from "@/contexts/company-context"
 import { useAuth } from "@/contexts/auth-context"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -11,6 +11,10 @@ import { ManagerApproval } from "@/components/ai-tasks/manager-approval"
 import { GenerationJobs } from "@/components/ai-tasks/generation-jobs"
 import { EmployeeProfiles } from "@/components/ai-tasks/employee-profiles"
 import { AiTasksSettings } from "@/components/ai-tasks/settings"
+import { AiTasksAnalytics } from "@/components/ai-tasks/analytics"
+import { AiTaskCompanySettings } from "@/components/ai-tasks/company-settings"
+import { AiTaskProjects } from "@/components/ai-tasks/projects"
+import { AiTaskPrompts } from "@/components/ai-tasks/prompts"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 
@@ -90,7 +94,11 @@ export default function AiTasksPage() {
             <>
               <TabsTrigger value="approval"><CheckSquare className="mr-2 h-4 w-4" /> Pending Approval</TabsTrigger>
               <TabsTrigger value="jobs"><Activity className="mr-2 h-4 w-4" /> Jobs</TabsTrigger>
+              <TabsTrigger value="analytics"><BarChart3 className="mr-2 h-4 w-4" /> Analytics</TabsTrigger>
               <TabsTrigger value="team"><Users className="mr-2 h-4 w-4" /> Team</TabsTrigger>
+              <TabsTrigger value="projects"><FolderKanban className="mr-2 h-4 w-4" /> Projects</TabsTrigger>
+              <TabsTrigger value="company-settings"><Building2 className="mr-2 h-4 w-4" /> Company</TabsTrigger>
+              <TabsTrigger value="prompts"><FileCode2 className="mr-2 h-4 w-4" /> Prompts</TabsTrigger>
               <TabsTrigger value="settings"><Settings className="mr-2 h-4 w-4" /> Settings</TabsTrigger>
             </>
           )}
@@ -134,8 +142,20 @@ export default function AiTasksPage() {
             <TabsContent value="jobs" className="pt-4">
               <GenerationJobs companyId={companyId} />
             </TabsContent>
+            <TabsContent value="analytics" className="pt-4">
+              <AiTasksAnalytics companyId={companyId} />
+            </TabsContent>
             <TabsContent value="team" className="pt-4">
               <EmployeeProfiles companyId={companyId} />
+            </TabsContent>
+            <TabsContent value="projects" className="pt-4">
+              <AiTaskProjects companyId={companyId} canManage={canManage} />
+            </TabsContent>
+            <TabsContent value="company-settings" className="pt-4">
+              <AiTaskCompanySettings companyId={companyId} />
+            </TabsContent>
+            <TabsContent value="prompts" className="pt-4">
+              <AiTaskPrompts />
             </TabsContent>
             <TabsContent value="settings" className="pt-4">
               <AiTasksSettings />

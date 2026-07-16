@@ -23,6 +23,25 @@ import {
 import { listEmployeesForGeneration, updateEmployeeProfile } from "../lib/ai-tasks/employee-profile.service";
 import { listJobs } from "../lib/ai-tasks/task-generation-job.service";
 import { getAiTasksConfig, setAiTasksConfig } from "../lib/ai-tasks/config.service";
+import {
+  getCompanySettings,
+  updateCompanySettings,
+  listHolidays,
+  createHoliday,
+  deleteHoliday,
+  listProjects,
+  createProject,
+  updateProject,
+  deleteProject,
+} from "../lib/ai-tasks/ai-task-settings.service";
+import { getAnalytics, getHistoricalTrend } from "../lib/ai-tasks/analytics.service";
+import {
+  getActivePrompt,
+  listPrompts,
+  createPromptVersion,
+  setActivePrompt,
+} from "../lib/ai-tasks/prompts.service";
+import { getUnreadAiTasksCount } from "../lib/ai-tasks/notification.service";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db, generatedTasksTable } from "@workspace/db";
 
@@ -420,6 +439,235 @@ router.patch("/ai-tasks/config", requirePermission("ai_tasks.manage"), async (re
   } catch (e) {
     req.log.error(e);
     res.status(500).json({ error: "Failed to update config" });
+  }
+});
+
+// ── Company settings (timezone, work week, holidays) ─────────────────────────
+
+router.get("/ai-tasks/company-settings", requirePermission("ai_tasks.manage"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.query.companyId as string);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const settings = await getCompanySettings(companyId);
+    const holidays = await listHolidays(companyId);
+    res.json({ settings, holidays });
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to load company settings" });
+  }
+});
+
+router.patch("/ai-tasks/company-settings", requirePermission("ai_tasks.manage"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.body.companyId as string);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const settings = await updateCompanySettings(companyId, {
+      timezone: req.body.timezone,
+      workWeek: req.body.workWeek,
+      weekendGeneration: req.body.weekendGeneration,
+      generationTime: req.body.generationTime,
+    });
+    res.json(settings);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to update company settings" });
+  }
+});
+
+router.post("/ai-tasks/holidays", requirePermission("ai_tasks.manage"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.body.companyId as string);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const holiday = await createHoliday(companyId, req.body);
+    res.status(201).json(holiday);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to create holiday" });
+  }
+});
+
+router.delete("/ai-tasks/holidays/:id", requirePermission("ai_tasks.manage"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.query.companyId as string);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const deleted = await deleteHoliday(companyId, parseInt(String(req.params.id), 10));
+    if (!deleted) {
+      res.status(404).json({ error: "Holiday not found" });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to delete holiday" });
+  }
+});
+
+// ── Project priorities ───────────────────────────────────────────────────────
+
+router.get("/ai-tasks/projects", requirePermission("ai_tasks.read"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.query.companyId as string);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const projects = await listProjects(companyId);
+    res.json(projects);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to list projects" });
+  }
+});
+
+router.post("/ai-tasks/projects", requirePermission("ai_tasks.manage"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.body.companyId as string);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const project = await createProject(companyId, req.body);
+    res.status(201).json(project);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to create project" });
+  }
+});
+
+router.patch("/ai-tasks/projects/:id", requirePermission("ai_tasks.manage"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.body.companyId as string);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const project = await updateProject(companyId, parseInt(String(req.params.id), 10), req.body);
+    if (!project) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
+    res.json(project);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to update project" });
+  }
+});
+
+router.delete("/ai-tasks/projects/:id", requirePermission("ai_tasks.manage"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.query.companyId as string);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const deleted = await deleteProject(companyId, parseInt(String(req.params.id), 10));
+    if (!deleted) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to delete project" });
+  }
+});
+
+// ── Prompt versioning ────────────────────────────────────────────────────────
+
+router.get("/ai-tasks/prompts", requirePermission("ai_tasks.manage"), async (req, res) => {
+  try {
+    const prompts = await listPrompts("task_generation");
+    res.json(prompts);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to list prompts" });
+  }
+});
+
+router.get("/ai-tasks/prompts/active", requirePermission("ai_tasks.read"), async (req, res) => {
+  try {
+    const content = await getActivePrompt("task_generation");
+    res.json({ content });
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to load active prompt" });
+  }
+});
+
+router.post("/ai-tasks/prompts", requirePermission("ai_tasks.manage"), async (req, res) => {
+  try {
+    const { version, content } = req.body;
+    if (!version || !content) {
+      res.status(400).json({ error: "version and content are required" });
+      return;
+    }
+    const prompt = await createPromptVersion({ name: "task_generation", version, content });
+    res.status(201).json(prompt);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to create prompt version" });
+  }
+});
+
+router.patch("/ai-tasks/prompts/:id/activate", requirePermission("ai_tasks.manage"), async (req, res) => {
+  try {
+    const result = await setActivePrompt(parseInt(String(req.params.id), 10));
+    if (!result.ok) {
+      res.status(404).json({ error: "Prompt not found" });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to activate prompt" });
+  }
+});
+
+// ── Analytics ──────────────────────────────────────────────────────────────────
+
+router.get("/ai-tasks/analytics", requirePermission("ai_tasks.read"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.query.companyId as string);
+    const runDate = (req.query.runDate as string) || new Date().toISOString().slice(0, 10);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const analytics = await getAnalytics(companyId, runDate);
+    const trend = await getHistoricalTrend(companyId, 7);
+    res.json({ analytics, trend });
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to load analytics" });
+  }
+});
+
+// ── Notifications badge ────────────────────────────────────────────────────────
+
+router.get("/ai-tasks/notifications/unread-count", requirePermission("ai_tasks.read"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.query.companyId as string);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const count = await getUnreadAiTasksCount(companyId);
+    res.json({ count });
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to load unread count" });
   }
 });
 

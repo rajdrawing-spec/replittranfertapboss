@@ -148,9 +148,16 @@ export default defineConfig({
     fs: {
       strict: true,
     },
-    // No proxy needed: browser workspace now uses SSE (Server-Sent Events)
-    // instead of WebSocket.  SSE is plain HTTP so it flows through Replit's
-    // path-based proxy (/api/* → API server) without any special config.
+    proxy: {
+      // Route Socket.IO through the Vite dev server to the API server so the
+      // WebSocket upgrade reaches the Socket.IO instance. Replit's path-proxy
+      // drops WS upgrades, so the Vite proxy is required for chat in dev.
+      '/socket.io': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        ws: true,
+      },
+    },
   },
   preview: {
     port: port || undefined,

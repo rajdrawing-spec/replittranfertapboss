@@ -33,3 +33,5 @@
 - [TBOS AI investor valuation engine](tbos-ai-investor-valuation.md) — 6-method weighted engine; DB columns added via raw SQL then tsc --build to refresh .d.ts; outstanding shares passed in prompt for share price calc.
 - [TBOS AI executive reports](tbos-ai-reports.md) — catch-up scheduler (not time-window); failed rows must UPDATE not INSERT (dedup index); history scoping must be SQL WHERE before LIMIT.
 - [Gemini client dual-mode fallback](gemini-client-fallback.md) — when Replit AI Integrations upgrade is declined, fall back to a direct GEMINI_API_KEY rather than retrying setup.
+- [TBOS Socket.IO server setup](tbos-socketio-server.md) — Socket.IO requires an `http.createServer(app)` instance; `app.listen()` cannot attach the WebSocket layer.
+- [Zod v4 record syntax](tbos-zod-v4-record.md) — `z.record(value)` is invalid; `z.record(z.string(), value)` is required for object-like records.

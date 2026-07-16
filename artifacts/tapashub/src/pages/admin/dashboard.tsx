@@ -1,3 +1,4 @@
+import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useLocation } from "wouter"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -6,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Activity, Users, MessageSquare, Video, CheckSquare, Bot, AlertCircle, Server, Phone, MessageCircle, ArrowRight } from "lucide-react"
 import { useCompany } from "@/contexts/company-context"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 
 interface AdminMetrics {
@@ -38,20 +40,29 @@ function MetricCard({ label, value, icon: Icon, status }: { label: string; value
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation()
-  const { activeCompany } = useCompany()
+  const { activeCompany, companies, isParentView, setActiveCompanyId } = useCompany()
   const { toast } = useToast()
-  const companyId = activeCompany?.id
+  const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>(activeCompany?.id?.toString() ?? "")
+  const companyId = selectedCompanyId ? Number(selectedCompanyId) : activeCompany?.id
+
+  React.useEffect(() => {
+    if (activeCompany?.id && !selectedCompanyId) {
+      setSelectedCompanyId(activeCompany.id.toString())
+    }
+  }, [activeCompany?.id])
+
+  const selectedCompany = companies.find((c) => c.id === companyId)
 
   const startInstantMeeting = async () => {
     if (!companyId) {
-      toast({ title: "Select a company", description: "Switch to a subsidiary workspace to start a meeting.", variant: "destructive" })
+      toast({ title: "Select a company", description: "Choose a workspace from the dropdown above, or switch to a subsidiary first.", variant: "destructive" })
       return
     }
     const res = await fetch("/api/meetings", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ companyId, title: "Admin Instant Meeting", duration: 30 }),
+      body: JSON.stringify({ companyId, title: `${selectedCompany?.name ?? "Admin"} Instant Meeting`, duration: 30 }),
     })
     if (!res.ok) {
       toast({ title: "Failed to start meeting", description: await res.text(), variant: "destructive" })
@@ -59,6 +70,13 @@ export default function AdminDashboard() {
     }
     const meeting = await res.json()
     window.open(meeting.roomUrl, "_blank", "noopener,noreferrer")
+  }
+
+  const openChat = () => {
+    if (selectedCompanyId) {
+      setActiveCompanyId(Number(selectedCompanyId))
+    }
+    setLocation("/chat")
   }
 
   const { data: metrics, isLoading } = useQuery<AdminMetrics>({
@@ -96,14 +114,28 @@ export default function AdminDashboard() {
       )}
 
       <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Quick Actions</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">Quick Actions</h2>
+          {isParentView && companies.length > 0 && (
+            <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+              <SelectTrigger className="w-full sm:w-64">
+                <SelectValue placeholder="Choose a workspace/company" />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((c) => (
+                  <SelectItem key={c.id} value={c.id.toString()}>{c.name} {c.mode === "parent" ? "(Parent)" : "(Subsidiary)"}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardContent className="p-4 flex flex-col gap-3">
               <div className="p-2 rounded-lg bg-primary/10 w-fit"><MessageCircle className="h-5 w-5 text-primary" /></div>
               <div className="font-medium">Open Chat</div>
-              <p className="text-xs text-muted-foreground">Switch to a subsidiary workspace to start chatting.</p>
-              <Button size="sm" onClick={() => setLocation("/chat")} className="w-full">Open Chat <ArrowRight className="ml-2 h-4 w-4" /></Button>
+              <p className="text-xs text-muted-foreground">{selectedCompany ? `Open ${selectedCompany.name} chat.` : "Choose a workspace above, or switch to a subsidiary first."}</p>
+              <Button size="sm" onClick={openChat} className="w-full">Open Chat <ArrowRight className="ml-2 h-4 w-4" /></Button>
             </CardContent>
           </Card>
           <Card>

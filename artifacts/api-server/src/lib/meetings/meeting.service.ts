@@ -1,6 +1,6 @@
 import { db, meetingsTable, meetingParticipantsTable, meetingSettingsTable, companiesTable, usersTable, notificationsTable, generatedTasksTable, chatChannelsTable } from "@workspace/db";
 import { eq, and, or, gte, lte, desc, asc, inArray, sql } from "drizzle-orm";
-import { jitsiProvider, parseJaaSMagicCookie } from "./jitsi-provider";
+import { jitsiProvider, hasJaaSConfig, getJaaSAppId } from "./jitsi-provider";
 import type { MeetingProvider } from "./meeting-provider";
 
 const providers: Record<string, MeetingProvider> = {
@@ -29,13 +29,14 @@ export interface CreateMeetingInput {
   recurrence?: string | null;
 }
 
-const jaasCfg = parseJaaSMagicCookie(process.env.JITSIAAS_MAGIC_COOKIE);
-const jaasServerUrl = jaasCfg ? `https://8x8.vc/${jaasCfg.appId}` : undefined;
+const jaasEnabled = hasJaaSConfig();
+const jaasAppId = getJaaSAppId();
+const jaasServerUrl = jaasEnabled && jaasAppId ? `https://8x8.vc/${jaasAppId}` : undefined;
 
 export async function getOrCreateMeetingSettings(companyId: number) {
   const [existing] = await db.select().from(meetingSettingsTable).where(eq(meetingSettingsTable.companyId, companyId)).limit(1);
   if (existing) return existing;
-  const defaults = jaasCfg
+  const defaults = jaasEnabled
     ? { companyId, defaultProvider: "jitsi", jitsiServerUrl: jaasServerUrl }
     : { companyId };
   const [created] = await db.insert(meetingSettingsTable).values(defaults).returning();

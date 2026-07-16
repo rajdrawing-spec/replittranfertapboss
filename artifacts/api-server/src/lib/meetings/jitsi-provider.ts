@@ -4,6 +4,8 @@ import type { MeetingProvider, MeetingContext, CreateMeetingRoomResult } from ".
 export interface JaaSConfig {
   appId: string;
   apiKey: string;
+  kid: string;
+  privateKey: string;
 }
 
 function base64Url(input: string): string {
@@ -18,7 +20,18 @@ export function parseJaaSMagicCookie(cookie?: string): JaaSConfig | null {
   if (!cookie) return null;
   const match = cookie.match(/^vpaas-magic-cookie-([0-9a-fA-F]+)\/([0-9a-zA-Z]+)$/);
   if (!match) return null;
-  return { apiKey: match[1], appId: match[2] };
+  const privateKey = process.env.JITSIAAS_PRIVATE_KEY || "";
+  return { apiKey: match[1], appId: match[2], kid: cookie, privateKey };
+}
+
+export function hasJaaSConfig(): boolean {
+  const cfg = parseJaaSMagicCookie(process.env.JITSIAAS_MAGIC_COOKIE);
+  return !!cfg && !!cfg.privateKey;
+}
+
+export function getJaaSAppId(): string | null {
+  const cfg = parseJaaSMagicCookie(process.env.JITSIAAS_MAGIC_COOKIE);
+  return cfg?.appId || null;
 }
 
 export interface JaaSJwtContext {
@@ -36,13 +49,13 @@ export function buildJaaSJwt(
   expiresInSeconds = 86400,
 ): string {
   const now = Math.floor(Date.now() / 1000);
-  const header = base64Url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const header = base64Url(JSON.stringify({ alg: "RS256", typ: "JWT", kid: cfg.kid }));
   const user: Record<string, unknown> = {};
   if (ctx.userId) user.id = String(ctx.userId);
   if (ctx.displayName) user.name = ctx.displayName;
   if (ctx.email) user.email = ctx.email;
   if (ctx.avatarUrl) user.avatar = ctx.avatarUrl;
-  user.moderator = ctx.moderator ?? true;
+  user.moderator = ctx.moderator ?? true ? "true" : "false";
   const roomName = `${cfg.appId}/${meetingId}`;
   const payload = base64Url(
     JSON.stringify({
@@ -54,20 +67,19 @@ export function buildJaaSJwt(
       context: {
         user,
         features: {
-          livestreaming: true,
-          recording: true,
-          transcription: true,
-          "outbound-call": true,
-          "sip-outbound-call": true,
+          livestreaming: "true",
+          recording: "true",
+          transcription: "true",
+          "outbound-call": "true",
+          "sip-outbound-call": "true",
         },
       },
     }),
   );
   const signingInput = `${header}.${payload}`;
-  const signature = crypto
-    .createHmac("sha256", Buffer.from(cfg.apiKey, "hex"))
-    .update(signingInput)
-    .digest("base64url");
+  const signer = crypto.createSign("RSA-SHA256");
+  signer.update(signingInput);
+  const signature = signer.sign(cfg.privateKey, "base64url");
   return `${signingInput}.${signature}`;
 }
 

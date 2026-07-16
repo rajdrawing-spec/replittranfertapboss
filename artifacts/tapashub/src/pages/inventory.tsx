@@ -121,31 +121,21 @@ export default function Inventory() {
     }
   }
 
-  async function requestUpload(name: string, size: number, contentType: string) {
-    const res = await fetch(`${API_BASE}/api/storage/uploads/request-url`, {
-      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, size, contentType }),
-    })
-    if (!res.ok) throw new Error()
-    return res.json()
-  }
-
   async function importCsv(file: File) {
     if (!activeCompany) { toast({ title: "Select a company" }); return }
     setImportingJob(true)
     try {
-      const { uploadURL, objectPath } = await requestUpload(file.name, file.size, file.type)
-      const up = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } })
-      if (!up.ok) throw new Error("Upload failed")
+      const csv = await file.text()
+      if (!csv.trim()) throw new Error("CSV file is empty")
       const res = await fetch(`${API_BASE}/api/ai-products/import-csv`, {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: activeCompany.id, objectPath }),
+        body: JSON.stringify({ companyId: activeCompany.id, csv }),
       })
-      if (!res.ok) throw new Error()
-      const { jobId } = await res.json()
-      const process = await fetch(`${API_BASE}/api/ai-products/import-jobs/${jobId}/process`, { method: "POST", credentials: "include" })
-      if (!process.ok) throw new Error()
-      const stats = await process.json()
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "Import failed" }))
+        throw new Error(body.error || "Import failed")
+      }
+      const stats = await res.json()
       toast({ title: "Import complete", description: `${stats.success} added, ${stats.failed} failed` })
       refetch(); setImporting(false)
     } catch (e: any) {

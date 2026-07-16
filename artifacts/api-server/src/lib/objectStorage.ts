@@ -165,7 +165,8 @@ export class ObjectStorageService {
     }
 
     const url = new URL(rawPath);
-    const rawObjectPath = url.pathname;
+    // URL pathname always has a leading slash; strip it so it matches the env var format.
+    const rawObjectPath = url.pathname.replace(/^\//, '');
 
     let objectEntityDir = this.getPrivateObjectDir();
     if (!objectEntityDir.endsWith('/')) {
@@ -173,7 +174,7 @@ export class ObjectStorageService {
     }
 
     if (!rawObjectPath.startsWith(objectEntityDir)) {
-      return rawObjectPath;
+      return url.pathname;
     }
 
     const entityId = rawObjectPath.slice(objectEntityDir.length);

@@ -204,12 +204,77 @@ router.post("/ai-products/:productId/import-csv", requirePermission("inventory.w
 router.post("/ai-products/import-csv", requirePermission("inventory.write"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
-    const { companyId, objectPath } = z.object({ companyId: z.number(), objectPath: z.string() }).parse(req.body);
+    const { companyId, objectPath, csv } = z.object({
+      companyId: z.number(),
+      objectPath: z.string().optional(),
+      csv: z.string().optional(),
+    }).parse(req.body);
     if (!ensureCompany(req, res, companyId)) return;
+
+    // If CSV content is sent directly, process synchronously (avoids object-storage upload issues).
+    if (csv != null) {
+      const csvText = csv.replace(/^\uFEFF/, "");
+      const records = parse(csvText, { columns: true, skip_empty_lines: true, trim: true }) as Record<string, string>[];
+      if (records.length === 0) {
+        res.json({ total: 0, success: 0, failed: 0, errors: [] });
+        return;
+      }
+      const normalizedRecords = records.map(row => {
+        const next: Record<string, string> = {};
+        for (const [key, value] of Object.entries(row)) {
+          const normalizedKey = key.replace(/^\uFEFF/, "").trim().toLowerCase();
+          next[normalizedKey] = value;
+        }
+        return next;
+      });
+      const requiredHeaders = ["name", "sku", "category", "price"];
+      const missingHeaders = requiredHeaders.filter(h => !(h in normalizedRecords[0]));
+      if (missingHeaders.length > 0) {
+        res.status(400).json({ error: `Missing required headers: ${missingHeaders.join(", ")}` });
+        return;
+      }
+
+      let success = 0, failed = 0;
+      const errors: string[] = [];
+      for (const row of normalizedRecords) {
+        try {
+          const name = row.name?.trim() || "Untitled";
+          if (name === "Untitled" && !row.name?.trim()) throw new Error("Name is required");
+          await db.insert(productsTable).values({
+            companyId, name, sku: row.sku?.trim() || generateBarcode(), category: row.category?.trim() || "General",
+            description: row.description?.trim(), price: cleanNumber(row.price), costPrice: cleanNumber(row.costprice),
+            stockQuantity: cleanInteger(row.stockquantity), reorderLevel: cleanInteger(row.reorderlevel) || 10,
+            warehouseLocation: row.warehouselocation?.trim(), status: row.status?.trim() || "active",
+          });
+          success++;
+        } catch (err: any) {
+          failed++;
+          errors.push(`${row.name || "row"}: ${err.message}`);
+        }
+      }
+      res.json({ total: normalizedRecords.length, success, failed, errors });
+      return;
+    }
+
+    // Legacy flow: object-storage file path provided.
+    if (!objectPath) { res.status(400).json({ error: "Missing csv or objectPath" }); return; }
     const [job] = await db.insert(productImportJobsTable).values({ companyId, filePath: objectPath, status: "pending" }).returning();
     res.json({ jobId: job.id, status: "pending" });
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Import failed" }); }
 });
+
+function cleanNumber(value: string | undefined): number {
+  if (!value) return 0;
+  // Remove currency symbols, commas, and whitespace; keep digits, decimal point, and minus sign.
+  const cleaned = value.replace(/[^0-9.\-]/g, "");
+  const num = parseFloat(cleaned);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function cleanInteger(value: string | undefined): number {
+  const num = Math.round(cleanNumber(value));
+  return Number.isFinite(num) ? num : 0;
+}
 
 router.post("/ai-products/import-jobs/:jobId/process", requirePermission("inventory.write"), async (req, res) => {
   if (!gate(req, res)) return;
@@ -224,19 +289,53 @@ router.post("/ai-products/import-jobs/:jobId/process", requirePermission("invent
     const stream = file.createReadStream();
     const chunks: Buffer[] = [];
     for await (const chunk of stream) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    const csv = Buffer.concat(chunks).toString("utf-8");
-    const records = parse(csv, { columns: true, skip_empty_lines: true }) as Record<string, string>[];
+    const csv = Buffer.concat(chunks).toString("utf-8").replace(/^\uFEFF/, "");
+    const records = parse(csv, { columns: true, skip_empty_lines: true, trim: true }) as Record<string, string>[];
+    if (records.length === 0) {
+      await db.update(productImportJobsTable).set({ status: "completed", stats: { total: 0, success: 0, failed: 0, errors: [] }, updatedAt: new Date() }).where(eq(productImportJobsTable.id, jobId));
+      res.json({ total: 0, success: 0, failed: 0, errors: [] });
+      return;
+    }
+
+    // Normalize headers to lower-case and strip leading BOM char if present.
+    const normalizedRecords = records.map(row => {
+      const next: Record<string, string> = {};
+      for (const [key, value] of Object.entries(row)) {
+        const normalizedKey = key.replace(/^\uFEFF/, "").trim().toLowerCase();
+        next[normalizedKey] = value;
+      }
+      return next;
+    });
+
+    const requiredHeaders = ["name", "sku", "category", "price"];
+    const firstRow = normalizedRecords[0];
+    const missingHeaders = requiredHeaders.filter(h => !(h in firstRow));
+    if (missingHeaders.length > 0) {
+      await db.update(productImportJobsTable).set({ status: "failed", error: `Missing required headers: ${missingHeaders.join(", ")}`, updatedAt: new Date() }).where(eq(productImportJobsTable.id, jobId));
+      res.status(400).json({ error: `Missing required headers: ${missingHeaders.join(", ")}` });
+      return;
+    }
 
     let success = 0, failed = 0;
     const errors: string[] = [];
-    for (const row of records) {
+    for (const row of normalizedRecords) {
       try {
+        const name = row.name?.trim() || "Untitled";
+        const sku = row.sku?.trim() || generateBarcode();
+        const price = cleanNumber(row.price);
+        const costPrice = cleanNumber(row.costprice);
+        if (name === "Untitled" && !row.name?.trim()) {
+          throw new Error("Name is required");
+        }
         await db.insert(productsTable).values({
           companyId: job.companyId,
-          name: row.name || "Untitled", sku: row.sku || generateBarcode(), category: row.category || "General",
-          description: row.description, price: parseFloat(row.price || "0"), costPrice: parseFloat(row.costPrice || "0"),
-          stockQuantity: parseInt(row.stockQuantity || "0"), reorderLevel: parseInt(row.reorderLevel || "10"),
-          warehouseLocation: row.warehouseLocation, status: row.status || "active",
+          name, sku, category: row.category?.trim() || "General",
+          description: row.description?.trim(),
+          price, costPrice,
+          stockQuantity: cleanInteger(row.stockquantity),
+          reorderLevel: cleanInteger(row.reorderlevel) || 10,
+          warehouseLocation: row.warehouselocation?.trim(),
+          status: row.status?.trim() || "active",
         });
         success++;
       } catch (err: any) {
@@ -244,8 +343,8 @@ router.post("/ai-products/import-jobs/:jobId/process", requirePermission("invent
         errors.push(`${row.name || "row"}: ${err.message}`);
       }
     }
-    await db.update(productImportJobsTable).set({ status: "completed", stats: { total: records.length, success, failed, errors }, updatedAt: new Date() }).where(eq(productImportJobsTable.id, jobId));
-    res.json({ total: records.length, success, failed, errors });
+    await db.update(productImportJobsTable).set({ status: "completed", stats: { total: normalizedRecords.length, success, failed, errors }, updatedAt: new Date() }).where(eq(productImportJobsTable.id, jobId));
+    res.json({ total: normalizedRecords.length, success, failed, errors });
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Import processing failed" }); }
 });
 

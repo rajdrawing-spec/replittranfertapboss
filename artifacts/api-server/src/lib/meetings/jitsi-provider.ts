@@ -25,6 +25,7 @@ export interface JaaSJwtContext {
   displayName?: string | null;
   email?: string | null;
   avatarUrl?: string | null;
+  userId?: string | number | null;
   moderator?: boolean;
 }
 
@@ -37,16 +38,18 @@ export function buildJaaSJwt(
   const now = Math.floor(Date.now() / 1000);
   const header = base64Url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
   const user: Record<string, unknown> = {};
+  if (ctx.userId) user.id = String(ctx.userId);
   if (ctx.displayName) user.name = ctx.displayName;
   if (ctx.email) user.email = ctx.email;
   if (ctx.avatarUrl) user.avatar = ctx.avatarUrl;
   user.moderator = ctx.moderator ?? true;
+  const roomName = `${cfg.appId}/${meetingId}`;
   const payload = base64Url(
     JSON.stringify({
       aud: "jitsi",
       iss: cfg.appId,
       sub: cfg.appId,
-      room: meetingId,
+      room: roomName,
       exp: now + expiresInSeconds,
       context: {
         user,
@@ -97,6 +100,7 @@ export class JitsiProvider implements MeetingProvider {
         displayName: context.displayName,
         email: context.email,
         avatarUrl: context.avatarUrl,
+        userId: context.userId,
         moderator: true,
       });
       const jaasServerUrl = `https://8x8.vc/${jaas.appId}`;

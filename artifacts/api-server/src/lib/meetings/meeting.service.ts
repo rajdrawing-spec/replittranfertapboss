@@ -89,6 +89,7 @@ export async function createMeeting(input: CreateMeetingInput) {
     displayName,
     email,
     avatarUrl,
+    userId: input.organizerId,
   });
 
   const [meeting] = await db.insert(meetingsTable).values({

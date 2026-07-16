@@ -13,6 +13,7 @@ export interface MeetingContext {
   displayName?: string | null;
   email?: string | null;
   avatarUrl?: string | null;
+  userId?: string | number | null;
 }
 
 export interface CreateMeetingRoomResult {

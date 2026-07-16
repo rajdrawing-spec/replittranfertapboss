@@ -34,6 +34,7 @@ import aiTasksRouter from "./ai-tasks";
 import chatRouter from "./chat";
 import meetingsRouter from "./meetings";
 import adminRouter from "./admin";
+import aiProductsRouter from "./ai-products";
 
 const router: IRouter = Router();
 
@@ -75,5 +76,6 @@ router.use(aiTasksRouter);
 router.use(chatRouter);
 router.use(meetingsRouter);
 router.use(adminRouter);
+router.use(aiProductsRouter);
 
 export default router;

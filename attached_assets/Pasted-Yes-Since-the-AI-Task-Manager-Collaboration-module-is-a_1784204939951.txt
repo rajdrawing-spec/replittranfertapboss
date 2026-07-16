@@ -1,0 +1,82 @@
+Yes. Since the **AI Task Manager + Collaboration module is already complete**, you can tell Replit to **skip anything that's already implemented** and focus only on the remaining **AI Product Creation** work.
+
+Send this:
+
+---
+
+The **AI Task Manager & Collaboration module is already completed and approved** (AI Tasks, Chat, Meetings, Scheduler, Notifications, etc.).
+
+**Please detect existing functionality and DO NOT duplicate or replace it.**
+
+### Instructions
+
+1. First, scan the current TBOS codebase.
+2. If any feature from either specification already exists, **leave it unchanged**.
+3. Only implement the **missing functionality**.
+4. Reuse existing:
+
+   * AI provider abstraction (Gemini/Ollama)
+   * Scheduler
+   * Notifications
+   * RBAC
+   * Company isolation
+   * Storage
+   * Settings
+   * Feature flags
+   * Background jobs
+   * Existing APIs and components
+
+### Focus only on the remaining Product & Inventory AI features.
+
+Build the **complete AI-Assisted Product Creation module** including:
+
+* AI image analysis
+* Automatic product title generation
+* Automatic SKU generation
+* AI descriptions
+* AI keywords & SEO
+* Product attribute detection
+* Marketplace-ready image validation
+* Image optimization
+* Automatic image renaming
+* Product health score
+* Barcode generation
+* Product variants
+* Excel/CSV import & export
+* Bulk image upload
+* Background removal (optional)
+* Marketplace templates (Amazon, Flipkart, Myntra, Shopify, etc.)
+
+### Important Rules
+
+* Do **not** redesign the existing Products & Inventory pages.
+* Extend the current module only.
+* Keep the existing database schema backward compatible.
+* Add new tables/columns only where necessary.
+* Keep everything modular and reusable.
+* Use lazy loading where appropriate.
+* Minimize AI usage by caching results and only calling AI when users explicitly request analysis.
+* Follow the existing TBOS architecture and coding standards.
+
+### If any requested feature already exists
+
+* Detect it automatically.
+* Skip implementation.
+* Reuse it.
+* Do not duplicate code, APIs, database tables, or UI.
+
+### Deliverables
+
+When complete, provide:
+
+* Summary of newly implemented features
+* Existing features that were detected and reused
+* Database changes
+* New APIs
+* New React components
+* AI integrations
+* Test results
+* Performance summary
+* Screenshots
+
+**Build the remaining Product & Inventory AI module as one implementation. If a feature is already present, ignore it and continue with the missing functionality only.**

@@ -1,0 +1,374 @@
+Add New Module: TapBoss Connect + AI Work Manager (DO NOT MODIFY EXISTING APP)
+IMPORTANT
+
+This is a completely new module for TapBoss.
+
+Do NOT change, redesign, or break any existing module.
+
+Do NOT modify:
+
+Products & Inventory
+Dashboard
+CRM
+Authentication
+Companies
+Existing Database
+Existing APIs
+Existing Navigation
+
+Create these as new standalone modules that integrate with the existing user/company system.
+
+Module 1: TapBoss Connect
+
+Create a modern collaboration platform similar to Microsoft Teams, Slack, Discord, and Zoom.
+
+Features
+Team Chat
+
+Support
+
+Private Chat
+Group Chat
+Company Channels
+Department Channels
+Project Channels
+File Sharing
+Image Sharing
+Document Sharing
+Voice Messages
+Emoji Reactions
+Message Search
+Message Edit/Delete
+Typing Indicators
+Read Receipts
+Online/Offline Status
+Audio Calling
+
+Support
+
+One-to-One Audio Calls
+Group Audio Calls
+Company Conference Calls
+Video Meetings
+
+Support
+
+One-to-One Video
+Group Meetings
+Company Meetings
+
+Include
+
+HD Video
+Camera Toggle
+Microphone Toggle
+Speaker Selection
+Participant List
+Raise Hand
+Chat During Meeting
+Screen Sharing
+
+Support
+
+Entire Screen
+Single Window
+Browser Tab
+
+Allow presenter switching.
+
+Meeting Features
+
+Support
+
+Meeting Room Creation
+Invite Employees
+Join via Link
+Waiting Room
+Host Controls
+Mute Participants
+Remove Participants
+Meeting Chat
+File Sharing
+
+Allow uploading
+
+Images
+PDFs
+Excel
+Word
+ZIP
+Videos
+
+Store securely.
+
+Notifications
+
+Notify users for
+
+New Message
+Missed Call
+Meeting Invitation
+File Shared
+Presence
+
+Display
+
+Online
+Offline
+Busy
+Away
+In Meeting
+Technology
+
+Prefer
+
+Jitsi Meet (free)
+Socket.IO
+WebRTC
+Firebase Cloud Messaging for notifications
+
+Design the architecture so providers can be changed later without major refactoring.
+
+Module 2: AI Work Manager
+
+Create an intelligent task management system.
+
+Every employee already belongs to a company.
+
+Each employee will have
+
+Department
+Designation
+Manager
+Job Description
+Experience Level
+
+Store all of these.
+
+Job Description
+
+Allow HR/Admin to create detailed Job Descriptions.
+
+Example
+
+Senior Concept Artist
+
+Responsibilities
+
+Character Concepts
+Environment Concepts
+Asset Review
+Team Mentoring
+Daily Meetings
+AI Daily Task Generator
+
+Every morning automatically generate realistic tasks using the employee's
+
+Job Description
+Department
+Experience
+Assigned Project
+Current Sprint
+Pending Tasks
+Company Holidays
+Priority
+
+Generate
+
+Today's Tasks
+Estimated Time
+Priority
+Dependencies
+
+Employee can edit progress.
+
+Weekly Planner
+
+Generate
+
+Monday to Friday tasks automatically.
+
+Monthly Planner
+
+Generate complete monthly work plans.
+
+Smart Task Balancing
+
+If an employee completes work early
+
+Generate additional work.
+
+If overloaded
+
+Redistribute tasks.
+
+Manager Dashboard
+
+Managers can
+
+View Team Tasks
+Approve Tasks
+Reassign Tasks
+Add Manual Tasks
+Track Productivity
+Track Delays
+Employee Dashboard
+
+Display
+
+Today's Tasks
+
+In Progress
+
+Completed
+
+Upcoming
+
+Meetings
+
+Pending Reviews
+
+Files to Submit
+
+Daily Progress
+
+AI Suggestions
+
+AI should recommend
+
+Missing Tasks
+Better Priorities
+Deadline Risks
+Productivity Improvements
+Calendar
+
+Integrate FullCalendar.
+
+Show
+
+Meetings
+Holidays
+Leaves
+Deadlines
+Tasks
+Task Types
+
+Support
+
+Personal
+Team
+Company
+Department
+Recurring
+One-time
+Project Tasks
+Reports
+
+Generate
+
+Daily Report
+Weekly Report
+Monthly Report
+
+Managers should see
+
+Completion Rate
+Productivity
+Delays
+Employee Workload
+Notifications
+
+Notify employees for
+
+New Task
+Deadline Reminder
+Meeting Reminder
+Task Overdue
+Manager Comment
+AI Provider
+
+Support configurable providers.
+
+Default provider:
+
+Google Gemini API
+
+Also allow future support for
+
+OpenAI
+Ollama
+DeepSeek
+Claude
+
+The provider should be configurable from Settings.
+
+Database
+
+Create new tables only.
+
+Do not modify existing business tables.
+
+Suggested tables
+
+job_descriptions
+employee_roles
+task_templates
+daily_tasks
+weekly_tasks
+monthly_tasks
+meetings
+chat_messages
+channels
+notifications
+task_reports
+meeting_rooms
+Performance
+
+Heavy AI processing must run asynchronously.
+
+Use background jobs where possible.
+
+The UI should remain responsive.
+
+Security
+
+All data must be isolated by Company.
+
+Employees must never see another company's data.
+
+Managers can only access their team's data.
+
+Admins can access company-wide data.
+
+UI
+
+Use the existing TapBoss design system.
+
+Maintain the current theme, colors, typography, spacing, icons, and navigation.
+
+Do not redesign any existing pages.
+
+Only add new menu items:
+
+Connect
+AI Work Manager
+
+Everything should feel like a native part of the existing TapBoss application.
+
+Future Ready
+
+Design the modules to support future integrations with
+
+Google Calendar
+Outlook Calendar
+Zoom
+Microsoft Teams
+Slack
+Jira
+ClickUp
+Trello
+GitHub
+GitLab
+Bitbucket
+
+without requiring major architectural changes.

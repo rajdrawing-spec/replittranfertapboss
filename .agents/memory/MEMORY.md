@@ -38,3 +38,4 @@
 - [TBOS meetings provider abstraction](tbos-meetings-provider.md) — keep meeting URL/ID generation behind a provider interface; Jitsi React SDK requires `userInfo.email` and cleanup via `api.dispose()`.
 - [TBOS Jitsi lazy-load](tbos-jitsi-lazy-load.md) — wrap `@jitsi/react-sdk` in `React.lazy()` and destroy the iframe on unmount so Jitsi scripts are only loaded when a meeting opens.
 - [TBOS stabilization hardening](tbos-stabilization-hardening.md) — wrap all routed pages in ErrorBoundary; use `sql<count>` not `db.fn.count()` for Drizzle counts; avoid duplicate nav-item keys across `parentNav` and `adminNav`.
+- [TBOS product AI module](tbos-product-ai.md) — add product AI tables via raw executeSql (drizzle-kit push requires TTY); keep csv-parse/csv-stringify in api-server; reuse existing AI provider and storage upload URLs.

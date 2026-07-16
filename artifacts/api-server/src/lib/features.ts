@@ -7,3 +7,7 @@
 export function isAiTasksEnabled(): boolean {
   return process.env.AI_TASKS_ENABLED !== "false";
 }
+
+export function isAiProductsEnabled(): boolean {
+  return process.env.AI_PRODUCTS_ENABLED !== "false";
+}

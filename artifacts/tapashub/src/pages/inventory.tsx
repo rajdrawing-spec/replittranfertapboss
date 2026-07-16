@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Search, Plus, Pencil, Trash2, PackageSearch, AlertTriangle } from "lucide-react"
+import { Search, Plus, Pencil, Trash2, PackageSearch, AlertTriangle, Sparkles, Upload, Download } from "lucide-react"
 import { useCompany } from "@/contexts/company-context"
 import { useToast } from "@/hooks/use-toast"
+import AiProductPanel from "@/components/ai-products/ai-product-panel"
 
 const API_BASE = ""
 
@@ -33,9 +34,13 @@ export default function Inventory() {
   const [page, setPage] = React.useState(1)
   const [showDialog, setShowDialog] = React.useState(false)
   const [editing, setEditing] = React.useState<any>(null)
+  const [aiProduct, setAiProduct] = React.useState<any>(null)
   const [form, setForm] = React.useState<ProductForm>(emptyForm())
   const [saving, setSaving] = React.useState(false)
   const [deleting, setDeleting] = React.useState<number | null>(null)
+  const [importing, setImporting] = React.useState(false)
+  const [importPath, setImportPath] = React.useState("")
+  const [importingJob, setImportingJob] = React.useState(false)
 
   const { data: companies } = useListCompanies({ query: { enabled: true, queryKey: ["/api/companies"] } })
 
@@ -98,6 +103,56 @@ export default function Inventory() {
     } finally { setDeleting(null) }
   }
 
+  async function exportCsv() {
+    if (!activeCompany) { toast({ title: "Select a company" }); return }
+    try {
+      const res = await fetch(`${API_BASE}/api/ai-products/export-csv`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: activeCompany.id }),
+      })
+      if (!res.ok) throw new Error()
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url; a.download = `products-${activeCompany.id}.csv`; a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast({ title: "Error", description: "Export failed", variant: "destructive" })
+    }
+  }
+
+  async function requestUpload(name: string, size: number, contentType: string) {
+    const res = await fetch(`${API_BASE}/api/storage/uploads/request-url`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, size, contentType }),
+    })
+    if (!res.ok) throw new Error()
+    return res.json()
+  }
+
+  async function importCsv(file: File) {
+    if (!activeCompany) { toast({ title: "Select a company" }); return }
+    setImportingJob(true)
+    try {
+      const { uploadURL, objectPath } = await requestUpload(file.name, file.size, file.type)
+      const up = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } })
+      if (!up.ok) throw new Error("Upload failed")
+      const res = await fetch(`${API_BASE}/api/ai-products/import-csv`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: activeCompany.id, objectPath }),
+      })
+      if (!res.ok) throw new Error()
+      const { jobId } = await res.json()
+      const process = await fetch(`${API_BASE}/api/ai-products/import-jobs/${jobId}/process`, { method: "POST", credentials: "include" })
+      if (!process.ok) throw new Error()
+      const stats = await process.json()
+      toast({ title: "Import complete", description: `${stats.success} added, ${stats.failed} failed` })
+      refetch(); setImporting(false)
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Import failed", variant: "destructive" })
+    } finally { setImportingJob(false) }
+  }
+
   const f = (k: keyof ProductForm, v: string) => setForm(frm => ({ ...frm, [k]: v }))
 
   return (
@@ -107,7 +162,11 @@ export default function Inventory() {
           <h1 className="text-3xl font-bold tracking-tight">Products & Inventory</h1>
           <p className="text-muted-foreground mt-0.5 text-sm">{activeCompany ? `${activeCompany.name} · ` : "All companies · "}{data?.total ?? 0} products</p>
         </div>
-        <Button onClick={openAdd} className="gap-2"><Plus className="w-4 h-4" />Add Product</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setImporting(true)} className="gap-2"><Upload className="w-4 h-4" />Import CSV</Button>
+          <Button variant="outline" onClick={exportCsv} className="gap-2"><Download className="w-4 h-4" />Export</Button>
+          <Button onClick={openAdd} className="gap-2"><Plus className="w-4 h-4" />Add Product</Button>
+        </div>
       </div>
 
       <Card>
@@ -159,6 +218,7 @@ export default function Inventory() {
                       <TableCell>
                         <div className="flex gap-1">
                           <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => openEdit(p)}><Pencil className="w-3.5 h-3.5" /></Button>
+                          <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => setAiProduct(p)}><Sparkles className="w-3.5 h-3.5 text-purple-500" /></Button>
                           <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive hover:text-destructive" disabled={deleting === p.id} onClick={() => handleDelete(p.id)}>
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
@@ -215,6 +275,30 @@ export default function Inventory() {
             <Button onClick={handleSave} disabled={saving || !form.name || !form.price || !form.companyId}>
               {saving ? "Saving…" : editing ? "Save Changes" : "Add Product"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!aiProduct} onOpenChange={() => setAiProduct(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>AI Assistant — {aiProduct?.name}</DialogTitle></DialogHeader>
+          {aiProduct && <AiProductPanel product={aiProduct} onChange={() => { refetch() }} />}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importing} onOpenChange={setImporting}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Import Products CSV</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <Input type="file" accept=".csv" onChange={e => setImportPath(e.target.files?.[0]?.name || "")} />
+            <p className="text-xs text-muted-foreground">Columns: name, sku, category, description, price, costPrice, stockQuantity, reorderLevel, warehouseLocation, status</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImporting(false)}>Cancel</Button>
+            <Button
+              onClick={() => { const f = (document.querySelector('input[type="file"]') as HTMLInputElement)?.files?.[0]; if (f) importCsv(f); }}
+              disabled={importingJob || !importPath}
+            >{importingJob ? "Importing…" : "Import"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

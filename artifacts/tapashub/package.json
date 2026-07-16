@@ -84,6 +84,7 @@
   "dependencies": {
     "@clerk/react": "^6.11.3",
     "@clerk/themes": "^2.4.57",
+    "@jitsi/react-sdk": "^1.4.4",
     "@uppy/aws-s3": "^5.1.0",
     "@uppy/core": "^5.2.0",
     "@uppy/dashboard": "^5.1.1",

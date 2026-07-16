@@ -32,6 +32,7 @@ import treasuryRouter from "./treasury";
 import reportsRouter from "./reports";
 import aiTasksRouter from "./ai-tasks";
 import chatRouter from "./chat";
+import meetingsRouter from "./meetings";
 
 const router: IRouter = Router();
 
@@ -71,5 +72,6 @@ router.use(browserRouter);
 router.use(treasuryRouter);
 router.use(aiTasksRouter);
 router.use(chatRouter);
+router.use(meetingsRouter);
 
 export default router;

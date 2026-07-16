@@ -35,3 +35,5 @@
 - [Gemini client dual-mode fallback](gemini-client-fallback.md) — when Replit AI Integrations upgrade is declined, fall back to a direct GEMINI_API_KEY rather than retrying setup.
 - [TBOS Socket.IO server setup](tbos-socketio-server.md) — Socket.IO requires an `http.createServer(app)` instance; `app.listen()` cannot attach the WebSocket layer.
 - [Zod v4 record syntax](tbos-zod-v4-record.md) — `z.record(value)` is invalid; `z.record(z.string(), value)` is required for object-like records.
+- [TBOS meetings provider abstraction](tbos-meetings-provider.md) — keep meeting URL/ID generation behind a provider interface; Jitsi React SDK requires `userInfo.email` and cleanup via `api.dispose()`.
+- [TBOS Jitsi lazy-load](tbos-jitsi-lazy-load.md) — wrap `@jitsi/react-sdk` in `React.lazy()` and destroy the iframe on unmount so Jitsi scripts are only loaded when a meeting opens.

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Settings2, Shield, Users, Brain, CheckCircle2, XCircle, Loader2, ChevronDown, ChevronRight } from "lucide-react"
+import { MeetingSettings } from "@/components/meetings/meeting-settings"
 import { useQueryClient } from "@tanstack/react-query"
 
 export default function Settings() {
@@ -78,6 +79,9 @@ export default function Settings() {
 
           {/* AI Provider card — super admin only */}
           {isSuperAdmin && <AiProviderCard />}
+
+          {/* Meeting settings */}
+          <MeetingSettings />
         </div>
 
         <div className="md:col-span-2">

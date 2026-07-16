@@ -42,6 +42,7 @@ const Treasury = React.lazy(() => import('@/pages/treasury'));
 const AiReports = React.lazy(() => import('@/pages/ai-reports'));
 const AiTasks = React.lazy(() => import('@/pages/ai-tasks'));
 const Chat = React.lazy(() => import('@/pages/chat'));
+const Meetings = React.lazy(() => import('@/pages/meetings'));
 // Lazy-load the sign-in shell so the public landing page does not pay for the
 // entire signed-in app bundle on first paint.
 const SignInPage = React.lazy(() => import('@/pages/sign-in'));
@@ -244,6 +245,7 @@ function AuthedApp() {
                   <Route path="/ai-reports" component={AiReports} />
                   <Route path="/ai-tasks" component={AiTasks} />
                   <Route path="/chat" component={Chat} />
+                  <Route path="/meetings" component={Meetings} />
                   <Route path="/analytics" component={Analytics} />
                   <Route path="/veterinary" component={HR} />
                   <Route path="/community" component={CRM} />

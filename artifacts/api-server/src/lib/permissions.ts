@@ -48,6 +48,8 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "ai_tasks.manage", label: "Manage AI tasks", group: "AI Tasks" },
   { key: "chat.read", label: "View chat", group: "Chat" },
   { key: "chat.manage", label: "Manage chat", group: "Chat" },
+  { key: "meetings.read", label: "View meetings", group: "Meetings" },
+  { key: "meetings.manage", label: "Manage meetings", group: "Meetings" },
 ];
 
 export const ALL_MODULE_PERMISSIONS = PERMISSIONS.filter((p) => !p.key.startsWith("platform.")).map((p) => p.key);
@@ -70,7 +72,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
   { key: "shipping_manager", name: "Shipping Manager", description: "Manages shipments and returns.", permissions: ["dashboard.view", "shipping.view", "shipping.manage", "orders.view", "chat.read"] },
   { key: "customer_support", name: "Customer Support", description: "Views customers and orders to help buyers.", permissions: ["dashboard.view", "crm.view", "orders.view", "chat.read"] },
   { key: "finance", name: "Finance", description: "Access to finance and documents.", permissions: ["dashboard.view", "finance.view", "finance.manage", "documents.view", "shareholders.view", "chat.read"] },
-  { key: "director", name: "Director", description: "Company oversight: dashboard, finance, approvals and shareholder cap table.", permissions: ["dashboard.view", "finance.view", "approvals.view", "approvals.manage", "shareholders.view", "documents.view", "chat.read", "chat.manage"] },
-  { key: "investor", name: "Investor", description: "Read-only high-level financial view.", permissions: ["dashboard.view", "finance.view"] },
+  { key: "director", name: "Director", description: "Company oversight: dashboard, finance, approvals and shareholder cap table.", permissions: ["dashboard.view", "finance.view", "approvals.view", "approvals.manage", "shareholders.view", "documents.view", "chat.read", "chat.manage", "meetings.read", "meetings.manage"] },
+  { key: "investor", name: "Investor", description: "Read-only high-level financial view.", permissions: ["dashboard.view", "finance.view", "meetings.read"] },
   { key: "shareholder", name: "Shareholder", description: "Views their own equity, cap table and investment history.", permissions: ["dashboard.view", "shareholders.view"] },
 ];

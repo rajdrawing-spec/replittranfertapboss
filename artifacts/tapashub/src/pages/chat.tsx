@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { EmptyState } from "@/components/empty-state"
-import { MessageSquare, Pin, Search, Send, Paperclip, Megaphone, User } from "lucide-react"
+import { MessageSquare, Pin, Search, Send, Paperclip, Megaphone, User, Video } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "")
@@ -191,6 +191,26 @@ export default function ChatPage() {
     }
   }
 
+  const startChannelMeeting = async () => {
+    if (!selectedChannel) return
+    const res = await fetch(`${basePath}/api/meetings`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        companyId,
+        channelId: selectedChannel.id,
+        title: `${selectedChannel.name} Meeting`,
+      }),
+    })
+    if (!res.ok) {
+      toast({ title: "Failed to start meeting", description: await res.text(), variant: "destructive" })
+      return
+    }
+    const meeting = await res.json()
+    window.open(meeting.roomUrl, "_blank", "noopener,noreferrer")
+  }
+
   if (!companyId) {
     return (
       <div className="p-6">
@@ -240,10 +260,17 @@ export default function ChatPage() {
               {selectedChannel?.type === "team" && <Megaphone className="h-4 w-4" />}
               {selectedChannel?.name || "Select a channel"}
             </span>
-            {selectedChannel && canManage && (
-              <Button variant="ghost" size="sm" onClick={() => setSearchOpen(true)}>
-                <Search className="h-4 w-4" />
-              </Button>
+            {selectedChannel && (
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" onClick={() => startChannelMeeting()}>
+                  <Video className="h-4 w-4" />
+                </Button>
+                {canManage && (
+                  <Button variant="ghost" size="sm" onClick={() => setSearchOpen(true)}>
+                    <Search className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             )}
           </CardTitle>
         </CardHeader>

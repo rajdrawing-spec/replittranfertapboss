@@ -34,6 +34,7 @@ import {
   ScrollText,
   Landmark,
   MessageSquare,
+  Video,
 } from "lucide-react"
 import { GlobalSearch } from "@/components/global-search"
 import { WorkingCapitalWidget } from "@/components/working-capital-widget"
@@ -90,6 +91,7 @@ const baseSubsidiaryNav: NavItem[] = [
   { name: "Documents", href: "/documents", icon: FileText },
   { name: "AI Tasks", href: "/ai-tasks", icon: CheckSquare },
   { name: "Chat", href: "/chat", icon: MessageSquare },
+  { name: "Meetings", href: "/meetings", icon: Video },
   { name: "Account Directory", href: "/accounts", icon: Contact },
   { name: "Integrations", href: "/integrations", icon: Globe2 },
 ]

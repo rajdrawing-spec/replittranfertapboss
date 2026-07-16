@@ -1,0 +1,181 @@
+I would approve Phase 1.3 and give Replit a clear scope for Phase 1.4 so it stays modular and doesn't grow uncontrollably.
+
+Phase 1.3 is approved. Excellent progress. The modular approach, lazy loading, company isolation, and verification are exactly what I wanted.
+
+Now proceed with Phase 1.4 – Meetings & Collaboration.
+
+Objective
+
+Add enterprise-grade meetings to TapBoss without modifying existing modules. This should integrate with the Chat module but remain a separate, reusable feature.
+
+Meeting Features
+1. Jitsi Integration
+
+Use meet.jit.si as the default provider.
+
+Support:
+
+Audio calls
+Video calls
+Screen sharing
+Meeting chat
+Mute/unmute
+Camera on/off
+Raise hand
+Participant list
+Full screen
+
+Make the Jitsi server URL configurable from Admin Settings so we can migrate to our own hosted Jitsi server later.
+
+2. Instant Meetings
+
+Allow users to:
+
+Start Meeting
+Join Meeting
+Copy Meeting Link
+Invite Team Members
+Join from Chat
+
+Generate a unique meeting ID automatically.
+
+Example:
+
+TBOS-DESIGN-20260716-001
+3. Scheduled Meetings
+
+Allow scheduling:
+
+Date
+Time
+Duration
+Company
+Department
+Project
+Participants
+Agenda
+Recurring meetings (future-ready)
+
+Display upcoming meetings on the dashboard.
+
+4. AI Task Integration
+
+From an AI-generated task, allow:
+
+"Start Meeting"
+"Discuss with Team"
+
+The meeting should automatically include related project and task context.
+
+5. Chat Integration
+
+Inside Chat:
+
+Start Video Call
+Start Audio Call
+Join Existing Meeting
+Share Meeting Link
+
+Do not duplicate chat functionality.
+
+6. Notifications
+
+Notify participants when:
+
+Meeting created
+Meeting updated
+Meeting starts
+Meeting cancelled
+
+For now, use in-app notifications only.
+
+7. Meeting History
+
+Store:
+
+Meeting title
+Organizer
+Participants
+Start time
+End time
+Duration
+Status
+Meeting link
+
+Do not record audio or video in the MVP.
+
+8. Security
+Company isolation
+RBAC
+Private meeting rooms
+Optional meeting password
+Waiting room support (configurable)
+Maximum participants configurable
+9. Performance
+Lazy-load Jitsi only when opening a meeting.
+Do not load Jitsi libraries on dashboard or chat pages.
+Destroy meeting resources after leaving the meeting.
+Avoid memory leaks.
+10. Future-Ready Design
+
+Abstract the meeting provider so additional providers can be added later:
+
+Jitsi (default)
+Google Meet
+Microsoft Teams
+Zoom
+LiveKit
+
+Business logic should remain provider-independent.
+
+Admin Settings
+
+Create configurable settings for:
+
+Default Meeting Provider
+Jitsi Server URL
+Default Meeting Duration
+Waiting Room Enabled
+Meeting Password Required
+Maximum Participants
+Enable Screen Sharing
+Enable Recording (future)
+Enable Lobby
+UI
+
+Keep the existing TBOS design language.
+
+Add a new Meetings module with:
+
+Upcoming Meetings
+My Meetings
+Schedule Meeting
+Join Meeting
+Meeting History
+
+Do not redesign any existing pages.
+
+Coding Standards
+Modular architecture
+Reusable services
+Feature flags
+Company scoping
+RBAC
+Lazy loading
+Type-safe APIs
+Production-ready code
+Comprehensive tests
+Stop Point
+
+When Phase 1.4 is complete, stop and provide:
+
+Database changes
+New APIs
+New React components
+Meeting provider abstraction
+Jitsi integration details
+Screenshots
+Test results
+Performance impact summary
+
+Do not continue beyond Phase 1.4 until I review and approve it.

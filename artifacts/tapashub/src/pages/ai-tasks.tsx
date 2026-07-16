@@ -1,10 +1,11 @@
 import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
-import { CheckSquare, ListTodo, Users, Settings, Activity, ClipboardList, BarChart3, Building2, FolderKanban, FileCode2 } from "lucide-react"
+import { CheckSquare, ListTodo, Users, Settings, Activity, ClipboardList, BarChart3, Building2, FolderKanban, FileCode2, Video } from "lucide-react"
 import { useCompany } from "@/contexts/company-context"
 import { useAuth } from "@/contexts/auth-context"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState } from "@/components/empty-state"
+import { Button } from "@/components/ui/button"
 import { TemplateManager } from "@/components/ai-tasks/template-manager"
 import { EmployeeDashboard } from "@/components/ai-tasks/employee-dashboard"
 import { ManagerApproval } from "@/components/ai-tasks/manager-approval"
@@ -77,13 +78,28 @@ export default function AiTasksPage() {
     )
   }
 
+  const startTaskMeeting = async () => {
+    const res = await fetch(`${basePath}/api/meetings`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId, title: "AI Task Discussion" }),
+    })
+    if (!res.ok) return
+    const meeting = await res.json()
+    window.open(meeting.roomUrl, "_blank", "noopener,noreferrer")
+  }
+
   return (
     <div className="space-y-6 p-4 md:p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">AI Tasks</h1>
-        <p className="text-muted-foreground">
-          AI-powered daily task generation and approval workflow.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">AI Tasks</h1>
+          <p className="text-muted-foreground">
+            AI-powered daily task generation and approval workflow.
+          </p>
+        </div>
+        <Button onClick={startTaskMeeting}><Video className="mr-2 h-4 w-4" /> Discuss with Team</Button>
       </div>
 
       <Tabs defaultValue="templates" className="w-full">

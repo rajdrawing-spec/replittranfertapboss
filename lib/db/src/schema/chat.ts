@@ -91,7 +91,7 @@ export type NewChatMessageRead = typeof chatMessageReadsTable.$inferInsert;
 export const insertChatChannelSchema = createInsertSchema(chatChannelsTable)
   .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({
-    type: z.enum(["team", "department", "direct"]).default("team"),
+    type: z.enum(["team", "department", "direct", "project"]).default("team"),
   });
 
 export const insertChatMessageSchema = createInsertSchema(chatMessagesTable)

@@ -1,0 +1,359 @@
+Here's a polished prompt you can give to Replit:
+
+---
+
+# Replit Prompt – Complete TapBoss Connect & AI Work Manager (Skip Existing Features)
+
+The **TapBoss AI Tasks, Chat, Meetings, Notifications, Scheduler, and RBAC modules are already implemented**.
+
+## IMPORTANT
+
+Before writing any code:
+
+1. Scan the existing TBOS codebase.
+2. Detect all existing functionality.
+3. **If a feature already exists, DO NOT recreate or modify it.**
+4. Reuse existing services, APIs, database tables, components, permissions, AI providers, notifications, scheduler, storage, and settings.
+5. Only implement missing functionality and improve integrations where needed.
+6. Keep the existing UI and architecture unchanged.
+
+---
+
+# Goal
+
+Complete **TapBoss Connect** and **TapBoss AI Work Manager** as production-ready modules using the existing architecture.
+
+---
+
+# Existing Features to Reuse (Do Not Duplicate)
+
+* AI Task Generation
+* Scheduler
+* Notifications
+* Socket.IO Chat
+* Meetings (Jitsi)
+* Company Isolation
+* RBAC
+* Authentication
+* AI Provider Layer (Gemini/Ollama)
+* Feature Flags
+* Background Jobs
+* Settings Module
+* Storage Service
+* Dashboard Framework
+
+If any of these already exist, extend them instead of rebuilding.
+
+---
+
+# Missing Features to Implement
+
+## TapBoss Connect
+
+Extend the existing collaboration module with:
+
+### Team Collaboration
+
+* Department Channels
+* Project Channels
+* Company Announcements
+* Team Presence
+* Read Receipts
+* Typing Indicators
+* Emoji Reactions
+* Mentions
+* Message Search
+* Pinned Messages
+* Threaded Conversations
+* File Preview
+* Drag-and-drop File Upload
+* Voice Messages
+* Quick Polls
+* Team Status
+* Do Not Disturb
+* Calendar Integration
+* Meeting History
+
+---
+
+## Meetings
+
+Extend the current Jitsi integration.
+
+Add:
+
+* Waiting Room
+* Meeting Passwords
+* Meeting Templates
+* Recurring Meetings
+* Meeting Notes
+* Attendance Tracking
+* Meeting History
+* Meeting Analytics
+* Calendar Sync
+* Project-linked Meetings
+
+Do NOT replace the existing Jitsi implementation.
+
+---
+
+# AI Work Manager
+
+Extend the existing AI Tasks.
+
+Add:
+
+## Planning
+
+* Daily Planner
+* Weekly Planner
+* Monthly Planner
+
+## AI Suggestions
+
+Generate:
+
+* Daily Tasks
+* Weekly Goals
+* Monthly Objectives
+* Sprint Planning
+* Risk Detection
+* Workload Analysis
+* Resource Suggestions
+
+Only generate when requested.
+
+Never on page load.
+
+---
+
+## Smart Workload Balancing
+
+AI should detect:
+
+* Employee workload
+* Overloaded employees
+* Idle employees
+* Upcoming deadlines
+
+Suggest:
+
+* Task reassignment
+* Deadline adjustments
+* Resource balancing
+
+Managers must approve changes.
+
+---
+
+## Analytics
+
+Add dashboards for:
+
+Employee
+
+* Productivity
+* Completion Rate
+* Time Tracking
+* Weekly Summary
+* Monthly Summary
+
+Manager
+
+* Department Performance
+* Team Productivity
+* Workload Distribution
+* AI Usage
+* Project Health
+* Meeting Statistics
+
+---
+
+## Notifications
+
+Extend existing notifications with:
+
+* Meeting reminders
+* Task reminders
+* Weekly summaries
+* Deadline alerts
+* Manager approvals
+
+Reuse the current notification system.
+
+---
+
+## Calendar
+
+Integrate FullCalendar.
+
+Display:
+
+* Tasks
+* Meetings
+* Deadlines
+* Holidays
+* Leave
+
+---
+
+# Performance
+
+Keep resource usage low.
+
+Requirements:
+
+* Lazy Loading
+* Background Jobs
+* Cache AI responses
+* Cache dashboard summaries
+* Reuse Socket connections
+* Do not duplicate API calls
+* Optimize SQL queries
+
+---
+
+# AI Cost Optimization
+
+Support:
+
+## 1. Ollama (Highest Priority)
+
+If configured
+
+Use local models
+
+Examples:
+
+* Llama 3
+* DeepSeek
+* Qwen
+* Mistral
+
+Zero API cost.
+
+---
+
+## 2. Google Gemini
+
+Fallback provider.
+
+Only when Ollama unavailable.
+
+---
+
+## 3. Future Providers
+
+Architecture should allow:
+
+* OpenAI
+* Claude
+* Azure OpenAI
+
+Without changing business logic.
+
+---
+
+Never call AI:
+
+* On page load
+* On dashboard refresh
+* During navigation
+
+Only call AI when:
+
+* Scheduler runs
+* User clicks Generate
+* Manager requests Regenerate
+
+Cache all AI responses.
+
+---
+
+# Suggested APIs & Services
+
+## AI
+
+* Google Gemini API (Free Tier)
+* Ollama (Local)
+* LM Studio (Local Development)
+
+## Chat
+
+* Socket.IO
+
+## Video / Audio
+
+* Jitsi Meet (Current)
+* Keep abstraction ready for LiveKit in future
+
+## Realtime
+
+* Supabase Realtime
+
+## Calendar
+
+* FullCalendar
+
+## Storage
+
+* Cloudflare R2 (Recommended)
+* AWS S3 (Supported)
+
+## Image Processing
+
+* Sharp
+
+## Excel
+
+* SheetJS (xlsx)
+
+## Barcode
+
+* bwip-js
+
+## Notifications
+
+* Firebase Cloud Messaging
+
+## Search
+
+* Fuse.js (client-side)
+* PostgreSQL Full Text Search (server-side)
+
+---
+
+# Coding Standards
+
+* Production-ready
+* Type-safe
+* Modular
+* Reusable
+* Company Scoped
+* RBAC
+* Lazy Loaded
+* Feature Flags
+* Background Jobs
+* Comprehensive Tests
+
+---
+
+# Deliverables
+
+When complete provide:
+
+1. Existing features detected and reused.
+2. Newly implemented features.
+3. Database changes.
+4. New APIs.
+5. New React components.
+6. Services added.
+7. AI provider usage.
+8. Performance improvements.
+9. Test results.
+10. Screenshots.
+11. Recommendations.
+
+---
+
+**Important:** If any requested feature is already implemented, **reuse it and skip rebuilding it**. Focus on completing only the missing functionality while keeping the current TapBoss architecture stable, efficient, and backward compatible.

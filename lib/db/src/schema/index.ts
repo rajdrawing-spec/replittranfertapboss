@@ -30,6 +30,7 @@ export * from "./ai-reports";
 export * from "./ai-tasks";
 export * from "./ai-task-settings";
 export * from "./chat";
+export * from "./connect";
 export * from "./meetings";
 export * from "./conversations";
 export * from "./messages";

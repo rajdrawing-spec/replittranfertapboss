@@ -9,17 +9,20 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { EmptyState } from "@/components/empty-state"
-import { MessageSquare, Pin, Search, Send, Paperclip, Megaphone, User, Video } from "lucide-react"
+import { MessageSquare, Pin, Search, Send, Paperclip, Megaphone, User, Video, BarChart, Briefcase, Smile, X } from "lucide-react"
 import { ChatSkeleton } from "@/components/skeletons"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "")
 
 interface ChatChannel {
   id: number
-  type: "team" | "department" | "direct"
+  type: "team" | "department" | "direct" | "project"
   name: string
   department?: string
+  projectId?: number
   unread: number
 }
 
@@ -45,6 +48,24 @@ interface ChatUser {
   email: string
 }
 
+interface ChatPoll {
+  id: number
+  channelId: number
+  userId: number
+  question: string
+  options: string[]
+  votes: Record<string, number>
+  closed: boolean
+  createdAt: string
+}
+
+interface UserStatus {
+  userId: number
+  presence: "online" | "away" | "offline"
+  statusMessage?: string
+  doNotDisturb: boolean
+}
+
 const EMOJIS = ["👍", "❤️", "😂", "🎉", "🤔", "👀"]
 
 export default function ChatPage() {
@@ -65,6 +86,15 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = React.useState("")
   const [searchResults, setSearchResults] = React.useState<ChatMessage[]>([])
   const [usersOpen, setUsersOpen] = React.useState(false)
+  const [pollsOpen, setPollsOpen] = React.useState(false)
+  const [pollQuestion, setPollQuestion] = React.useState("")
+  const [pollOptions, setPollOptions] = React.useState(["", ""])
+  const [statusOpen, setStatusOpen] = React.useState(false)
+  const [statusPresence, setStatusPresence] = React.useState<"online" | "away" | "offline">("online")
+  const [statusMessage, setStatusMessage] = React.useState("")
+  const [dnd, setDnd] = React.useState(false)
+  const [replyTo, setReplyTo] = React.useState<ChatMessage | null>(null)
+  const [draggedFiles, setDraggedFiles] = React.useState<File[]>([])
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
 
   const { data: channels, isLoading: isLoadingChannels } = useQuery<ChatChannel[]>({
@@ -85,6 +115,76 @@ export default function ChatPage() {
       return res.json()
     },
     enabled: !!companyId && usersOpen,
+  })
+
+  const { data: polls, refetch: refetchPolls } = useQuery<ChatPoll[]>({
+    queryKey: ["/api/chat/channels", selectedChannel?.id, "polls"],
+    queryFn: async () => {
+      const res = await fetch(`${basePath}/api/chat/channels/${selectedChannel?.id}/polls`, { credentials: "include" })
+      if (!res.ok) throw new Error(await res.text())
+      return res.json()
+    },
+    enabled: !!selectedChannel,
+  })
+
+  const { data: userStatuses } = useQuery<UserStatus[]>({
+    queryKey: ["/api/users/status", companyId],
+    queryFn: async () => {
+      const res = await fetch(`${basePath}/api/users/status?companyId=${companyId}`, { credentials: "include" })
+      if (!res.ok) throw new Error(await res.text())
+      return res.json()
+    },
+    enabled: !!companyId,
+  })
+
+  const statusMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${basePath}/api/users/status`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ presence: statusPresence, statusMessage, doNotDisturb: dnd }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/status", companyId] })
+      setStatusOpen(false)
+    },
+  })
+
+  const createPollMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${basePath}/api/chat/channels/${selectedChannel?.id}/polls`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: pollQuestion, options: pollOptions.filter(o => o.trim()), isMultiple: false }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      return res.json()
+    },
+    onSuccess: () => {
+      setPollQuestion("")
+      setPollOptions(["", ""])
+      setPollsOpen(false)
+      refetchPolls()
+    },
+  })
+
+  const voteMutation = useMutation({
+    mutationFn: async ({ pollId, optionIndex }: { pollId: number; optionIndex: number }) => {
+      const res = await fetch(`${basePath}/api/chat/polls/${pollId}/vote`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ optionIndex }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      return res.json()
+    },
+    onSuccess: () => refetchPolls(),
   })
 
   React.useEffect(() => {
@@ -157,10 +257,11 @@ export default function ChatPage() {
         }
       }
     }
-    socket.emit("message:send", { channelId: selectedChannel.id, content: input, mentions: mentionIds }, (res: any) => {
+    socket.emit("message:send", { channelId: selectedChannel.id, content: input, mentions: mentionIds, replyToId: replyTo?.id }, (res: any) => {
       if (!res.ok) toast({ title: "Send failed", description: res.error, variant: "destructive" })
     })
     setInput("")
+    setReplyTo(null)
   }
 
   const toggleReaction = (messageId: number, emoji: string) => {
@@ -263,10 +364,20 @@ export default function ChatPage() {
               {selectedChannel?.type === "direct" && <User className="h-4 w-4" />}
               {selectedChannel?.type === "department" && <MessageSquare className="h-4 w-4" />}
               {selectedChannel?.type === "team" && <Megaphone className="h-4 w-4" />}
+              {selectedChannel?.type === "project" && <Briefcase className="h-4 w-4" />}
               {selectedChannel?.name || "Select a channel"}
+              {selectedChannel && userId && userStatuses?.find(s => s.userId === userId)?.doNotDisturb && (
+                <Badge variant="outline" className="ml-2 text-xs">DND</Badge>
+              )}
             </span>
             {selectedChannel && (
               <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" onClick={() => setPollsOpen(true)}>
+                  <BarChart className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setStatusOpen(true)}>
+                  <Smile className="h-4 w-4" />
+                </Button>
                 <Button variant="ghost" size="sm" onClick={() => startChannelMeeting()}>
                   <Video className="h-4 w-4" />
                 </Button>
@@ -294,6 +405,11 @@ export default function ChatPage() {
                   {msg.isPinned && <Pin className="h-3 w-3" />}
                   {msg.editedAt && <span>(edited)</span>}
                 </div>
+                {msg.replyToId && (
+                  <div className="text-xs text-muted-foreground border-l-2 pl-2 mb-1">
+                    Replied to message #{msg.replyToId}
+                  </div>
+                )}
                 <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
                 {msg.attachments?.length > 0 && (
                   <div className="flex flex-wrap gap-2">
@@ -305,6 +421,7 @@ export default function ChatPage() {
                   </div>
                 )}
                 <div className="flex items-center gap-1">
+                  <button className="text-xs text-muted-foreground hover:underline" onClick={() => setReplyTo(msg)}>Reply</button>
                   {EMOJIS.map((emoji) => (
                     <button
                       key={emoji}
@@ -323,21 +440,50 @@ export default function ChatPage() {
 
         {selectedChannel && (
           <div className="border-t p-3 shrink-0">
-            <div className="flex items-center gap-2">
+            {replyTo && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-2 bg-muted rounded px-2 py-1">
+                <span>Replying to {replyTo.displayName}: {replyTo.content.slice(0, 40)}...</span>
+                <button onClick={() => setReplyTo(null)}><X className="h-3 w-3" /></button>
+              </div>
+            )}
+            <div
+              className="flex items-center gap-2"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={async (e) => {
+                e.preventDefault()
+                const files = Array.from(e.dataTransfer.files)
+                if (files.length > 0) {
+                  setDraggedFiles(files)
+                  toast({ title: "Files dropped", description: `${files.length} file(s) ready for upload` })
+                }
+              }}
+            >
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-                placeholder="Type a message..."
+                placeholder={replyTo ? "Reply..." : "Type a message..."}
                 className="flex-1"
               />
-              <Button variant="ghost" size="icon" onClick={() => toast({ title: "Attachments use /storage uploads" })}>
-                <Paperclip className="h-4 w-4" />
-              </Button>
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                id="chat-file-input"
+                onChange={(e) => setDraggedFiles(Array.from(e.target.files || []))}
+              />
+              <label htmlFor="chat-file-input">
+                <Button variant="ghost" size="icon" asChild>
+                  <span><Paperclip className="h-4 w-4" /></span>
+                </Button>
+              </label>
               <Button onClick={sendMessage} disabled={!input.trim()}>
                 <Send className="h-4 w-4" />
               </Button>
             </div>
+            {draggedFiles.length > 0 && (
+              <div className="text-xs text-muted-foreground mt-1">{draggedFiles.length} file(s) selected (upload via storage)</div>
+            )}
             {typingUsers.length > 0 && (
               <div className="text-xs text-muted-foreground mt-1">Someone is typing...</div>
             )}
@@ -380,6 +526,82 @@ export default function ChatPage() {
                 <div className="font-medium">{u.name}</div>
                 <div className="text-xs text-muted-foreground">{u.email}</div>
               </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={pollsOpen} onOpenChange={setPollsOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader><DialogTitle>Polls</DialogTitle></DialogHeader>
+          <div className="max-h-[300px] overflow-y-auto space-y-3">
+            {polls?.map(poll => (
+              <div key={poll.id} className="border rounded-md p-3 space-y-2">
+                <div className="font-medium text-sm">{poll.question}</div>
+                {poll.options.map((opt, idx) => {
+                  const votes = Object.values(poll.votes || {}).filter(v => v === idx).length
+                  const hasVoted = poll.votes ? Object.keys(poll.votes).includes(String(userId)) : false
+                  return (
+                    <div key={idx} className="flex items-center justify-between text-sm">
+                      <span>{opt}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">{votes} votes</span>
+                        {!poll.closed && !hasVoted && (
+                          <Button size="sm" variant="outline" onClick={() => voteMutation.mutate({ pollId: poll.id, optionIndex: idx })}>Vote</Button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+            <div className="space-y-2 pt-2 border-t">
+              <Input value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} placeholder="Poll question" />
+              {pollOptions.map((opt, i) => (
+                <Input key={i} value={opt} onChange={e => {
+                  const arr = [...pollOptions]
+                  arr[i] = e.target.value
+                  setPollOptions(arr)
+                }} placeholder={`Option ${i + 1}`} />
+              ))}
+              <Button variant="outline" size="sm" onClick={() => setPollOptions([...pollOptions, ""])}>Add option</Button>
+              <Button size="sm" onClick={() => createPollMutation.mutate()} disabled={!pollQuestion || pollOptions.filter(o => o.trim()).length < 2}>Create Poll</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={statusOpen} onOpenChange={setStatusOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader><DialogTitle>My Status</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Presence</Label>
+              <div className="flex gap-2">
+                {(["online", "away", "offline"] as const).map(p => (
+                  <Button key={p} variant={statusPresence === p ? "default" : "outline"} size="sm" onClick={() => setStatusPresence(p)}>{p}</Button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Status message</Label>
+              <Input value={statusMessage} onChange={e => setStatusMessage(e.target.value)} placeholder="In a meeting..." />
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={dnd} onCheckedChange={setDnd} />
+              <Label>Do not disturb</Label>
+            </div>
+            <Button onClick={() => statusMutation.mutate()} disabled={statusMutation.isPending}>Save Status</Button>
+          </div>
+          <div className="max-h-[200px] overflow-y-auto space-y-1 pt-2 border-t">
+            {userStatuses?.map(s => (
+              <div key={s.userId} className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${s.presence === "online" ? "bg-green-500" : s.presence === "away" ? "bg-yellow-500" : "bg-gray-400"}`} />
+                  <span>{s.statusMessage || s.presence}</span>
+                </div>
+                {s.doNotDisturb && <Badge variant="outline">DND</Badge>}
+              </div>
             ))}
           </div>
         </DialogContent>

@@ -35,6 +35,7 @@ import {
   Landmark,
   MessageSquare,
   Video,
+  CalendarDays,
 } from "lucide-react"
 import { GlobalSearch } from "@/components/global-search"
 import { NotificationBadge } from "@/components/notification-badge"
@@ -90,6 +91,7 @@ const baseSubsidiaryNav: NavItem[] = [
   { name: "Finance", href: "/finance", icon: Wallet },
   { name: "Documents", href: "/documents", icon: FileText },
   { name: "AI Tasks", href: "/ai-tasks", icon: CheckSquare },
+  { name: "Planner", href: "/planner", icon: CalendarDays },
   { name: "Chat", href: "/chat", icon: MessageSquare },
   { name: "Meetings", href: "/meetings", icon: Video },
   { name: "Account Directory", href: "/accounts", icon: Contact },

@@ -1,0 +1,57 @@
+Reply with this:
+
+---
+
+The implementation plan looks good. Proceed with **Phase 1.1** using the following decisions.
+
+### Decisions
+
+**1. Permissions**
+
+* Do **not** give everyone `ai_tasks.read` by default.
+* Only **Super Admin** has full access.
+* Company Admin can assign access to Managers and Employees using Role-Based Access Control (RBAC).
+* Keep permissions flexible for future expansion.
+
+**2. Task Approval**
+
+* If a Manager exists, all AI-generated tasks should remain **Draft** until approved.
+* If no Manager is assigned for that department/company, tasks should **auto-approve** so work is not blocked.
+
+**3. AI Provider**
+
+* Default to **Google Gemini** (free tier).
+* Add **Ollama** as an optional provider that can be enabled later through Settings.
+* Design the provider layer so additional AI providers can be added without changing business logic.
+
+**4. Video/Audio/Screen Sharing**
+
+* Use **meet.jit.si** for the MVP to avoid infrastructure costs.
+* Make the Jitsi server URL configurable so we can migrate to our own hosted Jitsi instance in the future.
+
+**5. Chat Retention**
+
+* Keep chat history permanently for now.
+* Add a configurable retention policy later (30/90/365 days) from Admin Settings.
+
+### Additional Requirements
+
+* This must be a completely **new module**.
+* Do **not** modify any existing TBOS pages, workflows, database tables, or APIs unless absolutely necessary.
+* Use feature flags/configuration so the module can be enabled or disabled.
+* Follow the existing coding style and architecture.
+* Keep AI usage minimal:
+
+  * Never call AI on page load.
+  * Generate tasks only once per day or when a manager explicitly requests regeneration.
+  * Cache all generated tasks.
+  * Use reusable templates before invoking AI.
+* Make every service modular and reusable.
+
+### Development Process
+
+After completing **Phase 1.1**, stop and let me review it before continuing to Phase 1.2. Do not automatically move to later phases.
+
+---
+
+This will keep the project modular, low-cost, and fully compatible with the existing TapBoss architecture.

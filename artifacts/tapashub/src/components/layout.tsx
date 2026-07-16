@@ -84,6 +84,7 @@ const baseSubsidiaryNav: NavItem[] = [
   { name: "Marketing", href: "/marketing", icon: Megaphone },
   { name: "Finance", href: "/finance", icon: Wallet },
   { name: "Documents", href: "/documents", icon: FileText },
+  { name: "AI Tasks", href: "/ai-tasks", icon: CheckSquare },
   { name: "Account Directory", href: "/accounts", icon: Contact },
   { name: "Integrations", href: "/integrations", icon: Globe2 },
 ]

@@ -30,6 +30,7 @@ import storageRouter from "./storage";
 import browserRouter from "./browser";
 import treasuryRouter from "./treasury";
 import reportsRouter from "./reports";
+import aiTasksRouter from "./ai-tasks";
 
 const router: IRouter = Router();
 
@@ -67,5 +68,6 @@ router.use(searchRouter);
 router.use(storageRouter);
 router.use(browserRouter);
 router.use(treasuryRouter);
+router.use(aiTasksRouter);
 
 export default router;

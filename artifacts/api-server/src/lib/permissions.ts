@@ -44,6 +44,8 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "shareholders.manage", label: "Manage shareholders & equity", group: "Shareholders" },
   { key: "ai.read", label: "View AI business intelligence", group: "AI Intelligence" },
   { key: "ai.reports", label: "View & generate AI executive reports", group: "AI Intelligence" },
+  { key: "ai_tasks.read", label: "View AI tasks", group: "AI Tasks" },
+  { key: "ai_tasks.manage", label: "Manage AI tasks", group: "AI Tasks" },
 ];
 
 export const ALL_MODULE_PERMISSIONS = PERMISSIONS.filter((p) => !p.key.startsWith("platform.")).map((p) => p.key);

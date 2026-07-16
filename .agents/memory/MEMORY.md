@@ -37,3 +37,4 @@
 - [Zod v4 record syntax](tbos-zod-v4-record.md) — `z.record(value)` is invalid; `z.record(z.string(), value)` is required for object-like records.
 - [TBOS meetings provider abstraction](tbos-meetings-provider.md) — keep meeting URL/ID generation behind a provider interface; Jitsi React SDK requires `userInfo.email` and cleanup via `api.dispose()`.
 - [TBOS Jitsi lazy-load](tbos-jitsi-lazy-load.md) — wrap `@jitsi/react-sdk` in `React.lazy()` and destroy the iframe on unmount so Jitsi scripts are only loaded when a meeting opens.
+- [TBOS stabilization hardening](tbos-stabilization-hardening.md) — wrap all routed pages in ErrorBoundary; use `sql<count>` not `db.fn.count()` for Drizzle counts; avoid duplicate nav-item keys across `parentNav` and `adminNav`.

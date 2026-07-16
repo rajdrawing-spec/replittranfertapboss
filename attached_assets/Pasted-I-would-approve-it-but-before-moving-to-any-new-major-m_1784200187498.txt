@@ -1,0 +1,157 @@
+I would approve it, but before moving to any new major module, I'd ask Replit to **stabilize and polish** what has already been built. Here's a reply you can send:
+
+---
+
+**Phase 1.4 is approved.** Excellent work. The architecture is modular, company-scoped, and consistent with the existing TBOS application.
+
+Before we begin any new modules, I want a **Stabilization & Production Hardening Phase**. The goal is to make the current AI Tasks, Chat, and Meetings modules production-ready.
+
+### Production Hardening Checklist
+
+#### 1. Error Handling
+
+* Add consistent error boundaries on the frontend.
+* Improve API error responses with clear user-friendly messages.
+* Add retry logic where appropriate.
+* Ensure no unhandled promise rejections.
+
+#### 2. Loading States
+
+* Add skeleton loaders for AI Tasks, Chat, and Meetings.
+* Add progress indicators for long-running operations.
+* Disable action buttons while requests are in progress.
+
+#### 3. Empty States
+
+Provide polished empty-state screens for:
+
+* No tasks
+* No meetings
+* No chat messages
+* No templates
+* No notifications
+
+#### 4. Notification Center
+
+Create a unified notification center that includes:
+
+* AI Task notifications
+* Chat mentions
+* Meeting invitations
+* Meeting cancellations
+* Approval requests
+
+Support unread counts and mark-as-read.
+
+#### 5. Global Search
+
+Extend the existing search so users can search:
+
+* Tasks
+* Meetings
+* Chat messages
+* Templates
+* Employees
+
+Keep results company-scoped.
+
+#### 6. Mobile Responsiveness
+
+Review all new pages for:
+
+* Mobile
+* Tablet
+* Desktop
+
+Ensure layouts, dialogs, and tables adapt properly.
+
+#### 7. Accessibility
+
+Improve keyboard navigation, focus handling, ARIA labels, and color contrast where needed.
+
+#### 8. Performance Review
+
+Measure:
+
+* Initial bundle size
+* Lazy-loaded bundle sizes
+* API response times
+* Socket.IO connection performance
+* Jitsi loading time
+
+Optimize any unnecessary re-renders or large bundles.
+
+#### 9. Security Review
+
+Verify:
+
+* Company isolation
+* RBAC enforcement
+* Input validation
+* Rate limiting
+* File upload validation
+* XSS/CSRF protections where applicable
+
+#### 10. Admin Dashboard
+
+Create a lightweight administration page showing:
+
+* Active users
+* Active chats
+* Active meetings
+* Tasks generated today
+* Scheduler status
+* AI provider status
+* Recent errors
+* Background job status
+
+#### 11. Configuration Review
+
+Move all configurable values into settings where appropriate:
+
+* Scheduler time
+* AI provider
+* Meeting provider
+* Chat limits
+* File size limits
+* Notification preferences
+
+#### 12. Documentation
+
+Create developer documentation including:
+
+* Module overview
+* Database schema
+* API endpoints
+* Environment variables
+* Feature flags
+* Deployment notes
+* Troubleshooting guide
+
+### Testing
+
+Expand automated tests to include:
+
+* AI Task generation
+* Chat workflows
+* Meeting creation and joining
+* Permission checks
+* Scheduler behavior
+* Error scenarios
+
+### Important
+
+* Do **not** redesign the application.
+* Do **not** introduce new business modules yet.
+* Focus only on improving stability, usability, performance, and maintainability.
+* Keep all changes backward compatible.
+
+When this stabilization phase is complete, stop and provide:
+
+* A summary of improvements
+* Performance metrics
+* Security review
+* Test coverage summary
+* Any recommendations before we start the next major TBOS module.
+
+This stabilization phase should make the existing functionality robust before adding more features.

@@ -3,6 +3,8 @@ import { db } from "@workspace/db";
 import {
   ordersTable, customersTable, productsTable, companiesTable,
   accountDirectoryTable, documentsTable, shipmentsTable, usersTable,
+  generatedTasksTable, meetingsTable, chatChannelsTable, chatMessagesTable,
+  employeesTable, taskTemplatesTable,
 } from "@workspace/db";
 import { or, and, eq, ilike, inArray, isNull, sql, type SQL } from "drizzle-orm";
 
@@ -60,28 +62,20 @@ router.get("/search", async (req, res) => {
       ? (cid != null ? Promise.resolve([] as typeof companiesTable.$inferSelect[]) : db.select().from(companiesTable).where(companyText).limit(limit))
       : (allowed.length ? db.select().from(companiesTable).where(and(inArray(companiesTable.id, allowed), companyText)!).limit(limit) : Promise.resolve([] as typeof companiesTable.$inferSelect[]));
 
-    const [orders, customers, products, companies, accounts, documents, shipments] = await Promise.all([
+    const [orders, customers, products, companies, accounts, documents, shipments, tasks, meetings, channels, messages, employees, templates] = await Promise.all([
       db.select().from(ordersTable).where(scoped(or(ilike(ordersTable.orderNumber, like), ilike(ordersTable.customerName, like), ilike(ordersTable.customerPhone, like), ilike(ordersTable.customerEmail, like))!, companyScope(ordersTable.companyId))).limit(limit),
       db.select().from(customersTable).where(scoped(or(ilike(customersTable.name, like), ilike(customersTable.phone, like), ilike(customersTable.email, like))!, companyScope(customersTable.companyId))).limit(limit),
       db.select().from(productsTable).where(scoped(or(ilike(productsTable.name, like), ilike(productsTable.sku, like))!, companyScope(productsTable.companyId))).limit(limit),
       companiesQuery,
-      // Account directory — match by platform, email, phone, owner, OR the company name.
-      db
-        .select({ acct: accountDirectoryTable, companyName: companiesTable.name })
-        .from(accountDirectoryTable)
-        .leftJoin(companiesTable, eq(accountDirectoryTable.companyId, companiesTable.id))
-        .where(scoped(or(
-          ilike(accountDirectoryTable.platform, like),
-          ilike(accountDirectoryTable.loginEmail, like),
-          ilike(accountDirectoryTable.recoveryEmail, like),
-          ilike(accountDirectoryTable.phone, like),
-          ilike(accountDirectoryTable.recoveryPhone, like),
-          ilike(accountDirectoryTable.accountOwner, like),
-          ilike(companiesTable.name, like),
-        )!, accountScope(accountDirectoryTable.companyId)))
-        .limit(limit),
+      db.select({ acct: accountDirectoryTable, companyName: companiesTable.name }).from(accountDirectoryTable).leftJoin(companiesTable, eq(accountDirectoryTable.companyId, companiesTable.id)).where(scoped(or(ilike(accountDirectoryTable.platform, like), ilike(accountDirectoryTable.loginEmail, like), ilike(accountDirectoryTable.recoveryEmail, like), ilike(accountDirectoryTable.phone, like), ilike(accountDirectoryTable.recoveryPhone, like), ilike(accountDirectoryTable.accountOwner, like), ilike(companiesTable.name, like))!, accountScope(accountDirectoryTable.companyId))).limit(limit),
       db.select().from(documentsTable).where(scoped(or(ilike(documentsTable.name, like), ilike(documentsTable.referenceNumber, like))!, companyScope(documentsTable.companyId))).limit(limit),
       db.select().from(shipmentsTable).where(scoped(or(ilike(shipmentsTable.trackingNumber, like), ilike(shipmentsTable.customerName, like), ilike(shipmentsTable.orderNumber, like))!, companyScope(shipmentsTable.companyId))).limit(limit),
+      db.select().from(generatedTasksTable).where(scoped(or(ilike(generatedTasksTable.title, like), ilike(generatedTasksTable.description, like))!, companyScope(generatedTasksTable.companyId))).limit(limit),
+      db.select().from(meetingsTable).where(scoped(or(ilike(meetingsTable.title, like), ilike(meetingsTable.meetingId, like))!, companyScope(meetingsTable.companyId))).limit(limit),
+      db.select().from(chatChannelsTable).where(scoped(or(ilike(chatChannelsTable.name, like))!, companyScope(chatChannelsTable.companyId))).limit(limit),
+      db.select({ msg: chatMessagesTable, companyId: chatChannelsTable.companyId }).from(chatMessagesTable).leftJoin(chatChannelsTable, eq(chatMessagesTable.channelId, chatChannelsTable.id)).where(scoped(or(ilike(chatMessagesTable.content, like), ilike(chatMessagesTable.displayName, like))!, companyScope(chatChannelsTable.companyId))).limit(limit),
+      db.select().from(employeesTable).where(scoped(or(ilike(employeesTable.firstName, like), ilike(employeesTable.lastName, like), ilike(employeesTable.email, like), ilike(employeesTable.department, like))!, companyScope(employeesTable.companyId))).limit(limit),
+      db.select().from(taskTemplatesTable).where(scoped(or(ilike(taskTemplatesTable.titleTemplate, like), ilike(taskTemplatesTable.descriptionTemplate, like))!, companyScope(taskTemplatesTable.companyId))).limit(limit),
     ]);
 
     const results: Array<{ type: string; id: number; title: string; subtitle: string; href: string }> = [];
@@ -92,6 +86,12 @@ router.get("/search", async (req, res) => {
     accounts.forEach(({ acct: a, companyName }) => results.push({ type: "Account", id: a.id, title: a.platform, subtitle: [a.loginEmail, a.phone, companyName].filter(Boolean).join(" · "), href: "/accounts" }));
     documents.forEach(d => results.push({ type: "Document", id: d.id, title: d.name, subtitle: d.referenceNumber ?? d.category, href: "/documents" }));
     shipments.forEach(s => results.push({ type: "Shipment", id: s.id, title: s.trackingNumber ?? s.orderNumber ?? `#${s.id}`, subtitle: `${s.customerName} · ${s.status}`, href: "/shipping" }));
+    tasks.forEach(t => results.push({ type: "Task", id: t.id, title: t.title, subtitle: t.priority, href: "/ai-tasks" }));
+    meetings.forEach(m => results.push({ type: "Meeting", id: m.id, title: m.title, subtitle: m.status, href: "/meetings" }));
+    channels.forEach(c => results.push({ type: "Channel", id: c.id, title: c.name, subtitle: c.type, href: "/chat" }));
+    messages.forEach(({ msg: m }) => results.push({ type: "Chat", id: m.id, title: m.displayName, subtitle: m.content.slice(0, 60), href: "/chat" }));
+    employees.forEach(e => results.push({ type: "Employee", id: e.id, title: `${e.firstName} ${e.lastName}`, subtitle: `${e.department} · ${e.designation}`, href: "/hr" }));
+    templates.forEach(t => results.push({ type: "Template", id: t.id, title: t.titleTemplate, subtitle: t.descriptionTemplate?.slice(0, 60) ?? "", href: "/ai-tasks" }));
 
     res.json({ query: q, results });
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Search failed" }); }

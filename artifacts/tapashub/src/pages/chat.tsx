@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { EmptyState } from "@/components/empty-state"
 import { MessageSquare, Pin, Search, Send, Paperclip, Megaphone, User, Video } from "lucide-react"
+import { ChatSkeleton } from "@/components/skeletons"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "")
@@ -66,7 +67,7 @@ export default function ChatPage() {
   const [usersOpen, setUsersOpen] = React.useState(false)
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
 
-  const { data: channels } = useQuery<ChatChannel[]>({
+  const { data: channels, isLoading: isLoadingChannels } = useQuery<ChatChannel[]>({
     queryKey: ["/api/chat/channels", companyId],
     queryFn: async () => {
       const res = await fetch(`${basePath}/api/chat/channels?companyId=${companyId}`, { credentials: "include" })
@@ -217,6 +218,10 @@ export default function ChatPage() {
         <EmptyState icon={MessageSquare} message="No company selected" hint="Select a company to start chatting." />
       </div>
     )
+  }
+
+  if (isLoadingChannels) {
+    return <ChatSkeleton />
   }
 
   return (

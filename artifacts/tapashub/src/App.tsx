@@ -12,6 +12,7 @@ import { Layout } from '@/components/layout';
 import { CompanyProvider } from '@/contexts/company-context';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { ClerkQueryClientCacheInvalidator } from '@/components/clerk-cache-invalidator';
+import { RouteErrorBoundary } from '@/components/error-boundary';
 
 // Page components are code-split: each becomes its own chunk loaded on demand,
 // so the initial bundle stays small and first paint is fast.
@@ -38,6 +39,7 @@ const Documents = React.lazy(() => import('@/pages/documents'));
 const Marketing = React.lazy(() => import('@/pages/marketing'));
 const AccessControl = React.lazy(() => import('@/pages/admin/access-control'));
 const AuditLogs = React.lazy(() => import('@/pages/admin/audit-logs'));
+const AdminDashboard = React.lazy(() => import('@/pages/admin/dashboard'));
 const Treasury = React.lazy(() => import('@/pages/treasury'));
 const AiReports = React.lazy(() => import('@/pages/ai-reports'));
 const AiTasks = React.lazy(() => import('@/pages/ai-tasks'));
@@ -217,6 +219,7 @@ function AuthedApp() {
           {/* All other pages use the full sidebar layout */}
           <Route>
             <Layout>
+              <RouteErrorBoundary>
               <React.Suspense fallback={<PageFallback />}>
                 <Switch>
                   <Route path="/" component={Dashboard} />
@@ -241,6 +244,7 @@ function AuthedApp() {
                   <Route path="/marketing" component={Marketing} />
                   <Route path="/admin/access" component={AccessControl} />
                   <Route path="/admin/audit" component={AuditLogs} />
+                  <Route path="/admin/dashboard" component={AdminDashboard} />
                   <Route path="/reports" component={Finance} />
                   <Route path="/ai-reports" component={AiReports} />
                   <Route path="/ai-tasks" component={AiTasks} />
@@ -256,6 +260,7 @@ function AuthedApp() {
                   <Route component={NotFound} />
                 </Switch>
               </React.Suspense>
+              </RouteErrorBoundary>
             </Layout>
           </Route>
         </Switch>

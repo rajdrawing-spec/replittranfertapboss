@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { notificationsTable } from "@workspace/db";
-import { eq, and, or, inArray, isNull, desc } from "drizzle-orm";
+import { eq, and, or, inArray, isNull, desc, sql } from "drizzle-orm";
 import { companyScope } from "../lib/company-scope";
 
 const router = Router();
@@ -73,14 +73,41 @@ router.patch("/notifications/:notificationId/read", async (req, res) => {
   }
 });
 
+router.get("/notifications/unread-count", async (req, res) => {
+  try {
+    const conditions: any[] = [eq(notificationsTable.isRead, false)];
+    const scope = companyScope(req);
+    if (scope !== null) {
+      if (scope.length === 0) {
+        conditions.push(isNull(notificationsTable.companyId));
+      } else {
+        conditions.push(
+          or(inArray(notificationsTable.companyId, scope), isNull(notificationsTable.companyId)),
+        );
+      }
+    }
+    const [row] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(notificationsTable)
+      .where(and(...conditions))
+      .limit(1);
+    res.json(row?.count ?? 0);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to count notifications" });
+  }
+});
+
 router.patch("/notifications/mark-all-read", async (req, res) => {
   try {
     // Only clear unread alerts the caller is allowed to see — never every
     // company's unread notifications at once.
+    const scope = visibleScopeCondition(req);
+    const where = scope ? and(eq(notificationsTable.isRead, false), scope) : eq(notificationsTable.isRead, false);
     const result = await db
       .update(notificationsTable)
       .set({ isRead: true })
-      .where(and(eq(notificationsTable.isRead, false), visibleScopeCondition(req)))
+      .where(where)
       .returning();
     res.json({ affected: result.length });
   } catch (e) {

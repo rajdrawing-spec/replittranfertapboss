@@ -37,6 +37,7 @@ import {
   Video,
 } from "lucide-react"
 import { GlobalSearch } from "@/components/global-search"
+import { NotificationBadge } from "@/components/notification-badge"
 import { WorkingCapitalWidget } from "@/components/working-capital-widget"
 
 import { cn } from "@/lib/utils"
@@ -45,7 +46,6 @@ import { Button } from "@/components/ui/button"
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "")
 import { useTheme } from "@/components/theme-provider"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { useListNotifications } from "@workspace/api-client-react"
 import { useCompany } from "@/contexts/company-context"
 import type { ActiveCompany } from "@/contexts/company-context"
 import { useAuth } from "@/contexts/auth-context"
@@ -280,18 +280,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { activeCompany, isParentView } = useCompany()
   const { logout, user: authUser, isSuperAdmin } = useAuth()
 
-  const { data: notificationsData } = useListNotifications({ unreadOnly: true }, {
-    query: { enabled: true, queryKey: ["/api/notifications", { unreadOnly: true }] }
-  })
-  const unreadCount = notificationsData?.length || 0
-
-
   // "Team & Roles" is already in parentNav when in the TapasHub parent context;
   // only add it here (via adminNav) for subsidiary views to avoid duplication.
   const adminNav: NavItem[] = isSuperAdmin
     ? [
         ...(!isParentView ? [{ name: "Team & Roles", href: "/admin/access", icon: ShieldCheck }] : []),
         { name: "Audit Logs", href: "/admin/audit", icon: ScrollText },
+        { name: "Admin Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
       ]
     : []
   const navItems = [...getNavItems(activeCompany), ...adminNav]
@@ -471,14 +466,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {theme === "light" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
             </Button>
 
-            <Link href="/notifications" className="block">
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="w-5 h-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-card" />
-                )}
-              </Button>
-            </Link>
+            <NotificationBadge />
 
             <div className="flex items-center gap-2 border-l pl-3 ml-1">
               <Avatar className="w-8 h-8 ring-2" style={{ "--ring-color": workspaceColor } as React.CSSProperties}>

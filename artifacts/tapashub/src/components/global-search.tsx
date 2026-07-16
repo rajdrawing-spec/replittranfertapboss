@@ -20,6 +20,12 @@ const TYPE_COLORS: Record<string, string> = {
   Account: "text-cyan-400 bg-cyan-500/10",
   Document: "text-amber-400 bg-amber-500/10",
   Shipment: "text-indigo-400 bg-indigo-500/10",
+  Task: "text-lime-400 bg-lime-500/10",
+  Meeting: "text-pink-400 bg-pink-500/10",
+  Channel: "text-violet-400 bg-violet-500/10",
+  Chat: "text-teal-400 bg-teal-500/10",
+  Employee: "text-fuchsia-400 bg-fuchsia-500/10",
+  Template: "text-sky-400 bg-sky-500/10",
 }
 
 export function GlobalSearch() {
@@ -84,7 +90,7 @@ export function GlobalSearch() {
           value={q}
           onChange={(e) => { setQ(e.target.value); setOpen(true) }}
           onFocus={() => setOpen(true)}
-          placeholder="Search orders, customers, accounts, documents…"
+          placeholder="Search tasks, meetings, chat, employees, templates…"
           className="w-full h-9 pl-9 pr-16 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:bg-background transition-all"
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">

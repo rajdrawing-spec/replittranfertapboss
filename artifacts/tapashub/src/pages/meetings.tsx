@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { EmptyState } from "@/components/empty-state"
+import { MeetingSkeleton } from "@/components/skeletons"
 import { Video, Calendar, Clock, Users, Copy, Plus, Phone, MonitorPlay, History } from "lucide-react"
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "")
@@ -88,7 +89,7 @@ export default function MeetingsPage() {
     enabled: !!companyId && scheduleOpen,
   })
 
-  const { data: meetings } = useQuery<Meeting[]>({
+  const { data: meetings, isLoading } = useQuery<Meeting[]>({
     queryKey: ["/api/meetings", selectedTab, companyId],
     queryFn: async () => {
       const endpoint = selectedTab === "my" ? "my" : selectedTab === "upcoming" ? "upcoming" : ""
@@ -181,6 +182,10 @@ export default function MeetingsPage() {
         <EmptyState icon={Video} message="No company selected" hint="Select a company to manage meetings." />
       </div>
     )
+  }
+
+  if (isLoading) {
+    return <MeetingSkeleton />
   }
 
   if (activeMeeting) {

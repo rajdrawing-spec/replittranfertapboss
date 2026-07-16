@@ -15,4 +15,5 @@ export interface MeetingContext {
 export interface CreateMeetingRoomResult {
   roomUrl: string;
   meetingId: string;
+  jwt?: string;
 }

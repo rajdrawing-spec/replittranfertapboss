@@ -50,6 +50,7 @@ export const meetingsTable = pgTable(
     meetingId: text("meeting_id").notNull().unique(),
     provider: text("provider").notNull().default("jitsi"),
     roomUrl: text("room_url").notNull(),
+    jwt: text("jwt"),
     password: text("password"),
     scheduledAt: timestamp("scheduled_at"),
     duration: integer("duration").notNull().default(30),

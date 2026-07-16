@@ -375,6 +375,7 @@ export async function applyMigrations(): Promise<void> {
     await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS recurrence TEXT`);
     await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS waiting_room BOOLEAN NOT NULL DEFAULT false`);
     await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS max_participants INTEGER NOT NULL DEFAULT 50`);
+    await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS jwt TEXT`);
     await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS meetings_company_id_idx ON meetings(company_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS meetings_status_idx ON meetings(status)`);

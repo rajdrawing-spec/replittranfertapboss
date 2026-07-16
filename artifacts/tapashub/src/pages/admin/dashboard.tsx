@@ -69,7 +69,7 @@ export default function AdminDashboard() {
       return
     }
     const meeting = await res.json()
-    window.open(meeting.roomUrl, "_blank", "noopener,noreferrer")
+    window.open(meeting.roomUrl + (meeting.jwt ? `?jwt=${encodeURIComponent(meeting.jwt)}` : ""), "_blank", "noopener,noreferrer")
   }
 
   const openChat = () => {

@@ -25,6 +25,7 @@ interface Meeting {
   meetingId: string
   provider: string
   roomUrl: string
+  jwt?: string
   password?: string
   scheduledAt: string | null
   duration: number
@@ -194,6 +195,7 @@ export default function MeetingsPage() {
         <JitsiMeet
           roomName={activeMeeting.meetingId}
           serverUrl={settings?.jitsiServerUrl}
+          jwt={activeMeeting.jwt}
           password={activeMeeting.password}
           displayName={user?.name || "Guest"}
           onClose={() => setActiveMeeting(null)}

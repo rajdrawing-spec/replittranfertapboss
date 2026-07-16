@@ -1,6 +1,6 @@
 import { db, meetingsTable, meetingParticipantsTable, meetingSettingsTable, companiesTable, usersTable, notificationsTable, generatedTasksTable, chatChannelsTable } from "@workspace/db";
 import { eq, and, or, gte, lte, desc, asc, inArray, sql } from "drizzle-orm";
-import { jitsiProvider } from "./jitsi-provider";
+import { jitsiProvider, parseJaaSMagicCookie } from "./jitsi-provider";
 import type { MeetingProvider } from "./meeting-provider";
 
 const providers: Record<string, MeetingProvider> = {
@@ -29,10 +29,16 @@ export interface CreateMeetingInput {
   recurrence?: string | null;
 }
 
+const jaasCfg = parseJaaSMagicCookie(process.env.JITSIAAS_MAGIC_COOKIE);
+const jaasServerUrl = jaasCfg ? `https://8x8.vc/${jaasCfg.appId}` : undefined;
+
 export async function getOrCreateMeetingSettings(companyId: number) {
   const [existing] = await db.select().from(meetingSettingsTable).where(eq(meetingSettingsTable.companyId, companyId)).limit(1);
   if (existing) return existing;
-  const [created] = await db.insert(meetingSettingsTable).values({ companyId }).returning();
+  const defaults = jaasCfg
+    ? { companyId, defaultProvider: "jitsi", jitsiServerUrl: jaasServerUrl }
+    : { companyId };
+  const [created] = await db.insert(meetingSettingsTable).values(defaults).returning();
   return created;
 }
 
@@ -62,7 +68,7 @@ export async function createMeeting(input: CreateMeetingInput) {
     department = channel?.department || undefined;
   }
 
-  const { meetingId, roomUrl } = provider.createRoom({
+  const { meetingId, roomUrl, jwt } = provider.createRoom({
     companySlug: company?.slug || "TBOS",
     department,
     project,
@@ -78,6 +84,7 @@ export async function createMeeting(input: CreateMeetingInput) {
     meetingId,
     provider: provider.key,
     roomUrl,
+    jwt: jwt || null,
     password: input.password || null,
     scheduledAt: input.scheduledAt || null,
     duration: input.duration ?? settings.defaultDuration ?? 30,

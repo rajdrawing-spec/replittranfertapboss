@@ -6,16 +6,29 @@ import { X, Maximize2 } from "lucide-react"
 interface JitsiMeetProps {
   roomName: string
   serverUrl?: string
+  jwt?: string
   password?: string
   displayName: string
   email?: string
   onClose: () => void
 }
 
-export default function JitsiMeet({ roomName, serverUrl = "https://meet.jit.si", password, displayName, email = "user@tapashub.com", onClose }: JitsiMeetProps) {
+export default function JitsiMeet({ roomName, serverUrl = "https://meet.jit.si", jwt, password, displayName, email = "user@tapashub.com", onClose }: JitsiMeetProps) {
   const [api, setApi] = React.useState<any>(null)
   const containerRef = React.useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = React.useState(false)
+
+  const jitsiConfig = React.useMemo(() => {
+    try {
+      const url = new URL(serverUrl)
+      const domain = url.hostname
+      const pathPrefix = url.pathname.replace(/^\//, "")
+      const fullRoomName = pathPrefix ? `${pathPrefix}/${roomName}` : roomName
+      return { domain, roomName: fullRoomName }
+    } catch {
+      return { domain: serverUrl.replace(/^https?:\/\//, "").replace(/\/$/, ""), roomName }
+    }
+  }, [serverUrl, roomName])
 
   React.useEffect(() => {
     return () => {
@@ -51,8 +64,9 @@ export default function JitsiMeet({ roomName, serverUrl = "https://meet.jit.si",
       </div>
       <div className="flex-1 min-h-0">
         <JitsiMeeting
-          domain={serverUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-          roomName={roomName}
+          domain={jitsiConfig.domain}
+          roomName={jitsiConfig.roomName}
+          jwt={jwt}
           configOverwrite={{
             startWithAudioMuted: false,
             startWithVideoMuted: false,

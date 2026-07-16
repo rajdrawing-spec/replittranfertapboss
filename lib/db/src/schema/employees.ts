@@ -17,6 +17,10 @@ export const employeesTable = pgTable("employees", {
   salary: real("salary").notNull().default(0),
   managerId: integer("manager_id"),
   avatarUrl: text("avatar_url"),
+  // Optional AI-task generation context (backward-compatible additions)
+  skillLevel: text("skill_level"), // junior | mid | senior | lead
+  workingHours: text("working_hours"), // e.g. "9:00-18:00 IST"
+  currentProject: text("current_project"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

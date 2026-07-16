@@ -66,6 +66,39 @@ export async function getActiveProviderName(): Promise<string> {
   return (await getConfig("active_provider")) ?? "gemini";
 }
 
+/** Export low-level config getter so other modules can read non-credential keys. */
+export { getConfig };
+
+// ── Ollama provider (local, zero API cost) ─────────────────────────────────────
+
+const ollamaProvider: AiProvider = {
+  name: "ollama",
+  async chat(messages, systemPrompt) {
+    const baseUrl = (process.env.OLLAMA_BASE_URL || "http://localhost:11434").replace(/\/$/, "");
+    const model = process.env.OLLAMA_MODEL || "llama3.2";
+
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        messages: [
+          ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
+          ...messages.map((m) => ({ role: m.role, content: m.content })),
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Ollama API error ${res.status}: ${text.slice(0, 200)}`);
+    }
+
+    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+    return data.choices?.[0]?.message?.content ?? "";
+  },
+};
+
 // ── Gemini provider (Replit AI integrations proxy — no key needed) ────────────
 
 const geminiProvider: AiProvider = {
@@ -161,11 +194,30 @@ const providers: Record<string, AiProvider> = {
   openrouter: openrouterProvider,
   groq:       groqProvider,
   deepseek:   deepseekProvider,
+  ollama:     ollamaProvider,
 };
 
 export async function getActiveProvider(): Promise<AiProvider> {
   const name = await getActiveProviderName();
   return providers[name] ?? geminiProvider;
+}
+
+/**
+ * Provider for AI task generation. Priority:
+ * 1. Ollama if OLLAMA_BASE_URL is configured and reachable.
+ * 2. The active TBOS provider (Gemini by default).
+ * Returns null if no provider is available so callers can fall back to template-only.
+ */
+export async function getTaskGenerationProvider(): Promise<AiProvider | null> {
+  if (process.env.OLLAMA_BASE_URL) {
+    const ollamaTest = await testProvider("ollama");
+    if (ollamaTest.ok) return ollamaProvider;
+  }
+  try {
+    return await getActiveProvider();
+  } catch {
+    return null;
+  }
 }
 
 /** Test a provider's connectivity with a simple ping. */

@@ -51,6 +51,7 @@ export type NewGeneratedTask = typeof generatedTasksTable.$inferInsert;
 
 // ── task_generation_jobs: idempotency guard for daily runs ───────────────────
 // Prevents duplicate generation and lets managers poll the status of a run.
+// Tracks provider, cost, and execution metadata for audit and cost control.
 export const taskGenerationJobsTable = pgTable("task_generation_jobs", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull(),
@@ -59,6 +60,14 @@ export const taskGenerationJobsTable = pgTable("task_generation_jobs", {
   startedAt: timestamp("started_at").notNull().defaultNow(),
   completedAt: timestamp("completed_at"),
   requesterId: integer("requester_id"),
+  triggeredBy: text("triggered_by").default("scheduler"), // scheduler | manager
+  providerUsed: text("provider_used"),
+  tokensUsed: integer("tokens_used"),
+  promptVersion: text("prompt_version").default("1.0"),
+  executionTimeMs: integer("execution_time_ms"),
+  batchSize: integer("batch_size").default(1),
+  tasksGenerated: integer("tasks_generated").default(0),
+  nextRun: timestamp("next_run"),
   error: text("error"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

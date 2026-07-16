@@ -1,0 +1,94 @@
+You can give Replit this prompt to keep AI agent costs low while building the new module.
+
+---
+
+## Replit Prompt (Low AI Agent Cost)
+
+**IMPORTANT: Minimize AI agent usage and token consumption.**
+
+We are extending the existing TapBoss application. **Do not redesign or modify existing modules.** Build this as a new optional add-on.
+
+### Cost Optimization Rules
+
+1. **Keep AI calls to an absolute minimum.**
+
+   * Never call AI continuously.
+   * Never call AI on every page load.
+   * Only call AI when the user explicitly clicks **"Generate Tasks"** or when a scheduled daily job runs.
+
+2. **Use scheduled generation instead of real-time AI.**
+
+   * Generate daily tasks once per day (e.g., 8:00 AM).
+   * Save generated tasks in the database.
+   * Display saved tasks to users instead of regenerating them.
+
+3. **Cache AI results.**
+
+   * If tasks already exist for today, reuse them.
+   * Only regenerate when the manager requests it or the job description changes.
+
+4. **Use reusable task templates first.**
+
+   * Create a library of templates by department and role.
+   * AI should only customize templates rather than generate everything from scratch.
+
+5. **Generate tasks in batches.**
+
+   * One AI request should generate tasks for multiple employees in the same department whenever possible.
+
+6. **Support multiple AI providers.**
+
+   * Google Gemini (default because of generous free tier)
+   * Ollama (local, zero API cost)
+   * OpenAI (optional)
+
+7. **If Ollama is available, use it first.**
+
+   * Use local inference whenever possible.
+   * Fall back to Gemini only if needed.
+
+8. **No AI for collaboration features.**
+
+   * Team chat
+   * Group chat
+   * Video calls
+   * Audio calls
+   * Screen sharing
+     These should use open-source technologies only.
+
+### Collaboration Stack (Free/Open Source)
+
+* Chat: Socket.IO
+* Video & Audio Calls: Jitsi Meet
+* Screen Sharing: Jitsi Meet
+* Presence: Socket.IO
+* File Sharing: Existing storage service
+* Notifications: Firebase Cloud Messaging (optional)
+
+### AI Task Manager
+
+* Read employee role and job description.
+* Generate daily tasks once per day.
+* Store tasks in the database.
+* Never regenerate unless requested.
+* Allow managers to edit generated tasks.
+* Support recurring task templates.
+
+### Performance
+
+* Run AI generation in background jobs.
+* Do not block the UI.
+* Lazy-load collaboration modules.
+* Cache all AI responses.
+* Avoid unnecessary database queries.
+* Keep bundle size small.
+
+### Project Rules
+
+* Do not change existing TapBoss architecture.
+* Do not modify current Products, Inventory, CRM, or Dashboard modules.
+* Build everything as new reusable modules.
+* Write clean, modular, production-ready code with low maintenance overhead.
+* Prioritize free and self-hosted solutions to minimize operational costs.
+
+**Goal:** Deliver a feature-rich collaboration and AI task management module while keeping AI API usage, infrastructure costs, and Replit Agent costs as low as possible.

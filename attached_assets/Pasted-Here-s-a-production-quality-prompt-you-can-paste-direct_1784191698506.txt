@@ -1,0 +1,537 @@
+Here's a production-quality prompt you can paste directly into **Replit AI**.
+
+---
+
+# Prompt for Replit
+
+## Feature: AI-Assisted Product Creation (Do NOT Modify Existing Product Module)
+
+**IMPORTANT**
+
+This is an enhancement to the existing **Products & Inventory** module.
+
+**DO NOT**
+
+* redesign the UI
+* change navigation
+* change existing database tables unless absolutely required
+* remove any existing functionality
+* rename existing APIs
+* break current CRUD operations
+
+Everything must be added as **new reusable services/components** while keeping the current application working exactly as it does now.
+
+---
+
+# Goal
+
+I want product creation to work similarly to Shopify, Amazon Seller Central, and Myntra.
+
+When a user uploads one or more product images, the system should automatically analyze them and prefill as much information as possible.
+
+The user should only verify and save.
+
+---
+
+# New Features
+
+## 1. AI Product Image Analysis
+
+When images are uploaded:
+
+Automatically detect
+
+* Product Name
+* Category
+* Sub Category
+* Gender
+* Brand
+* Product Type
+* Primary Color
+* Secondary Color
+* Material
+* Pattern
+* Sleeve Type
+* Neck Type
+* Fit
+* Occasion
+* Season
+* Style
+* Fabric
+* Wash Care (if visible)
+* Estimated Weight (optional)
+* Marketplace Tags
+* SEO Keywords
+
+Populate the Add Product form automatically.
+
+User can edit every field.
+
+---
+
+## 2. AI Product Title
+
+Generate marketplace friendly title.
+
+Example
+
+Women's Floral Cotton Regular Fit Top
+
+instead of
+
+floral top
+
+---
+
+## 3. AI Description
+
+Generate
+
+* Short Description
+* Long Description
+* SEO Description
+* Bullet Features
+* Meta Title
+* Meta Description
+
+---
+
+## 4. Auto SKU Generator
+
+Generate SKU automatically.
+
+Example
+
+HUG-TOP-000124
+
+Allow manual override.
+
+---
+
+## 5. Image Quality Checker
+
+After upload check
+
+✓ Resolution
+
+✓ Blur
+
+✓ White Background
+
+✓ Aspect Ratio
+
+✓ Brightness
+
+✓ Marketplace Ready
+
+Display pass/fail indicators.
+
+---
+
+## 6. Image Optimizer
+
+Automatically create optimized images for
+
+Amazon
+
+Flipkart
+
+Myntra
+
+Ajio
+
+Shopify
+
+Instagram
+
+Facebook
+
+WhatsApp Catalog
+
+Do not overwrite original images.
+
+Store optimized versions separately.
+
+---
+
+## 7. Auto Image Rename
+
+Rename uploaded images.
+
+Example
+
+hugfab-floral-top-front.jpg
+
+hugfab-floral-top-back.jpg
+
+instead of
+
+IMG_2034.jpg
+
+---
+
+## 8. Product Health Score
+
+Display score from 0–100.
+
+Calculate using
+
+* Images
+* Description
+* Keywords
+* Category
+* Attributes
+* Stock
+* Barcode
+* SEO
+
+Show suggestions to improve score.
+
+---
+
+## 9. Excel Export
+
+Add Export button.
+
+Export current products into Excel.
+
+Include all existing fields plus new fields.
+
+Compatible with Amazon, Shopify and Myntra templates.
+
+---
+
+## 10. Excel Import
+
+Allow importing products from Excel.
+
+Match images automatically by
+
+SKU
+
+or
+
+Product Name
+
+If matching image exists, attach it.
+
+---
+
+## 11. CSV Export
+
+Support
+
+CSV
+
+Excel
+
+XLSX
+
+---
+
+## 12. Marketplace Ready Fields
+
+Support fields like
+
+Brand
+
+MRP
+
+Selling Price
+
+GST
+
+HSN
+
+Country of Origin
+
+Weight
+
+Dimensions
+
+Barcode
+
+UPC
+
+EAN
+
+Return Policy
+
+Warranty
+
+Manufacturer
+
+SEO URL
+
+Slug
+
+Search Keywords
+
+Highlights
+
+Material
+
+Care Instructions
+
+---
+
+## 13. Barcode Generator
+
+Automatically generate barcode if missing.
+
+Allow printing.
+
+---
+
+## 14. Product Variants
+
+Support
+
+Color
+
+Size
+
+Material
+
+Pattern
+
+Style
+
+Each variant has
+
+SKU
+
+Price
+
+Stock
+
+Images
+
+Barcode
+
+---
+
+## 15. Bulk Image Upload
+
+Allow
+
+drag and drop
+
+multiple images
+
+Automatically group them into products.
+
+Example
+
+shirt-front.jpg
+
+shirt-back.jpg
+
+shirt-side.jpg
+
+becomes
+
+one product.
+
+---
+
+## 16. AI Services
+
+Create reusable AI service layer.
+
+Support configurable providers.
+
+Default provider should be configurable using environment variables.
+
+Support
+
+Google Gemini Vision
+
+OpenAI Vision
+
+Cloudinary AI
+
+ImageKit
+
+Implementation must be provider-independent.
+
+---
+
+## 17. Image Processing
+
+Use
+
+Sharp
+
+for
+
+resize
+
+compression
+
+WebP generation
+
+thumbnail generation
+
+watermark support
+
+---
+
+## 18. Background Removal
+
+Optional feature.
+
+Allow one-click background removal.
+
+Do not overwrite original image.
+
+---
+
+## 19. API Structure
+
+Create reusable services.
+
+Example
+
+/services
+
+image-analysis.service.ts
+
+product-ai.service.ts
+
+image-processing.service.ts
+
+excel.service.ts
+
+barcode.service.ts
+
+marketplace.service.ts
+
+---
+
+## 20. Performance
+
+AI analysis should run asynchronously.
+
+Show loading progress.
+
+Saving products should never wait for image optimization.
+
+Heavy tasks should execute in background jobs.
+
+---
+
+## 21. Settings Page
+
+Create configuration page.
+
+Allow entering API Keys.
+
+Google Gemini
+
+OpenAI
+
+Cloudinary
+
+ImageKit
+
+Remove.bg
+
+Store securely using environment variables.
+
+---
+
+## 22. Future Ready
+
+Design everything so additional marketplaces can be added later without changing existing code.
+
+---
+
+## 23. Keep Existing App Intact
+
+This is the highest priority.
+
+Existing
+
+Products & Inventory
+
+must continue working exactly as before.
+
+This feature is an enhancement only.
+
+Do not break
+
+authentication
+
+database
+
+routing
+
+existing CRUD
+
+existing UI
+
+existing APIs
+
+---
+
+## Recommended Libraries
+
+Frontend
+
+* React Dropzone
+* SheetJS (xlsx)
+
+Backend
+
+* Sharp
+* Multer
+* SheetJS
+* bwip-js
+
+Optional APIs
+
+* Google Gemini Vision API
+* Cloudinary
+* ImageKit
+* Remove.bg
+
+---
+
+## Expected Result
+
+The user uploads product images.
+
+↓
+
+AI analyzes images.
+
+↓
+
+Product information is automatically generated.
+
+↓
+
+Marketplace images are created.
+
+↓
+
+SEO is generated.
+
+↓
+
+SKU is generated.
+
+↓
+
+User reviews information.
+
+↓
+
+Clicks Save.
+
+↓
+
+Product is stored using the existing database schema.
+
+**Do not replace or redesign the existing TapBoss Products & Inventory module. Extend it cleanly using modular, maintainable code that fits the current architecture.**

@@ -15,6 +15,12 @@ import {
   markChannelRead,
   getCompanyUsers,
   getUserDisplayName,
+  getPolls,
+  createPoll,
+  votePoll,
+  closePoll,
+  getUserStatuses,
+  upsertUserStatus,
 } from "../lib/chat/chat.service";
 import { logger } from "../lib/logger";
 
@@ -219,6 +225,118 @@ router.get("/chat/users", requirePermission("chat.read"), async (req, res) => {
   } catch (e) {
     req.log.error(e);
     res.status(500).json({ error: "Failed to list users" });
+  }
+});
+
+router.get("/chat/channels/:id/polls", requirePermission("chat.read"), async (req, res) => {
+  try {
+    const channelId = parseInt(String(req.params.id), 10);
+    const polls = await getPolls(channelId);
+    res.json(polls);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to load polls" });
+  }
+});
+
+router.post("/chat/channels/:id/polls", requirePermission("chat.write"), async (req, res) => {
+  try {
+    const channelId = parseInt(String(req.params.id), 10);
+    const userId = getLocalUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+    const { question, options, isMultiple } = req.body;
+    if (!question || !Array.isArray(options) || options.length < 2) {
+      res.status(400).json({ error: "Question and at least two options required" });
+      return;
+    }
+    const poll = await createPoll({ channelId, userId, question, options, isMultiple });
+    res.json(poll);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to create poll" });
+  }
+});
+
+router.post("/chat/polls/:id/vote", requirePermission("chat.read"), async (req, res) => {
+  try {
+    const pollId = parseInt(String(req.params.id), 10);
+    const userId = getLocalUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+    const optionIndex = parseInt(req.body.optionIndex as string);
+    if (Number.isNaN(optionIndex)) {
+      res.status(400).json({ error: "Invalid option index" });
+      return;
+    }
+    const updated = await votePoll(pollId, userId, optionIndex);
+    if (!updated) {
+      res.status(404).json({ error: "Poll not found" });
+      return;
+    }
+    res.json(updated);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to vote" });
+  }
+});
+
+router.post("/chat/polls/:id/close", requirePermission("chat.write"), async (req, res) => {
+  try {
+    const pollId = parseInt(String(req.params.id), 10);
+    const userId = getLocalUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+    const updated = await closePoll(pollId, userId);
+    if (!updated) {
+      res.status(404).json({ error: "Poll not found or not owner" });
+      return;
+    }
+    res.json(updated);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to close poll" });
+  }
+});
+
+router.get("/users/status", requirePermission("chat.read"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.query.companyId as string);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const statuses = await getUserStatuses(companyId);
+    res.json(statuses);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to load statuses" });
+  }
+});
+
+router.post("/users/status", requirePermission("chat.read"), async (req, res) => {
+  try {
+    const userId = getLocalUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+    const { presence, statusMessage, doNotDisturb } = req.body;
+    const updated = await upsertUserStatus(userId, {
+      presence,
+      statusMessage,
+      doNotDisturb: !!doNotDisturb,
+    });
+    res.json(updated);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to update status" });
   }
 });
 

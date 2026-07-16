@@ -100,7 +100,7 @@ export default function ChatPage() {
   const { data: channels, isLoading: isLoadingChannels } = useQuery<ChatChannel[]>({
     queryKey: ["/api/chat/channels", companyId],
     queryFn: async () => {
-      const res = await fetch(`${basePath}/api/chat/channels?companyId=${companyId}`, { credentials: "include" })
+      const res = await fetch(`/api/chat/channels?companyId=${companyId}`, { credentials: "include" })
       if (!res.ok) throw new Error(await res.text())
       return res.json()
     },
@@ -110,7 +110,7 @@ export default function ChatPage() {
   const { data: channelUsers } = useQuery<ChatUser[]>({
     queryKey: ["/api/chat/users", companyId],
     queryFn: async () => {
-      const res = await fetch(`${basePath}/api/chat/users?companyId=${companyId}`, { credentials: "include" })
+      const res = await fetch(`/api/chat/users?companyId=${companyId}`, { credentials: "include" })
       if (!res.ok) throw new Error(await res.text())
       return res.json()
     },
@@ -120,7 +120,7 @@ export default function ChatPage() {
   const { data: polls, refetch: refetchPolls } = useQuery<ChatPoll[]>({
     queryKey: ["/api/chat/channels", selectedChannel?.id, "polls"],
     queryFn: async () => {
-      const res = await fetch(`${basePath}/api/chat/channels/${selectedChannel?.id}/polls`, { credentials: "include" })
+      const res = await fetch(`/api/chat/channels/${selectedChannel?.id}/polls`, { credentials: "include" })
       if (!res.ok) throw new Error(await res.text())
       return res.json()
     },
@@ -130,7 +130,7 @@ export default function ChatPage() {
   const { data: userStatuses } = useQuery<UserStatus[]>({
     queryKey: ["/api/users/status", companyId],
     queryFn: async () => {
-      const res = await fetch(`${basePath}/api/users/status?companyId=${companyId}`, { credentials: "include" })
+      const res = await fetch(`/api/users/status?companyId=${companyId}`, { credentials: "include" })
       if (!res.ok) throw new Error(await res.text())
       return res.json()
     },
@@ -139,7 +139,7 @@ export default function ChatPage() {
 
   const statusMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`${basePath}/api/users/status`, {
+      const res = await fetch(`/api/users/status`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -156,7 +156,7 @@ export default function ChatPage() {
 
   const createPollMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`${basePath}/api/chat/channels/${selectedChannel?.id}/polls`, {
+      const res = await fetch(`/api/chat/channels/${selectedChannel?.id}/polls`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -175,7 +175,7 @@ export default function ChatPage() {
 
   const voteMutation = useMutation({
     mutationFn: async ({ pollId, optionIndex }: { pollId: number; optionIndex: number }) => {
-      const res = await fetch(`${basePath}/api/chat/polls/${pollId}/vote`, {
+      const res = await fetch(`/api/chat/polls/${pollId}/vote`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -190,7 +190,7 @@ export default function ChatPage() {
   React.useEffect(() => {
     if (!companyId || !userId) return
     let s: Socket | null = null
-    fetch(`${basePath}/api/chat/token`, { credentials: "include" })
+    fetch(`/api/chat/token`, { credentials: "include" })
       .then((r) => r.json())
       .then(({ token }) => {
         s = io({
@@ -236,7 +236,7 @@ export default function ChatPage() {
     socket.emit("join:channel", { channelId: selectedChannel.id }, (res: any) => {
       if (!res.ok) toast({ title: "Join channel failed", description: res.error, variant: "destructive" })
     })
-    fetch(`${basePath}/api/chat/channels/${selectedChannel.id}/messages?companyId=${companyId}`, { credentials: "include" })
+    fetch(`/api/chat/channels/${selectedChannel.id}/messages?companyId=${companyId}`, { credentials: "include" })
       .then((r) => r.json())
       .then((data) => setMessages(data))
       .catch((err) => toast({ title: "Failed to load messages", description: String(err), variant: "destructive" }))
@@ -273,12 +273,12 @@ export default function ChatPage() {
 
   const handleSearch = async () => {
     if (!searchQuery || !companyId) return
-    const res = await fetch(`${basePath}/api/chat/search?companyId=${companyId}&q=${encodeURIComponent(searchQuery)}`, { credentials: "include" })
+    const res = await fetch(`/api/chat/search?companyId=${companyId}&q=${encodeURIComponent(searchQuery)}`, { credentials: "include" })
     if (res.ok) setSearchResults(await res.json())
   }
 
   const startDirect = async (otherUserId: number) => {
-    const res = await fetch(`${basePath}/api/chat/direct`, {
+    const res = await fetch(`/api/chat/direct`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -295,7 +295,7 @@ export default function ChatPage() {
 
   const startChannelMeeting = async () => {
     if (!selectedChannel) return
-    const res = await fetch(`${basePath}/api/meetings`, {
+    const res = await fetch(`/api/meetings`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -414,7 +414,7 @@ export default function ChatPage() {
                 {msg.attachments?.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {msg.attachments.map((a, i) => (
-                      <a key={i} href={`${basePath}/api/storage/objects/${a.objectPath}`} target="_blank" rel="noreferrer" className="text-xs text-primary underline">
+                      <a key={i} href={`/api/storage/objects/${a.objectPath}`} target="_blank" rel="noreferrer" className="text-xs text-primary underline">
                         {a.name}
                       </a>
                     ))}

@@ -72,7 +72,7 @@ export default function MeetingsPage() {
   const { data: settings } = useQuery<MeetingSettings>({
     queryKey: ["/api/meetings/settings", companyId],
     queryFn: async () => {
-      const res = await fetch(`${basePath}/api/meetings/settings?companyId=${companyId}`, { credentials: "include" })
+      const res = await fetch(`/api/meetings/settings?companyId=${companyId}`, { credentials: "include" })
       if (!res.ok) throw new Error(await res.text())
       return res.json()
     },
@@ -82,7 +82,7 @@ export default function MeetingsPage() {
   const { data: users } = useQuery<User[]>({
     queryKey: ["/api/chat/users", companyId],
     queryFn: async () => {
-      const res = await fetch(`${basePath}/api/chat/users?companyId=${companyId}`, { credentials: "include" })
+      const res = await fetch(`/api/chat/users?companyId=${companyId}`, { credentials: "include" })
       if (!res.ok) throw new Error(await res.text())
       return res.json()
     },
@@ -93,7 +93,7 @@ export default function MeetingsPage() {
     queryKey: ["/api/meetings", selectedTab, companyId],
     queryFn: async () => {
       const endpoint = selectedTab === "my" ? "my" : selectedTab === "upcoming" ? "upcoming" : ""
-      const res = await fetch(`${basePath}/api/meetings${endpoint ? `/${endpoint}` : ""}?companyId=${companyId}`, { credentials: "include" })
+      const res = await fetch(`/api/meetings${endpoint ? `/${endpoint}` : ""}?companyId=${companyId}`, { credentials: "include" })
       if (!res.ok) throw new Error(await res.text())
       return res.json()
     },
@@ -102,7 +102,7 @@ export default function MeetingsPage() {
 
   const createMeeting = useMutation({
     mutationFn: async (body: any) => {
-      const res = await fetch(`${basePath}/api/meetings`, {
+      const res = await fetch(`/api/meetings`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -122,7 +122,7 @@ export default function MeetingsPage() {
 
   const startInstantMeeting = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`${basePath}/api/meetings`, {
+      const res = await fetch(`/api/meetings`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -145,7 +145,7 @@ export default function MeetingsPage() {
 
   const cancelMeeting = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`${basePath}/api/meetings/${id}/cancel`, {
+      const res = await fetch(`/api/meetings/${id}/cancel`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

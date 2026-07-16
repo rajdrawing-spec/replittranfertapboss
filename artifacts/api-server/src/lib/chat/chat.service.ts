@@ -1,4 +1,4 @@
-import { db, chatChannelsTable, chatChannelMembersTable, chatMessagesTable, chatMessageReadsTable, usersTable, employeesTable } from "@workspace/db";
+import { db, chatChannelsTable, chatChannelMembersTable, chatMessagesTable, chatMessageReadsTable, usersTable, employeesTable, chatPollsTable, userStatusTable } from "@workspace/db";
 import { eq, and, desc, asc, sql, inArray, like, gt } from "drizzle-orm";
 
 export interface CreateChannelInput {
@@ -266,7 +266,7 @@ export async function deleteMessage(messageId: number, channelId: number, userId
     .where(
       and(
         eq(chatMessagesTable.id, messageId),
-        eq(chatChannelsTable.id, channelId),
+        eq(chatMessagesTable.channelId, channelId),
       ),
     )
     .returning();
@@ -344,4 +344,109 @@ export async function ensureDirectChannel(companyId: number, userIdA: number, us
 export async function getCompanyUsers(companyId: number) {
   const companyUsers = await db.select().from(usersTable);
   return companyUsers.filter((u) => (u.companyIds as number[]).includes(companyId));
+}
+
+export async function getPolls(channelId: number) {
+  return db.select().from(chatPollsTable).where(eq(chatPollsTable.channelId, channelId)).orderBy(desc(chatPollsTable.createdAt));
+}
+
+export async function createPoll(input: {
+  channelId: number;
+  userId: number;
+  question: string;
+  options: string[];
+  isMultiple?: boolean;
+}) {
+  const [poll] = await db
+    .insert(chatPollsTable)
+    .values({
+      channelId: input.channelId,
+      userId: input.userId,
+      question: input.question,
+      options: input.options,
+      votes: {},
+      isMultiple: input.isMultiple ?? false,
+    })
+    .returning();
+  return poll;
+}
+
+export async function votePoll(pollId: number, userId: number, optionIndex: number) {
+  const [poll] = await db.select().from(chatPollsTable).where(eq(chatPollsTable.id, pollId)).limit(1);
+  if (!poll) return null;
+  const votes = { ...(poll.votes || {}) } as Record<string, number>;
+  const key = String(userId);
+  if (poll.isMultiple) {
+    votes[key] = optionIndex;
+  } else {
+    votes[key] = optionIndex;
+  }
+  const [updated] = await db
+    .update(chatPollsTable)
+    .set({ votes })
+    .where(eq(chatPollsTable.id, pollId))
+    .returning();
+  return updated;
+}
+
+export async function closePoll(pollId: number, userId: number) {
+  const [poll] = await db.select().from(chatPollsTable).where(eq(chatPollsTable.id, pollId)).limit(1);
+  if (!poll || poll.userId !== userId) return null;
+  const [updated] = await db
+    .update(chatPollsTable)
+    .set({ closed: true })
+    .where(eq(chatPollsTable.id, pollId))
+    .returning();
+  return updated;
+}
+
+export async function getUserStatuses(companyId: number) {
+  const companyUsers = await getCompanyUsers(companyId);
+  const userIds = companyUsers.map((u) => u.id);
+  if (userIds.length === 0) return [];
+  const rows = await db.select().from(userStatusTable).where(inArray(userStatusTable.userId, userIds));
+  return rows.map((r) => ({
+    userId: r.userId,
+    presence: r.presence as "online" | "away" | "offline",
+    statusMessage: r.statusMessage ?? undefined,
+    doNotDisturb: r.doNotDisturb,
+  }));
+}
+
+export async function upsertUserStatus(userId: number, input: {
+  presence?: string;
+  statusMessage?: string;
+  doNotDisturb?: boolean;
+  dndUntil?: Date | null;
+}) {
+  const now = new Date();
+  const [existing] = await db.select().from(userStatusTable).where(eq(userStatusTable.userId, userId)).limit(1);
+  if (existing) {
+    const [updated] = await db
+      .update(userStatusTable)
+      .set({
+        presence: input.presence ?? existing.presence,
+        statusMessage: input.statusMessage !== undefined ? input.statusMessage : existing.statusMessage,
+        doNotDisturb: input.doNotDisturb ?? existing.doNotDisturb,
+        dndUntil: input.dndUntil !== undefined ? input.dndUntil : existing.dndUntil,
+        lastSeenAt: now,
+        updatedAt: now,
+      })
+      .where(eq(userStatusTable.id, existing.id))
+      .returning();
+    return updated;
+  }
+  const [created] = await db
+    .insert(userStatusTable)
+    .values({
+      userId,
+      presence: input.presence ?? "online",
+      statusMessage: input.statusMessage ?? null,
+      doNotDisturb: input.doNotDisturb ?? false,
+      dndUntil: input.dndUntil ?? null,
+      lastSeenAt: now,
+      updatedAt: now,
+    })
+    .returning();
+  return created;
 }

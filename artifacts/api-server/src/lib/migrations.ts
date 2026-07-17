@@ -319,7 +319,7 @@ export async function applyMigrations(): Promise<void> {
       CREATE TABLE IF NOT EXISTS meeting_settings (
         id                    SERIAL PRIMARY KEY,
         company_id            INTEGER   NOT NULL UNIQUE,
-        default_provider      TEXT      NOT NULL DEFAULT 'jitsi',
+        default_provider      TEXT      NOT NULL DEFAULT 'livekit',
         jitsi_server_url      TEXT      NOT NULL DEFAULT 'https://meet.jit.si',
         default_duration      INTEGER   NOT NULL DEFAULT 30,
         waiting_room_enabled  BOOLEAN   NOT NULL DEFAULT false,
@@ -364,7 +364,7 @@ export async function applyMigrations(): Promise<void> {
     await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT ''`);
     await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS agenda TEXT`);
     await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS meeting_id TEXT NOT NULL DEFAULT ''`);
-    await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'jitsi'`);
+    await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'livekit'`);
     await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS room_url TEXT NOT NULL DEFAULT ''`);
     await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS password TEXT`);
     await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP`);

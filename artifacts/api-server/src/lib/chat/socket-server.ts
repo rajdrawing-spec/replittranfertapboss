@@ -22,6 +22,23 @@ const typingMap = new Map<string, { userId: number; channelId: number; ts: numbe
 const presenceMap = new Map<number, Set<string>>(); // userId -> socket ids
 const rateLimitMap = new Map<string, number[]>(); // userId -> timestamps
 
+let _io: SocketServer | null = null;
+
+/** Emit a meeting:ringing event to specific users via their socket connections. */
+export function broadcastMeetingRinging(
+  userIds: number[],
+  data: { meetingId: string; title: string; organizerName: string; companyId: number },
+) {
+  if (!_io) return;
+  for (const userId of userIds) {
+    const sockets = presenceMap.get(userId);
+    if (!sockets) continue;
+    for (const sid of sockets) {
+      _io.to(sid).emit("meeting:ringing", data);
+    }
+  }
+}
+
 const TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const TYPING_TTL_MS = 5000;
 const MESSAGE_RATE_LIMIT = 30; // per minute
@@ -38,6 +55,7 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
     cors: { origin: true, credentials: true },
     path: "/socket.io",
   });
+  _io = io;
 
   io.use((socket: Socket, next) => {
     const token = socket.handshake.auth?.token as string | undefined;

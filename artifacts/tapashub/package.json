@@ -89,12 +89,17 @@
     "@fullcalendar/interaction": "^6.1.21",
     "@fullcalendar/react": "^6.1.21",
     "@fullcalendar/timegrid": "^6.1.21",
-    "@jitsi/react-sdk": "^1.4.4",
+    "@livekit/components-react": "*",
+    "@livekit/components-styles": "*",
+    "livekit-client": "*",
+    "@livekit/components-react": "^2.9.23",
+    "@livekit/components-styles": "^1.2.0",
     "@uppy/aws-s3": "^5.1.0",
     "@uppy/core": "^5.2.0",
     "@uppy/dashboard": "^5.1.1",
     "@uppy/react": "^5.2.0",
     "@workspace/object-storage-web": "workspace:*",
+    "livekit-client": "^2.20.1",
     "socket.io-client": "^4.8.3",
     "xlsx": "^0.18.5"
   }

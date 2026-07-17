@@ -2,7 +2,7 @@ import { pgTable, serial, integer, text, timestamp, boolean, jsonb, index } from
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const meetingProviders = ["jitsi", "google_meet", "microsoft_teams", "zoom", "livekit"] as const;
+export const meetingProviders = ["livekit", "jitsi", "google_meet", "microsoft_teams", "zoom"] as const;
 export type MeetingProvider = (typeof meetingProviders)[number];
 
 export const meetingStatuses = ["scheduled", "ongoing", "ended", "cancelled"] as const;
@@ -17,7 +17,7 @@ export const meetingSettingsTable = pgTable(
   {
     id: serial("id").primaryKey(),
     companyId: integer("company_id").notNull().unique(),
-    defaultProvider: text("default_provider").notNull().default("jitsi"),
+    defaultProvider: text("default_provider").notNull().default("livekit"),
     jitsiServerUrl: text("jitsi_server_url").notNull().default("https://meet.jit.si"),
     defaultDuration: integer("default_duration").notNull().default(30),
     waitingRoomEnabled: boolean("waiting_room_enabled").notNull().default(false),
@@ -48,7 +48,7 @@ export const meetingsTable = pgTable(
     title: text("title").notNull(),
     agenda: text("agenda"),
     meetingId: text("meeting_id").notNull().unique(),
-    provider: text("provider").notNull().default("jitsi"),
+    provider: text("provider").notNull().default("livekit"),
     roomUrl: text("room_url").notNull(),
     jwt: text("jwt"),
     password: text("password"),
@@ -103,7 +103,7 @@ export const insertMeetingSettingsSchema = createInsertSchema(meetingSettingsTab
 export const insertMeetingSchema = createInsertSchema(meetingsTable)
   .omit({ id: true, meetingId: true, roomUrl: true, createdAt: true, updatedAt: true, status: true })
   .extend({
-    provider: z.enum(meetingProviders).default("jitsi"),
+    provider: z.enum(meetingProviders).default("livekit"),
     participantIds: z.array(z.number()).default([]),
     scheduledAt: z.string().datetime().optional(),
   });

@@ -1,8 +1,8 @@
 export interface MeetingProvider {
   readonly key: string;
-  generateRoomUrl(meetingId: string, serverUrl?: string): string;
+  generateRoomUrl(meetingId: string): string;
   generateMeetingId(context: MeetingContext): string;
-  createRoom(context: MeetingContext, serverUrl?: string): CreateMeetingRoomResult;
+  createRoom(context: MeetingContext): CreateMeetingRoomResult;
 }
 
 export interface MeetingContext {

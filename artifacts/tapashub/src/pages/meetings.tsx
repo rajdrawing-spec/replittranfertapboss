@@ -12,11 +12,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { EmptyState } from "@/components/empty-state"
 import { MeetingSkeleton } from "@/components/skeletons"
-import { Video, Calendar, Clock, Users, Copy, Plus, Phone, MonitorPlay, History } from "lucide-react"
+import { Video, Calendar, Clock, Users, Copy, Plus, Phone, MonitorPlay, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react"
 
-const basePath = import.meta.env.BASE_URL.replace(/\/$/, "")
-
-const JitsiMeet = React.lazy(() => import("@/components/meetings/jitsi-meet"))
+const LiveKitRoomComponent = React.lazy(() => import("@/components/meetings/livekit-room"))
+import type { MeetingMiniPlayer as MeetingMiniPlayerType } from "@/components/meetings/livekit-room"
+const MeetingMiniPlayer = React.lazy(() =>
+  import("@/components/meetings/livekit-room").then((m) => ({ default: m.MeetingMiniPlayer }))
+)
 
 interface Meeting {
   id: number
@@ -25,8 +27,6 @@ interface Meeting {
   meetingId: string
   provider: string
   roomUrl: string
-  jwt?: string
-  password?: string
   scheduledAt: string | null
   duration: number
   organizerId: number
@@ -37,7 +37,6 @@ interface Meeting {
 
 interface MeetingSettings {
   defaultProvider: string
-  jitsiServerUrl: string
   defaultDuration: number
   waitingRoomEnabled: boolean
   passwordRequired: boolean
@@ -45,6 +44,7 @@ interface MeetingSettings {
   screenShareEnabled: boolean
   recordingEnabled: boolean
   lobbyEnabled: boolean
+  livekitConfigured: boolean
 }
 
 interface User {
@@ -53,15 +53,22 @@ interface User {
   email: string
 }
 
+interface ActiveCall {
+  meeting: Meeting
+  token: string
+  serverUrl: string
+}
+
 export default function MeetingsPage() {
   const { activeCompany } = useCompany()
   const { user } = useAuth()
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const companyId = activeCompany?.id
-  const userId = user?.id
 
-  const [activeMeeting, setActiveMeeting] = React.useState<Meeting | null>(null)
+  const [activeCall, setActiveCall] = React.useState<ActiveCall | null>(null)
+  const [miniPlayer, setMiniPlayer] = React.useState(false)
+  const [joiningId, setJoiningId] = React.useState<number | null>(null)
   const [scheduleOpen, setScheduleOpen] = React.useState(false)
   const [selectedTab, setSelectedTab] = React.useState("upcoming")
   const [title, setTitle] = React.useState("")
@@ -101,7 +108,42 @@ export default function MeetingsPage() {
     enabled: !!companyId,
   })
 
-  const createMeeting = useMutation({
+  const fetchToken = async (roomName: string): Promise<{ token: string; serverUrl: string }> => {
+    const res = await fetch(`/api/meetings/token?roomName=${encodeURIComponent(roomName)}&companyId=${companyId}`, {
+      credentials: "include",
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Failed to get call token" }))
+      throw new Error(err.error || "Failed to get call token")
+    }
+    return res.json()
+  }
+
+  const joinCall = async (meeting: Meeting) => {
+    setJoiningId(meeting.id)
+    try {
+      const { token, serverUrl } = await fetchToken(meeting.meetingId)
+      await fetch(`/api/meetings/join/${meeting.meetingId}`, { method: "POST", credentials: "include" })
+      setActiveCall({ meeting, token, serverUrl })
+      setMiniPlayer(false)
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
+    } catch (e) {
+      toast({ title: "Failed to join", description: String(e), variant: "destructive" })
+    } finally {
+      setJoiningId(null)
+    }
+  }
+
+  const handleLeave = async () => {
+    if (activeCall) {
+      await fetch(`/api/meetings/leave/${activeCall.meeting.meetingId}`, { method: "POST", credentials: "include" })
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
+    }
+    setActiveCall(null)
+    setMiniPlayer(false)
+  }
+
+  const createMeetingMutation = useMutation({
     mutationFn: async (body: any) => {
       const res = await fetch(`/api/meetings`, {
         method: "POST",
@@ -131,15 +173,15 @@ export default function MeetingsPage() {
           companyId,
           title: "Instant Meeting",
           duration: settings?.defaultDuration ?? 30,
-          provider: settings?.defaultProvider ?? "jitsi",
+          provider: "livekit",
         }),
       })
       if (!res.ok) throw new Error(await res.text())
       return res.json()
     },
-    onSuccess: (meeting) => {
+    onSuccess: async (meeting) => {
       queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
-      setActiveMeeting(meeting)
+      await joinCall(meeting)
     },
     onError: (err) => toast({ title: "Failed", description: String(err), variant: "destructive" }),
   })
@@ -169,7 +211,8 @@ export default function MeetingsPage() {
     setSelectedUsers([])
   }
 
-  const copyLink = (url: string) => {
+  const copyLink = (meetingId: string) => {
+    const url = `${window.location.origin}${window.location.pathname}?join=${meetingId}`
     navigator.clipboard.writeText(url).then(() => toast({ title: "Link copied" }))
   }
 
@@ -185,20 +228,19 @@ export default function MeetingsPage() {
     )
   }
 
-  if (isLoading) {
-    return <MeetingSkeleton />
-  }
+  if (isLoading) return <MeetingSkeleton />
 
-  if (activeMeeting) {
+  // Full-screen call view
+  if (activeCall && !miniPlayer) {
     return (
-      <React.Suspense fallback={<div className="p-6">Loading meeting room...</div>}>
-        <JitsiMeet
-          roomName={activeMeeting.meetingId}
-          serverUrl={settings?.jitsiServerUrl}
-          jwt={activeMeeting.jwt}
-          password={activeMeeting.password}
+      <React.Suspense fallback={<div className="fixed inset-0 flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+        <LiveKitRoomComponent
+          roomName={activeCall.meeting.meetingId}
+          serverUrl={activeCall.serverUrl}
+          token={activeCall.token}
           displayName={user?.name || "Guest"}
-          onClose={() => setActiveMeeting(null)}
+          onClose={handleLeave}
+          onMinimize={() => setMiniPlayer(true)}
         />
       </React.Suspense>
     )
@@ -206,17 +248,58 @@ export default function MeetingsPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
+      {/* Mini-player overlay when navigated away from call */}
+      {activeCall && miniPlayer && (
+        <React.Suspense fallback={null}>
+          <MeetingMiniPlayer
+            roomName={activeCall.meeting.meetingId}
+            serverUrl={activeCall.serverUrl}
+            token={activeCall.token}
+            onExpand={() => setMiniPlayer(false)}
+            onLeave={handleLeave}
+          />
+        </React.Suspense>
+      )}
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2"><Video className="h-6 w-6" /> Meetings</h1>
         <div className="flex gap-2">
-          <Button onClick={() => startInstantMeeting.mutate()} disabled={startInstantMeeting.isPending}>
-            <Phone className="mr-2 h-4 w-4" /> Start Instant
+          {settings?.livekitConfigured === false && (
+            <Badge variant="destructive" className="gap-1 text-xs">
+              <AlertTriangle className="h-3 w-3" />
+              LiveKit not configured
+            </Badge>
+          )}
+          <Button
+            onClick={() => startInstantMeeting.mutate()}
+            disabled={startInstantMeeting.isPending || !settings?.livekitConfigured}
+          >
+            {startInstantMeeting.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Phone className="mr-2 h-4 w-4" />}
+            Start Instant
           </Button>
           <Button onClick={() => setScheduleOpen(true)}>
             <Plus className="mr-2 h-4 w-4" /> Schedule
           </Button>
         </div>
       </div>
+
+      {/* LiveKit not configured banner */}
+      {settings && !settings.livekitConfigured && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="pt-4">
+            <div className="flex gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">LiveKit server not connected</p>
+                <p className="text-xs text-muted-foreground">
+                  Set <code className="bg-muted px-1 rounded">LIVEKIT_URL</code>, <code className="bg-muted px-1 rounded">LIVEKIT_API_KEY</code>, and <code className="bg-muted px-1 rounded">LIVEKIT_API_SECRET</code> in your Replit secrets to enable video calling.
+                  See <code className="bg-muted px-1 rounded">LIVEKIT_MIGRATION.md</code> for setup instructions.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
         <TabsList>
@@ -234,19 +317,37 @@ export default function MeetingsPage() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center justify-between">
                     <span>{m.title}</span>
-                    <Badge variant={m.status === "ongoing" ? "default" : "secondary"}>{m.status}</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">LiveKit</Badge>
+                      <Badge variant={m.status === "ongoing" ? "default" : "secondary"}>{m.status}</Badge>
+                    </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                    {m.scheduledAt && <span className="flex items-center gap-1"><Calendar className="h-4 w-4" /> {new Date(m.scheduledAt).toLocaleString()}</span>}
+                    {m.scheduledAt && (
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-4 w-4" /> {new Date(m.scheduledAt).toLocaleString()}
+                      </span>
+                    )}
                     <span className="flex items-center gap-1"><Clock className="h-4 w-4" /> {m.duration} min</span>
                     <span className="flex items-center gap-1"><Users className="h-4 w-4" /> {m.participants.length}</span>
                   </div>
                   {m.agenda && <p className="text-sm text-muted-foreground">{m.agenda}</p>}
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" onClick={() => setActiveMeeting(m)}><MonitorPlay className="mr-2 h-4 w-4" /> Join</Button>
-                    <Button size="sm" variant="outline" onClick={() => copyLink(m.roomUrl)}><Copy className="mr-2 h-4 w-4" /> Copy Link</Button>
+                    <Button
+                      size="sm"
+                      onClick={() => joinCall(m)}
+                      disabled={joiningId === m.id || !settings?.livekitConfigured}
+                    >
+                      {joiningId === m.id
+                        ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Joining...</>
+                        : <><MonitorPlay className="mr-2 h-4 w-4" /> Join</>
+                      }
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => copyLink(m.meetingId)}>
+                      <Copy className="mr-2 h-4 w-4" /> Copy Link
+                    </Button>
                     {m.status !== "cancelled" && m.status !== "ended" && (
                       <Button size="sm" variant="destructive" onClick={() => cancelMeeting.mutate(m.id)}>Cancel</Button>
                     )}
@@ -258,6 +359,7 @@ export default function MeetingsPage() {
         </TabsContent>
       </Tabs>
 
+      {/* Schedule dialog */}
       <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -267,22 +369,35 @@ export default function MeetingsPage() {
             <Input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
             <Textarea placeholder="Agenda" value={agenda} onChange={(e) => setAgenda(e.target.value)} />
             <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
-            <Input type="number" placeholder="Duration (min)" value={duration} onChange={(e) => setDuration(parseInt(e.target.value) || 30)} />
-            <div className="max-h-[200px] overflow-y-auto space-y-1 border rounded-md p-2">
-              {users?.map((u) => (
-                <label key={u.id} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={selectedUsers.includes(u.id)} onChange={() => toggleUser(u.id)} />
-                  <span>{u.name}</span>
-                </label>
-              ))}
-            </div>
+            <Input
+              type="number"
+              placeholder="Duration (min)"
+              value={duration}
+              onChange={(e) => setDuration(parseInt(e.target.value) || 30)}
+            />
+            {users && users.length > 0 && (
+              <div className="max-h-[200px] overflow-y-auto space-y-1 border rounded-md p-2">
+                {users.map((u) => (
+                  <label key={u.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-accent/50 px-1 py-0.5 rounded">
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.includes(u.id)}
+                      onChange={() => toggleUser(u.id)}
+                      className="rounded"
+                    />
+                    <span>{u.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setScheduleOpen(false)}>Cancel</Button>
             <Button
-              onClick={() => createMeeting.mutate({ title, agenda, scheduledAt, duration, participantIds: selectedUsers })}
-              disabled={!title}
+              onClick={() => createMeetingMutation.mutate({ title, agenda, scheduledAt, duration, participantIds: selectedUsers })}
+              disabled={!title || createMeetingMutation.isPending}
             >
+              {createMeetingMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Schedule
             </Button>
           </DialogFooter>

@@ -1,14 +1,14 @@
 import { db, meetingsTable, meetingParticipantsTable, meetingSettingsTable, companiesTable, usersTable, notificationsTable, generatedTasksTable, chatChannelsTable } from "@workspace/db";
-import { eq, and, or, gte, lte, desc, asc, inArray, sql } from "drizzle-orm";
-import { jitsiProvider, hasJaaSConfig, getJaaSAppId } from "./jitsi-provider";
+import { eq, and, or, gte, desc, asc, inArray } from "drizzle-orm";
+import { liveKitProvider, isLiveKitConfigured } from "./livekit-provider";
 import type { MeetingProvider } from "./meeting-provider";
 
 const providers: Record<string, MeetingProvider> = {
-  jitsi: jitsiProvider,
+  livekit: liveKitProvider,
 };
 
 export function getProvider(providerKey: string): MeetingProvider {
-  return providers[providerKey] || jitsiProvider;
+  return providers[providerKey] || liveKitProvider;
 }
 
 export interface CreateMeetingInput {
@@ -29,17 +29,10 @@ export interface CreateMeetingInput {
   recurrence?: string | null;
 }
 
-const jaasEnabled = hasJaaSConfig();
-const jaasAppId = getJaaSAppId();
-const jaasServerUrl = jaasEnabled && jaasAppId ? `https://8x8.vc/${jaasAppId}` : undefined;
-
 export async function getOrCreateMeetingSettings(companyId: number) {
   const [existing] = await db.select().from(meetingSettingsTable).where(eq(meetingSettingsTable.companyId, companyId)).limit(1);
   if (existing) return existing;
-  const defaults = jaasEnabled
-    ? { companyId, defaultProvider: "jitsi", jitsiServerUrl: jaasServerUrl }
-    : { companyId };
-  const [created] = await db.insert(meetingSettingsTable).values(defaults).returning();
+  const [created] = await db.insert(meetingSettingsTable).values({ companyId, defaultProvider: "livekit" }).returning();
   return created;
 }
 
@@ -56,7 +49,7 @@ export async function updateMeetingSettings(companyId: number, values: Partial<t
 export async function createMeeting(input: CreateMeetingInput) {
   const settings = await getOrCreateMeetingSettings(input.companyId);
   const [company] = await db.select({ slug: companiesTable.slug }).from(companiesTable).where(eq(companiesTable.id, input.companyId)).limit(1);
-  const provider = getProvider(input.provider || settings.defaultProvider || "jitsi");
+  const provider = getProvider(input.provider || settings.defaultProvider || "livekit");
 
   let department: string | undefined;
   let project: string | undefined;
@@ -82,7 +75,7 @@ export async function createMeeting(input: CreateMeetingInput) {
     }
   }
 
-  const { meetingId, roomUrl, jwt } = provider.createRoom({
+  const { meetingId, roomUrl } = provider.createRoom({
     companySlug: company?.slug || "TBOS",
     department,
     project,
@@ -102,7 +95,7 @@ export async function createMeeting(input: CreateMeetingInput) {
     meetingId,
     provider: provider.key,
     roomUrl,
-    jwt: jwt || null,
+    jwt: null,
     password: input.password || null,
     scheduledAt: input.scheduledAt || null,
     duration: input.duration ?? settings.defaultDuration ?? 30,
@@ -165,19 +158,13 @@ export async function listUpcomingMeetings(companyId: number, userId?: number) {
 export async function getMeeting(id: number, companyId: number) {
   const [meeting] = await db.select().from(meetingsTable).where(and(eq(meetingsTable.id, id), eq(meetingsTable.companyId, companyId))).limit(1);
   if (!meeting) return null;
-  return {
-    ...meeting,
-    participants: await getMeetingParticipants(meeting.id),
-  };
+  return { ...meeting, participants: await getMeetingParticipants(meeting.id) };
 }
 
 export async function getMeetingByMeetingId(meetingId: string) {
   const [meeting] = await db.select().from(meetingsTable).where(eq(meetingsTable.meetingId, meetingId)).limit(1);
   if (!meeting) return null;
-  return {
-    ...meeting,
-    participants: await getMeetingParticipants(meeting.id),
-  };
+  return { ...meeting, participants: await getMeetingParticipants(meeting.id) };
 }
 
 export async function getMeetingParticipants(meetingId: number) {
@@ -222,8 +209,7 @@ export async function leaveMeeting(meetingId: string, userId: number) {
 }
 
 export async function endMeeting(id: number, companyId: number) {
-  const meeting = await updateMeetingStatus(id, companyId, "ended");
-  return meeting;
+  return updateMeetingStatus(id, companyId, "ended");
 }
 
 export async function notifyMeetingCreated(meeting: typeof meetingsTable.$inferSelect, participantIds: number[]) {
@@ -276,3 +262,5 @@ export async function rejectInvitation(meetingId: number, userId: number) {
     set: { status: "rejected" },
   });
 }
+
+export { isLiveKitConfigured };

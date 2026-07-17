@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { Sparkles, Wand2, Tags, Barcode, ScanLine, Image, Store, Check, Loader2, Star, CheckCircle2, AlertTriangle, XCircle, Crop, Eraser } from "lucide-react"
+import { Sparkles, Wand2, Barcode, ScanLine, Image, Store, Check, Loader2, Star, CheckCircle2, AlertTriangle, XCircle, Crop, Eraser } from "lucide-react"
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "")
 
@@ -94,6 +94,8 @@ export default function AiProductPanel({ product, onChange }: { product: Product
   const [resizeWidth, setResizeWidth] = React.useState(1000)
   const [resizeHeight, setResizeHeight] = React.useState(1000)
   const [selectedImage, setSelectedImage] = React.useState<number>(0)
+  const [barcodeImage, setBarcodeImage] = React.useState<string | null>(null)
+  const [marketplaceImages, setMarketplaceImages] = React.useState<string[]>([])
 
   React.useEffect(() => { loadMetadata() }, [product.id])
 
@@ -153,6 +155,19 @@ export default function AiProductPanel({ product, onChange }: { product: Product
     } finally { setLoading(null) }
   }
 
+  async function generateBarcodeImage() {
+    setLoading("barcodeImage")
+    try {
+      const res = await fetch(`${basePath}/api/ai-products/${product.id}/barcode-image`, { method: "POST", credentials: "include" })
+      if (!res.ok) throw new Error()
+      const { objectPath } = await res.json()
+      setBarcodeImage(objectPath)
+      toast({ title: "Barcode image generated" })
+    } catch {
+      toast({ title: "Error", description: "Barcode image generation failed", variant: "destructive" })
+    } finally { setLoading(null) }
+  }
+
   async function generateMarketplace() {
     setLoading("marketplace")
     try {
@@ -163,6 +178,22 @@ export default function AiProductPanel({ product, onChange }: { product: Product
       setTemplate(await res.json())
     } catch {
       toast({ title: "Error", description: "Template generation failed", variant: "destructive" })
+    } finally { setLoading(null) }
+  }
+
+  async function generateMarketplaceImages() {
+    setLoading("marketplaceImages")
+    try {
+      const res = await fetch(`${basePath}/api/ai-products/${product.id}/generate-marketplace-images`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageIndex: selectedImage }),
+      })
+      if (!res.ok) throw new Error()
+      const { results } = await res.json()
+      setMarketplaceImages(results.map((r: any) => r.objectPath))
+      toast({ title: "Marketplace images generated", description: `${results.length} variants` })
+    } catch {
+      toast({ title: "Error", description: "Marketplace image generation failed", variant: "destructive" })
     } finally { setLoading(null) }
   }
 
@@ -270,12 +301,14 @@ export default function AiProductPanel({ product, onChange }: { product: Product
             )}
 
             <div className="border rounded-md p-3 space-y-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button onClick={generateSku} disabled={loading === "sku"} size="sm"><Barcode className="w-4 h-4 mr-1" /> Generate SKU</Button>
                 <Button onClick={generateBarcode} disabled={loading === "barcode"} size="sm"><ScanLine className="w-4 h-4 mr-1" /> Generate Barcode</Button>
+                <Button onClick={generateBarcodeImage} disabled={loading === "barcodeImage"} size="sm" variant="outline"><Image className="w-4 h-4 mr-1" /> Barcode Image</Button>
               </div>
               {generated?.sku && <div className="text-sm"><strong>SKU:</strong> {generated.sku}</div>}
               {generated?.barcode && <div className="text-sm"><strong>Barcode:</strong> {generated.barcode}</div>}
+              {barcodeImage && <img src={barcodeImage} alt="Barcode" className="h-16 object-contain border rounded-md p-1 mt-2" />}
             </div>
           </TabsContent>
 
@@ -361,6 +394,19 @@ export default function AiProductPanel({ product, onChange }: { product: Product
                 <div className="text-sm"><strong>Image requirements:</strong> {template.imageRequirements?.join(", ")}</div>
               </div>
             )}
+            <div className="border rounded-md p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">Auto-generate marketplace image variants</Label>
+                <Button size="sm" onClick={generateMarketplaceImages} disabled={loading === "marketplaceImages" || !metadata?.images?.length}><Image className="w-4 h-4 mr-1" /> {loading === "marketplaceImages" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Generate variants"}</Button>
+              </div>
+              {marketplaceImages.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {marketplaceImages.map((path, i) => (
+                    <img key={i} src={path} alt={`marketplace-${i}`} className="h-16 object-contain border rounded-md p-1" />
+                  ))}
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           <TabsContent value="health" className="space-y-3">

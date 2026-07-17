@@ -6,7 +6,8 @@ import { isAiProductsEnabled } from "../lib/features";
 import {
   analyzeProductImages, generateProductContent, generateMarketplaceTemplate,
   computeHealthScore, saveAiMetadata, generateBarcode, ensureUniqueSku, generateImageName,
-  resizeProductImage, removeProductBackground,
+  resizeProductImage, removeProductBackground, generateBarcodeImage, generateMarketplaceImages,
+  importProductsXlsx, exportProductsXlsx,
 } from "../lib/product-ai.service";
 import { requirePermission } from "../middleware/authz";
 import { canAccessCompany } from "../lib/company-scope";
@@ -40,7 +41,7 @@ router.post("/ai-products/:productId/analyze-images", requirePermission("invento
     const { productId } = IdParam.parse(parseParams(req.params));
     const { objectPaths } = z.object({ objectPaths: z.array(z.string()) }).parse(req.body);
     if (!objectPaths.length) { res.status(400).json({ error: "At least one image is required" }); return; }
-    const [product] = await db.select({ companyId: productsTable.companyId, name: productsTable.name }).from(productsTable).where(eq(productsTable.id, productId));
+    const [product] = await db.select({ companyId: productsTable.companyId, name: productsTable.name, brand: productsTable.brand, category: productsTable.category, subcategory: productsTable.subcategory, weight: productsTable.weight, dimensions: productsTable.dimensions }).from(productsTable).where(eq(productsTable.id, productId));
     if (!product || !ensureCompany(req, res, product.companyId)) return;
 
     const result = await analyzeProductImages(objectPaths);
@@ -51,21 +52,49 @@ router.post("/ai-products/:productId/analyze-images", requirePermission("invento
       aiAnalysis: result as any,
     });
 
+    const brand = result.attributes?.Brand || product.brand || "";
+    const category = result.category || product.category || "";
+    const color = result.attributes?.Color || "";
     const images = await Promise.all(
-      objectPaths.map((objectPath, i) =>
-        db.insert(productImagesTable).values({
+      objectPaths.map((objectPath, i) => {
+        const angle = i === 0 ? "front" : i === 1 ? "back" : i === 2 ? "side" : `angle-${i}`;
+        return db.insert(productImagesTable).values({
           productId,
           companyId: product.companyId,
           objectPath,
           aiTags: result.tags,
-          altText: generateImageName(product.name, i === 0 ? "front" : `angle-${i}`, i),
+          altText: generateImageName(product.name, brand, category, color, angle, i),
           isPrimary: i === 0,
-        }).returning()
-      )
+        }).returning();
+      })
     );
     const score = await computeHealthScore(productId);
     await saveAiMetadata(productId, { healthScore: score });
-    res.json({ ...result, imageIds: images.map(img => img[0]?.id), healthScore: score });
+    const autoFill = {
+      name: result.suggestedName || product.name,
+      category: result.category || product.category,
+      subcategory: result.subcategory || product.subcategory,
+      brand: result.attributes?.Brand || product.brand,
+      attributes: result.attributes,
+      keywords: result.keywords,
+      seoTags: result.seoTags,
+      color: result.attributes?.Color || "",
+      size: result.attributes?.Size || "",
+      weight: result.attributes?.Weight || product.weight,
+      dimensions: result.attributes?.Dimensions || product.dimensions,
+      material: result.attributes?.Material || "",
+      sleeveType: result.attributes?.["Sleeve Type"] || "",
+      neckType: result.attributes?.["Neck Type"] || "",
+      pattern: result.attributes?.Pattern || "",
+      occasion: result.attributes?.Occasion || "",
+      season: result.attributes?.Season || "",
+      fit: result.attributes?.Fit || "",
+      length: result.attributes?.Length || "",
+      style: result.attributes?.Style || "",
+      gender: result.attributes?.Gender || "",
+      ageGroup: result.attributes?.["Age Group"] || "",
+    };
+    res.json({ ...result, autoFill, imageIds: images.map(img => img[0]?.id), healthScore: score });
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Image analysis failed" }); }
 });
 
@@ -443,6 +472,61 @@ router.get("/ai-products/import-jobs", requirePermission("inventory.read"), asyn
     const jobs = await db.select().from(productImportJobsTable).where(where).orderBy(desc(productImportJobsTable.createdAt)).limit(50);
     res.json(jobs);
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to list jobs" }); }
+});
+
+// ── Barcode image (bwip-js) ─────────────────────────────────────────────────
+router.post("/ai-products/:productId/barcode-image", requirePermission("inventory.write"), async (req: any, res: any) => {
+  if (!gate(req, res)) return;
+  try {
+    const { productId } = IdParam.parse(parseParams(req.params));
+    const [product] = await db.select({ companyId: productsTable.companyId, barcode: productsTable.barcode }).from(productsTable).where(eq(productsTable.id, productId));
+    if (!product || !ensureCompany(req, res, product.companyId)) return;
+    const barcode = product.barcode || generateBarcode();
+    if (!product.barcode) await db.update(productsTable).set({ barcode, updatedAt: new Date() }).where(eq(productsTable.id, productId));
+    const { objectPath } = await generateBarcodeImage(barcode, "code128");
+    res.json({ barcode, objectPath });
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Barcode image generation failed" }); }
+});
+
+// ── Marketplace image variants (auto-resize for Amazon, Flipkart, etc.) ──────
+router.post("/ai-products/:productId/generate-marketplace-images", requirePermission("inventory.write"), async (req: any, res: any) => {
+  if (!gate(req, res)) return;
+  try {
+    const { productId } = IdParam.parse(parseParams(req.params));
+    const { imageIndex = 0 } = z.object({ imageIndex: z.number().optional() }).parse(req.body);
+    const [product] = await db.select({ companyId: productsTable.companyId }).from(productsTable).where(eq(productsTable.id, productId));
+    if (!product || !ensureCompany(req, res, product.companyId)) return;
+    const images = await db.select({ objectPath: productImagesTable.objectPath }).from(productImagesTable).where(eq(productImagesTable.productId, productId)).orderBy(productImagesTable.id).limit(50);
+    const img = images[imageIndex];
+    if (!img) { res.status(404).json({ error: "Image not found" }); return; }
+    const results = await generateMarketplaceImages(img.objectPath);
+    const stored = await Promise.all(results.map((r) => db.insert(productImagesTable).values({ productId, companyId: product.companyId, objectPath: r.objectPath, altText: r.purpose }).returning()));
+    res.json({ results, imageIds: stored.map((s) => s[0].id) });
+  } catch (e) { req.log.error(e); res.status(500).json({ error: (e as Error).message }); }
+});
+
+// ── Excel import/export ─────────────────────────────────────────────────────
+router.post("/ai-products/import-xlsx", requirePermission("inventory.write"), async (req: any, res: any) => {
+  if (!gate(req, res)) return;
+  try {
+    const { companyId, base64 } = z.object({ companyId: z.number(), base64: z.string() }).parse(req.body);
+    if (!ensureCompany(req, res, companyId)) return;
+    const buffer = Buffer.from(base64, "base64");
+    const stats = await importProductsXlsx(companyId, buffer);
+    res.json(stats);
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Excel import failed" }); }
+});
+
+router.post("/ai-products/export-xlsx", requirePermission("inventory.read"), async (req: any, res: any) => {
+  if (!gate(req, res)) return;
+  try {
+    const { companyId } = z.object({ companyId: z.number() }).parse(req.body);
+    if (!ensureCompany(req, res, companyId)) return;
+    const buffer = await exportProductsXlsx(companyId);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", "attachment; filename=products.xlsx");
+    res.send(buffer);
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Excel export failed" }); }
 });
 
 export default router;

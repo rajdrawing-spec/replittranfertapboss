@@ -20,9 +20,17 @@ const CREDENTIAL_KEYS = new Set(["openrouter_api_key", "groq_api_key", "deepseek
 
 export type AiMessage = { role: "user" | "assistant"; content: string };
 
+export interface VisionMessage {
+  role: "user";
+  text: string;
+  images: Array<{ base64: string; mimeType: string }>;
+}
+
 export interface AiProvider {
   name: string;
   chat(messages: AiMessage[], systemPrompt?: string): Promise<string>;
+  /** Optional vision support. If absent, callers fall back to Gemini. */
+  chatVision?(message: VisionMessage, systemPrompt?: string): Promise<string>;
 }
 
 // ── Config helpers ────────────────────────────────────────────────────────────
@@ -97,11 +105,32 @@ const ollamaProvider: AiProvider = {
     const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     return data.choices?.[0]?.message?.content ?? "";
   },
+  async chatVision(message, systemPrompt) {
+    const baseUrl = (process.env.OLLAMA_BASE_URL || "http://localhost:11434").replace(/\/$/, "");
+    const model = process.env.OLLAMA_VISION_MODEL || process.env.OLLAMA_MODEL || "llama3.2-vision";
+
+    const messages: any[] = [];
+    if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
+    messages.push({ role: "user", content: message.text, images: message.images.map((img) => img.base64) });
+    const res = await fetch(`${baseUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, stream: false }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Ollama vision API error ${res.status}: ${text.slice(0, 200)}`);
+    }
+
+    const data = (await res.json()) as { message?: { content?: string } };
+    return data.message?.content ?? "";
+  },
 };
 
 // ── Gemini provider (Replit AI integrations proxy — no key needed) ────────────
 
-const geminiProvider: AiProvider = {
+export const geminiProvider: AiProvider = {
   name: "gemini",
   async chat(messages, systemPrompt) {
     const contents = messages.map((m) => ({
@@ -116,6 +145,27 @@ const geminiProvider: AiProvider = {
         // output budget and cause the JSON to be truncated mid-response.
         thinkingConfig: { thinkingBudget: 0 },
         maxOutputTokens: 16384,
+        systemInstruction: systemPrompt,
+      },
+    });
+    return response.text ?? "";
+  },
+  async chatVision(message, systemPrompt) {
+    const contents = [
+      {
+        role: "user" as const,
+        parts: [
+          { text: message.text },
+          ...message.images.map((img) => ({ inlineData: { mimeType: img.mimeType, data: img.base64 } })),
+        ],
+      },
+    ];
+    const response = await geminiAi.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents,
+      config: {
+        thinkingConfig: { thinkingBudget: 0 },
+        maxOutputTokens: 4096,
         systemInstruction: systemPrompt,
       },
     });
@@ -158,6 +208,45 @@ function makeFetchProvider(
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         throw new Error(`${providerName} API error ${res.status}: ${text.slice(0, 200)}`);
+      }
+
+      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      return data.choices?.[0]?.message?.content ?? "";
+    },
+    async chatVision(message, systemPrompt) {
+      const apiKey = await getApiKey();
+      if (!apiKey) throw new Error(`${providerName} API key is not configured`);
+
+      const body = {
+        model,
+        messages: [
+          ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
+          {
+            role: "user",
+            content: [
+              { type: "text", text: message.text },
+              ...message.images.map((img) => ({
+                type: "image_url",
+                image_url: { url: `data:${img.mimeType};base64,${img.base64}` },
+              })),
+            ],
+          },
+        ],
+        max_tokens: 4096,
+      };
+
+      const res = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`${providerName} vision API error ${res.status}: ${text.slice(0, 200)}`);
       }
 
       const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };

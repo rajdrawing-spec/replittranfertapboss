@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Search, Plus, Pencil, Trash2, PackageSearch, AlertTriangle, Sparkles, Upload, Download, Wand2, ScanBarcode, ImagePlus, Loader2 } from "lucide-react"
+import { Search, Plus, Pencil, Trash2, PackageSearch, AlertTriangle, Sparkles, Upload, Download, Wand2, ScanBarcode, ImagePlus, Loader2, FileSpreadsheet, Check } from "lucide-react"
 import { useCompany } from "@/contexts/company-context"
 import { useToast } from "@/hooks/use-toast"
 import { useUpload } from "@workspace/object-storage-web"
@@ -40,6 +40,41 @@ interface ProductForm {
   imageUrl: string
 }
 
+interface ProductVariant {
+  id?: number
+  sku: string
+  name: string
+  price: string
+  stockQuantity: string
+  barcode?: string
+  attributes?: Record<string, string>
+}
+
+interface AutoFillData {
+  name?: string
+  category?: string
+  subcategory?: string
+  brand?: string
+  color?: string
+  size?: string
+  weight?: string
+  dimensions?: string
+  material?: string
+  sleeveType?: string
+  neckType?: string
+  pattern?: string
+  occasion?: string
+  season?: string
+  fit?: string
+  length?: string
+  style?: string
+  gender?: string
+  ageGroup?: string
+  keywords?: string[]
+  seoTags?: string[]
+  attributes?: Record<string, string>
+}
+
 const emptyForm = (): ProductForm => ({
   companyId: "", name: "", sku: "", brand: "", category: "", subcategory: "",
   description: "", shortDescription: "", price: "", mrp: "", costPrice: "", gst: "",
@@ -67,6 +102,11 @@ export default function Inventory() {
   const [generatingSku, setGeneratingSku] = React.useState(false)
   const [analyzingImages, setAnalyzingImages] = React.useState(false)
   const [pendingImages, setPendingImages] = React.useState<string[]>([])
+  const [autoFill, setAutoFill] = React.useState<AutoFillData | null>(null)
+  const [variants, setVariants] = React.useState<ProductVariant[]>([])
+  const [barcodeImage, setBarcodeImage] = React.useState<string | null>(null)
+  const [generatingBarcode, setGeneratingBarcode] = React.useState(false)
+  const [generatingMarketplace, setGeneratingMarketplace] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const { data: companies } = useListCompanies({ query: { enabled: true, queryKey: ["/api/companies"] } })
@@ -83,6 +123,9 @@ export default function Inventory() {
     setEditing(null)
     setForm({ ...emptyForm(), companyId: activeCompany ? String(activeCompany.id) : "" })
     setPendingImages([])
+    setAutoFill(null)
+    setVariants([])
+    setBarcodeImage(null)
     setShowDialog(true)
   }
   function openEdit(p: any) {
@@ -97,6 +140,9 @@ export default function Inventory() {
       status: p.status, imageUrl: p.imageUrl ?? "",
     })
     setPendingImages([])
+    setAutoFill(null)
+    setVariants([])
+    setBarcodeImage(p.barcodeImage ?? null)
     setShowDialog(true)
   }
 
@@ -104,10 +150,7 @@ export default function Inventory() {
     setSaving(true)
     try {
       let sku = form.sku.trim()
-      // Auto-generate SKU if empty
-      if (!sku) {
-        sku = await generateSkuInternal(parseInt(form.companyId), form.name, form.category)
-      }
+      if (!sku) sku = await generateSkuInternal(parseInt(form.companyId), form.name, form.category)
       const body = {
         companyId: parseInt(form.companyId), name: form.name, sku,
         brand: form.brand || undefined, category: form.category || undefined, subcategory: form.subcategory || undefined,
@@ -127,20 +170,32 @@ export default function Inventory() {
       })
       if (!res.ok) throw new Error()
 
-      // Persist any uploaded images against the product
-      if (pendingImages.length > 0) {
-        const saved = await res.json()
-        const productId = saved.id || editing?.id
-        if (productId) {
-          await Promise.all(pendingImages.map((objectPath, i) =>
-            fetch(`${API_BASE}/api/products/${productId}/images`, {
-              method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ objectPath, isPrimary: i === 0, altText: `${form.name} ${i === 0 ? "front" : "angle " + i}` }),
-            })
-          ))
-          // Trigger AI analysis on the uploaded images
-          analyzeImagesInternal(productId, pendingImages)
-        }
+      const saved = await res.json()
+      const productId = saved.id || editing?.id
+
+      if (pendingImages.length > 0 && productId) {
+        await Promise.all(pendingImages.map((objectPath, i) =>
+          fetch(`${API_BASE}/api/products/${productId}/images`, {
+            method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ objectPath, isPrimary: i === 0, altText: `${form.name} ${i === 0 ? "front" : "angle " + i}` }),
+          })
+        ))
+      }
+
+      if (variants.length > 0 && productId) {
+        await Promise.all(variants.map(v =>
+          fetch(`${API_BASE}/api/products/${productId}/variants`, {
+            method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sku: v.sku, name: v.name, price: parseFloat(v.price), stockQuantity: parseInt(v.stockQuantity),
+              barcode: v.barcode || undefined, attributes: v.attributes || {},
+            }),
+          })
+        ))
+      }
+
+      if (pendingImages.length > 0 && productId) {
+        analyzeImagesInternal(productId, pendingImages)
       }
 
       toast({ title: editing ? "Product updated" : "Product added" })
@@ -160,7 +215,6 @@ export default function Inventory() {
       const { sku } = await res.json()
       return sku
     } catch {
-      // Fallback simple SKU if service fails
       return `${category.slice(0, 3).toUpperCase() || "PRD"}-${Date.now().toString().slice(-6)}`
     }
   }
@@ -204,10 +258,29 @@ export default function Inventory() {
       })
       if (!res.ok) throw new Error()
       const result = await res.json()
+      setAutoFill(result.autoFill || null)
       toast({ title: "AI analysis complete", description: `Detected ${result.category || "product"} · health ${result.healthScore}/100` })
     } catch {
       toast({ title: "Image analysis failed", variant: "destructive" })
     } finally { setAnalyzingImages(false) }
+  }
+
+  function applyAutoFill() {
+    if (!autoFill) return
+    setForm(f => ({
+      ...f,
+      name: autoFill.name || f.name,
+      category: autoFill.category || f.category,
+      subcategory: autoFill.subcategory || f.subcategory,
+      brand: autoFill.brand || f.brand,
+      weight: autoFill.weight || f.weight,
+      dimensions: autoFill.dimensions || f.dimensions,
+      description: f.description || [autoFill.material, autoFill.sleeveType, autoFill.neckType, autoFill.pattern, autoFill.occasion, autoFill.fit].filter(Boolean).join(". ") || f.description,
+    }))
+    if (autoFill.keywords?.length) {
+      toast({ title: "Auto-fill applied", description: `${autoFill.keywords?.length ?? 0} keywords detected` })
+    }
+    setAutoFill(null)
   }
 
   async function handleDelete(id: number) {
@@ -262,6 +335,91 @@ export default function Inventory() {
     } finally { setImportingJob(false) }
   }
 
+  async function exportXlsx() {
+    if (!activeCompany) { toast({ title: "Select a company" }); return }
+    try {
+      const res = await fetch(`${API_BASE}/api/ai-products/export-xlsx`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: activeCompany.id }),
+      })
+      if (!res.ok) throw new Error()
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url; a.download = `products-${activeCompany.id}.xlsx`; a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast({ title: "Error", description: "Excel export failed", variant: "destructive" })
+    }
+  }
+
+  async function importXlsx(file: File) {
+    if (!activeCompany) { toast({ title: "Select a company" }); return }
+    setImportingJob(true)
+    try {
+      const buffer = await file.arrayBuffer()
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
+      const res = await fetch(`${API_BASE}/api/ai-products/import-xlsx`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: activeCompany.id, base64 }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "Import failed" }))
+        throw new Error(body.error || "Import failed")
+      }
+      const stats = await res.json()
+      toast({ title: "Excel import complete", description: `${stats.success} added, ${stats.failed} failed` })
+      refetch(); setImporting(false)
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Excel import failed", variant: "destructive" })
+    } finally { setImportingJob(false) }
+  }
+
+  async function generateBarcodeImage() {
+    if (!editing?.id) { toast({ title: "Save the product first" }); return }
+    setGeneratingBarcode(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/ai-products/${editing.id}/barcode-image`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) throw new Error()
+      const { objectPath } = await res.json()
+      setBarcodeImage(objectPath)
+      toast({ title: "Barcode generated" })
+    } catch {
+      toast({ title: "Barcode generation failed", variant: "destructive" })
+    } finally { setGeneratingBarcode(false) }
+  }
+
+  async function generateMarketplaceImages() {
+    if (!editing?.id) { toast({ title: "Save the product first" }); return }
+    setGeneratingMarketplace(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/ai-products/${editing.id}/generate-marketplace-images`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageIndex: 0 }),
+      })
+      if (!res.ok) throw new Error()
+      const { results } = await res.json()
+      toast({ title: "Marketplace images ready", description: `${results.length} variants generated` })
+    } catch {
+      toast({ title: "Marketplace image generation failed", variant: "destructive" })
+    } finally { setGeneratingMarketplace(false) }
+  }
+
+  function addVariant() {
+    setVariants(prev => [...prev, { sku: "", name: "", price: form.price || "0", stockQuantity: "0" }])
+  }
+
+  function updateVariant(i: number, key: keyof ProductVariant, value: string) {
+    setVariants(prev => prev.map((v, idx) => idx === i ? { ...v, [key]: value } : v))
+  }
+
+  function removeVariant(i: number) {
+    setVariants(prev => prev.filter((_, idx) => idx !== i))
+  }
+
   const f = (k: keyof ProductForm, v: string) => setForm(frm => ({ ...frm, [k]: v }))
 
   return (
@@ -271,9 +429,10 @@ export default function Inventory() {
           <h1 className="text-3xl font-bold tracking-tight">Products & Inventory</h1>
           <p className="text-muted-foreground mt-0.5 text-sm">{activeCompany ? `${activeCompany.name} · ` : "All companies · "}{data?.total ?? 0} products</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
           <Button variant="outline" onClick={() => setImporting(true)} className="gap-2"><Upload className="w-4 h-4" />Import CSV</Button>
-          <Button variant="outline" onClick={exportCsv} className="gap-2"><Download className="w-4 h-4" />Export</Button>
+          <Button variant="outline" onClick={exportCsv} className="gap-2"><Download className="w-4 h-4" />Export CSV</Button>
+          <Button variant="outline" onClick={exportXlsx} className="gap-2"><FileSpreadsheet className="w-4 h-4" />Export Excel</Button>
           <Button onClick={openAdd} className="gap-2"><Plus className="w-4 h-4" />Add Product</Button>
         </div>
       </div>
@@ -406,8 +565,49 @@ export default function Inventory() {
                   ))}
                 </div>
               )}
+              {analyzingImages && <p className="text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> AI analyzing images…</p>}
+              {autoFill && (
+                <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+                  <p className="text-sm font-medium flex items-center gap-2"><Wand2 className="w-4 h-4 text-purple-500" /> AI detected {autoFill.category}{autoFill.brand ? ` · ${autoFill.brand}` : ""}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {autoFill.keywords?.slice(0, 8).map(k => <Badge key={k} variant="secondary" className="text-xs">{k}</Badge>)}
+                  </div>
+                  <Button size="sm" onClick={applyAutoFill} className="gap-2"><Check className="w-3.5 h-3.5" /> Apply auto-fill</Button>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">Upload 1–10 images. AI will auto-detect category, color, material, and more on save.</p>
             </div>
+
+            <div className="col-span-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Variants</Label>
+                <Button size="sm" variant="outline" onClick={addVariant} type="button">Add variant</Button>
+              </div>
+              {variants.length === 0 && <p className="text-xs text-muted-foreground">No variants yet</p>}
+              {variants.map((v, i) => (
+                <div key={i} className="grid grid-cols-4 gap-2 items-end">
+                  <Input placeholder="Variant name" value={v.name} onChange={e => updateVariant(i, "name", e.target.value)} />
+                  <Input placeholder="SKU" value={v.sku} onChange={e => updateVariant(i, "sku", e.target.value)} />
+                  <Input placeholder="Price" type="number" value={v.price} onChange={e => updateVariant(i, "price", e.target.value)} />
+                  <div className="flex gap-2">
+                    <Input placeholder="Stock" type="number" value={v.stockQuantity} onChange={e => updateVariant(i, "stockQuantity", e.target.value)} />
+                    <Button size="icon" variant="ghost" onClick={() => removeVariant(i)} type="button"><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {editing && (
+              <div className="col-span-3 flex gap-2">
+                <Button variant="outline" onClick={generateBarcodeImage} disabled={generatingBarcode} className="gap-2"><ScanBarcode className="w-4 h-4" /> {barcodeImage ? "Regenerate barcode" : "Generate barcode"}</Button>
+                <Button variant="outline" onClick={generateMarketplaceImages} disabled={generatingMarketplace} className="gap-2"><ImagePlus className="w-4 h-4" /> Marketplace images</Button>
+              </div>
+            )}
+            {barcodeImage && (
+              <div className="col-span-3">
+                <img src={barcodeImage} alt="Barcode" className="h-16 object-contain border rounded-md p-1" />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
@@ -427,15 +627,15 @@ export default function Inventory() {
 
       <Dialog open={importing} onOpenChange={setImporting}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Import Products CSV</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Import Products</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
-            <Input ref={fileInputRef} type="file" accept=".csv" onChange={e => setImportFile(e.target.files?.[0] || null)} />
-            <p className="text-xs text-muted-foreground">Columns: name, sku, brand, category, subcategory, description, shortDescription, price, mrp, costPrice, gst, stockQuantity, reorderLevel, weight, dimensions, hsn, warehouseLocation, status</p>
+            <Input ref={fileInputRef} type="file" accept=".csv,.xlsx" onChange={e => setImportFile(e.target.files?.[0] || null)} />
+            <p className="text-xs text-muted-foreground">Upload CSV or Excel. Columns: name, sku, brand, category, subcategory, description, shortDescription, price, mrp, costPrice, gst, stockQuantity, reorderLevel, weight, dimensions, hsn, warehouseLocation, status</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setImporting(false)}>Cancel</Button>
             <Button
-              onClick={() => { if (importFile) importCsv(importFile); }}
+              onClick={() => { if (importFile) { importFile.name.endsWith(".xlsx") ? importXlsx(importFile) : importCsv(importFile); } }}
               disabled={importingJob || !importFile}
             >{importingJob ? "Importing…" : "Import"}</Button>
           </DialogFooter>

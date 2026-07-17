@@ -9,3 +9,8 @@ description: Lessons and constraints for the TBOS product/inventory AI module (e
 - Multi-image analysis sends one Gemini user content with multiple `inlineData` parts. Pass the parts array as `any` to avoid SDK type friction with the `role` field.
 - Image resize/background-removal flows upload a new object via `getObjectEntityUploadURL()`, then use `storage.normalizeObjectEntityPath(uploadUrl)` to obtain the correct `/objects/...` path for the database.
 - Background removal requires a remove.bg API key configured as `remove_bg_api_key` in `ai_config` or via `REMOVE_BG_API_KEY` env.
+- Image analysis goes through the provider abstraction (`chatVision`) so it works for Ollama, Gemini, and any generic OpenAI-compatible provider. If the active provider lacks vision, fall back to Gemini rather than fail.
+- Local image quality checks (Sharp + laplacian variance, brightness, contrast, white-background ratio) are merged with the AI-reported quality; this prevents the health score from depending only on what the model claims.
+- Barcode images use `bwip-js` on the backend. Import from the `/node` subpath (`import * as bwipjs from "bwip-js/node"`) because the package uses `export = BwipJs` and the default resolution fails TypeScript in a Node backend.
+- Excel import from the browser must send the file as base64; the backend parses it with `xlsx` and creates products per row. Export returns a binary buffer with the correct Excel MIME type.
+- Auto-fill from image analysis is opt-in (an "Apply auto-fill" button) so the user can review AI-suggested category, brand, attributes, and keywords before overwriting the form.

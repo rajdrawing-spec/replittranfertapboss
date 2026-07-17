@@ -1,10 +1,11 @@
 import { db, productsTable, productAiMetadataTable, productImagesTable, productVariantsTable, productMarketplaceTemplatesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
-import { getActiveProvider, AiProvider, getConfig } from "./ai-provider";
-import { ai as geminiAi } from "@workspace/integrations-gemini-ai";
+import { getActiveProvider, AiProvider, geminiProvider, getConfig } from "./ai-provider";
 import { ObjectStorageService } from "./objectStorage";
 import { randomUUID } from "crypto";
 import sharp from "sharp";
+import * as bwipjs from "bwip-js/node";
+import * as XLSX from "xlsx";
 
 const storage = new ObjectStorageService();
 
@@ -17,7 +18,7 @@ function normalizeObjectPath(path: string): string {
   return path;
 }
 
-async function downloadBase64(objectPath: string): Promise<{ data: string; mimeType: string } | null> {
+async function downloadBuffer(objectPath: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
   try {
     const file = await storage.getObjectEntityFile(normalizeObjectPath(objectPath));
     const [metadata] = await file.getMetadata();
@@ -25,10 +26,16 @@ async function downloadBase64(objectPath: string): Promise<{ data: string; mimeT
     const chunks: Buffer[] = [];
     for await (const chunk of stream) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     const buffer = Buffer.concat(chunks);
-    return { data: buffer.toString("base64"), mimeType: metadata.contentType || "image/jpeg" };
+    return { buffer, mimeType: metadata.contentType || "image/jpeg" };
   } catch (e) {
     return null;
   }
+}
+
+async function downloadBase64(objectPath: string): Promise<{ base64: string; mimeType: string } | null> {
+  const file = await downloadBuffer(objectPath);
+  if (!file) return null;
+  return { base64: file.buffer.toString("base64"), mimeType: file.mimeType };
 }
 
 async function chat(provider: AiProvider, system: string, prompt: string): Promise<string> {
@@ -53,6 +60,20 @@ function generateSku(name: string, category: string, companyId: number, existing
   return sku;
 }
 
+export interface ImageQualityReport {
+  score: number;
+  issues: string[];
+  resolutionOk: boolean;
+  aspectRatioOk: boolean;
+  whiteBackground: boolean;
+  blur: boolean;
+  brightnessOk: boolean;
+  width: number;
+  height: number;
+  brightness: number;
+  contrast: number;
+}
+
 export interface ImageAnalysisResult {
   tags: string[];
   suggestedName: string;
@@ -61,7 +82,7 @@ export interface ImageAnalysisResult {
   attributes: Record<string, string>;
   keywords: string[];
   seoTags: string[];
-  quality: { score: number; issues: string[]; resolutionOk: boolean; aspectRatioOk: boolean; whiteBackground: boolean; blur: boolean; brightnessOk: boolean };
+  quality: ImageQualityReport;
   marketplaceReady: boolean;
   suggestions: string[];
 }
@@ -100,11 +121,7 @@ export interface MarketplaceTemplateResult {
   imageRequirements: string[];
 }
 
-export async function analyzeProductImage(objectPath: string): Promise<ImageAnalysisResult> {
-  const image = await downloadBase64(objectPath);
-  if (!image) throw new Error("Image not found");
-
-  const prompt = `Analyze this product image for an e-commerce catalog (India marketplaces: Amazon, Flipkart, Myntra, Shopify).
+const VISION_PROMPT = `Analyze this product image for an e-commerce catalog (India marketplaces: Amazon, Flipkart, Myntra, Shopify, Ajio).
 Return JSON only. Detect everything visible and be specific:
 {
   "tags": [string],
@@ -114,90 +131,156 @@ Return JSON only. Detect everything visible and be specific:
   "attributes": {
     "Gender": "Men|Women|Kids|Unisex",
     "Color": string,
+    "Secondary Color": string,
     "Material": string,
+    "Fabric": string,
     "Pattern": string,
     "Sleeve Type": string,
     "Neck Type": string,
     "Occasion": string,
     "Season": string,
     "Fit": string,
-    "Product Type": string
+    "Length": string,
+    "Style": string,
+    "Product Type": string,
+    "Age Group": "Adult|Kids|Teen|Baby"
   },
   "keywords": [string],
   "seoTags": [string],
-  "quality": {"score": 0-100, "issues": [string], "resolutionOk": boolean, "aspectRatioOk": boolean, "whiteBackground": boolean, "blur": boolean, "brightnessOk": boolean},
   "marketplaceReady": boolean,
   "suggestions": [string]
 }`;
 
-  const response = await geminiAi.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: [
-      { role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: image.mimeType, data: image.data } }] },
-    ],
-    config: { thinkingConfig: { thinkingBudget: 0 }, maxOutputTokens: 4096 },
-  });
+function mergeQuality(local: ImageQualityReport, ai: Partial<ImageQualityReport>): ImageQualityReport {
+  const width = local.width;
+  const height = local.height;
+  const resolutionOk = width >= 1000 && height >= 1000;
+  const aspectRatioOk = Math.abs(width / height - 1) < 0.2;
+  const whiteBackground = ai.whiteBackground ?? local.whiteBackground;
+  const blur = local.blur;
+  const brightnessOk = local.brightnessOk;
+  const issues = Array.from(new Set([...(local.issues || []), ...(ai.issues || [])]));
+  const score = Math.round((local.score + (ai.score ?? 0)) / 2);
+  return { score, issues, resolutionOk, aspectRatioOk, whiteBackground, blur, brightnessOk, width, height, brightness: local.brightness, contrast: local.contrast };
+}
 
-  const text = response.text ?? "";
-  const parsed = parseJson(text) || {
-    tags: [], suggestedName: "", category: "Uncategorized", subcategory: "",
-    attributes: {}, keywords: [], seoTags: [],
-    quality: { score: 0, issues: [], resolutionOk: false, aspectRatioOk: false, whiteBackground: false, blur: false, brightnessOk: false },
-    marketplaceReady: false, suggestions: ["Could not analyze image"],
+export async function analyzeImageQuality(objectPath: string): Promise<ImageQualityReport> {
+  const image = await downloadBuffer(objectPath);
+  if (!image) throw new Error("Image not found");
+  const { data, info } = await sharp(image.buffer).raw().ensureAlpha().toBuffer({ resolveWithObject: true });
+  const width = info.width;
+  const height = info.height;
+  const channels = info.channels;
+
+  const totalPixels = width * height;
+  let sumR = 0, sumG = 0, sumB = 0;
+  let variance = 0;
+  let whiteCount = 0;
+  const gray = new Float32Array(totalPixels);
+
+  for (let i = 0; i < totalPixels; i++) {
+    const r = data[i * channels];
+    const g = data[i * channels + 1];
+    const b = data[i * channels + 2];
+    sumR += r; sumG += g; sumB += b;
+    const l = (r + g + b) / 3;
+    gray[i] = l;
+    if (r > 240 && g > 240 && b > 240) whiteCount++;
+  }
+
+  const meanR = sumR / totalPixels;
+  const meanG = sumG / totalPixels;
+  const meanB = sumB / totalPixels;
+  const brightness = Math.round((meanR + meanG + meanB) / 3);
+  for (let i = 0; i < totalPixels; i++) variance += Math.pow(gray[i] - brightness, 2);
+  const contrast = Math.round(Math.sqrt(variance / totalPixels));
+
+  let lapSum = 0, lapSq = 0;
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const i = y * width + x;
+      const v = gray[i] * 4 - gray[i - 1] - gray[i + 1] - gray[i - width] - gray[i + width];
+      lapSum += v;
+      lapSq += v * v;
+    }
+  }
+  const lapVar = (lapSq - (lapSum * lapSum) / (totalPixels - 1)) / (totalPixels - 1);
+  const blur = lapVar < 100;
+
+  const whiteBackground = whiteCount / totalPixels > 0.5;
+  const resolutionOk = width >= 1000 && height >= 1000;
+  const aspectRatioOk = Math.abs(width / height - 1) < 0.2;
+  const brightnessOk = brightness > 80 && brightness < 220;
+
+  const issues: string[] = [];
+  if (!resolutionOk) issues.push(`Resolution ${width}x${height} is below 1000x1000`);
+  if (!aspectRatioOk) issues.push(`Aspect ratio not square (1:1 recommended for marketplaces)`);
+  if (!brightnessOk) issues.push(brightness < 80 ? "Too dark" : "Too bright");
+  if (blur) issues.push("Image appears blurry");
+  if (!whiteBackground) issues.push("Background is not white");
+  if (contrast < 30) issues.push("Low contrast");
+
+  let score = 100;
+  score -= !resolutionOk ? 20 : 0;
+  score -= !aspectRatioOk ? 10 : 0;
+  score -= !brightnessOk ? 15 : 0;
+  score -= blur ? 20 : 0;
+  score -= !whiteBackground ? 10 : 0;
+  score -= contrast < 30 ? 10 : 0;
+  score = Math.max(0, score);
+
+  return { score, issues, resolutionOk, aspectRatioOk, whiteBackground, blur, brightnessOk, width, height, brightness, contrast };
+}
+
+async function analyzeWithProvider(objectPaths: string[]): Promise<ImageAnalysisResult> {
+  const provider = await getActiveProvider();
+  const images = await Promise.all(objectPaths.map(downloadBase64));
+  const valid = images.filter((img): img is { base64: string; mimeType: string } => !!img);
+  if (!valid.length) throw new Error("No images found");
+
+  const promptText = objectPaths.length === 1
+    ? VISION_PROMPT
+    : `Analyze these ${objectPaths.length} product images for an e-commerce catalog. They show the same product from different angles. Combine all views into one catalog entry.\n${VISION_PROMPT}`;
+
+  const system = "You are an expert e-commerce product cataloger. Return only valid JSON.";
+  const vision = provider.chatVision ? provider.chatVision.bind(provider) : geminiProvider.chatVision!.bind(geminiProvider);
+  const text = await vision({ role: "user", text: promptText, images: valid }, system);
+
+  const parsed = parseJson(text) || {};
+  return {
+    tags: parsed.tags || [],
+    suggestedName: parsed.suggestedName || "",
+    category: parsed.category || "Uncategorized",
+    subcategory: parsed.subcategory || "",
+    attributes: parsed.attributes || {},
+    keywords: parsed.keywords || [],
+    seoTags: parsed.seoTags || [],
+    quality: parsed.quality || { score: 0, issues: [], resolutionOk: false, aspectRatioOk: false, whiteBackground: false, blur: false, brightnessOk: false },
+    marketplaceReady: parsed.marketplaceReady ?? false,
+    suggestions: parsed.suggestions || ["Could not analyze image"],
   };
-  return parsed as ImageAnalysisResult;
+}
+
+export async function analyzeProductImage(objectPath: string): Promise<ImageAnalysisResult> {
+  const [ai, local] = await Promise.all([
+    analyzeWithProvider([objectPath]),
+    analyzeImageQuality(objectPath),
+  ]);
+  ai.quality = mergeQuality(local, ai.quality);
+  return ai;
 }
 
 export async function analyzeProductImages(objectPaths: string[]): Promise<ImageAnalysisResult> {
   if (objectPaths.length === 0) throw new Error("No images provided");
   if (objectPaths.length === 1) return analyzeProductImage(objectPaths[0]);
 
-  const images = await Promise.all(objectPaths.map(downloadBase64));
-  const parts = images.map((img, i) => img ? { inlineData: { mimeType: img.mimeType, data: img.data } } : null).filter(Boolean);
-  if (parts.length === 0) throw new Error("No images found");
-
-  const prompt = `Analyze these ${objectPaths.length} product images for an e-commerce catalog. They show the same product from different angles. Combine all views into one catalog entry.
-Return JSON only. Detect everything visible and be specific:
-{
-  "tags": [string],
-  "suggestedName": string,
-  "category": string,
-  "subcategory": string,
-  "attributes": {
-    "Gender": "Men|Women|Kids|Unisex",
-    "Color": string,
-    "Material": string,
-    "Pattern": string,
-    "Sleeve Type": string,
-    "Neck Type": string,
-    "Occasion": string,
-    "Season": string,
-    "Fit": string,
-    "Product Type": string
-  },
-  "keywords": [string],
-  "seoTags": [string],
-  "quality": {"score": 0-100, "issues": [string], "resolutionOk": boolean, "aspectRatioOk": boolean, "whiteBackground": boolean, "blur": boolean, "brightnessOk": boolean},
-  "marketplaceReady": boolean,
-  "suggestions": [string]
-}`;
-
-  const response = await geminiAi.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: [
-      { role: "user", parts: [{ text: prompt }, ...(parts as any)] },
-    ],
-    config: { thinkingConfig: { thinkingBudget: 0 }, maxOutputTokens: 4096 },
-  });
-
-  const text = response.text ?? "";
-  const parsed = parseJson(text) || {
-    tags: [], suggestedName: "", category: "Uncategorized", subcategory: "",
-    attributes: {}, keywords: [], seoTags: [],
-    quality: { score: 0, issues: [], resolutionOk: false, aspectRatioOk: false, whiteBackground: false, blur: false, brightnessOk: false },
-    marketplaceReady: false, suggestions: ["Could not analyze images"],
-  };
-  return parsed as ImageAnalysisResult;
+  const [ai, localReports] = await Promise.all([
+    analyzeWithProvider(objectPaths),
+    Promise.all(objectPaths.map((p) => analyzeImageQuality(p))),
+  ]);
+  const bestLocal = localReports.reduce((best, current) => (current.score > best.score ? current : best), localReports[0]);
+  ai.quality = mergeQuality(bestLocal, ai.quality);
+  return ai;
 }
 
 export async function generateProductContent(productId: number, promptHint?: string): Promise<ProductGenerationResult> {
@@ -252,7 +335,7 @@ Return JSON:
   return parsed as ProductGenerationResult;
 }
 
-export async function ensureUniqueSku(companyId: number, name: string, category: string): Promise<string> {
+export async function ensureUniqueSku(companyId: number, name: string, category: string, brand?: string): Promise<string> {
   const rows = await db.select({ sku: productsTable.sku }).from(productsTable).where(eq(productsTable.companyId, companyId));
   const existing = rows.map(r => r.sku);
   return generateSku(name, category, companyId, existing);
@@ -323,9 +406,14 @@ export async function saveAiMetadata(productId: number, data: Partial<typeof pro
   }
 }
 
-export function generateImageName(productName: string, angle: string, index: number): string {
-  const slug = productName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
-  return `${slug}-${angle.toLowerCase().replace(/\s+/g, "-")}-${index + 1}.jpg`;
+export function generateImageName(productName: string, brand: string, category: string, color: string, angle: string, index: number): string {
+  const parts = [brand, category, color, productName, angle]
+    .filter(Boolean)
+    .map((s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""))
+    .filter(Boolean)
+    .slice(0, 5);
+  const slug = parts.join("-").slice(0, 80);
+  return `${slug}-${index + 1}.jpg`;
 }
 
 export interface ResizeResult {
@@ -334,9 +422,30 @@ export interface ResizeResult {
   height: number;
   originalSize: number;
   newSize: number;
+  purpose: string;
 }
 
-export async function resizeProductImage(objectPath: string, width: number, height: number): Promise<ResizeResult> {
+export interface MarketplaceSpec {
+  width: number;
+  height: number;
+  format: "webp" | "jpeg" | "png";
+  quality: number;
+  purpose: string;
+}
+
+export const MARKETPLACE_SPECS: MarketplaceSpec[] = [
+  { width: 2000, height: 2000, format: "jpeg", quality: 90, purpose: "amazon" },
+  { width: 1000, height: 1000, format: "webp", quality: 85, purpose: "flipkart" },
+  { width: 1080, height: 1350, format: "webp", quality: 85, purpose: "myntra" },
+  { width: 1080, height: 1440, format: "webp", quality: 85, purpose: "ajio" },
+  { width: 2048, height: 2048, format: "webp", quality: 90, purpose: "shopify" },
+  { width: 1080, height: 1080, format: "webp", quality: 80, purpose: "instagram" },
+  { width: 1200, height: 628, format: "jpeg", quality: 80, purpose: "facebook" },
+  { width: 800, height: 800, format: "webp", quality: 80, purpose: "whatsapp-catalog" },
+  { width: 300, height: 300, format: "webp", quality: 80, purpose: "thumbnail" },
+];
+
+export async function resizeProductImage(objectPath: string, width: number, height: number, purpose = "custom", format: "webp" | "jpeg" | "png" = "jpeg", quality = 90): Promise<ResizeResult> {
   const file = await storage.getObjectEntityFile(normalizeObjectPath(objectPath));
   const [metadata] = await file.getMetadata();
   const stream = file.createReadStream();
@@ -344,16 +453,22 @@ export async function resizeProductImage(objectPath: string, width: number, heig
   for await (const chunk of stream) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   const originalBuffer = Buffer.concat(chunks);
 
-  const resized = await sharp(originalBuffer)
-    .resize(width, height, { fit: "contain", background: { r: 255, g: 255, b: 255, alpha: 1 } })
-    .jpeg({ quality: 90 })
-    .toBuffer();
+  let pipeline = sharp(originalBuffer).resize(width, height, { fit: "contain", background: { r: 255, g: 255, b: 255, alpha: 1 } });
+  if (format === "webp") pipeline = pipeline.webp({ quality });
+  else if (format === "png") pipeline = pipeline.png();
+  else pipeline = pipeline.jpeg({ quality });
+  const resized = await pipeline.toBuffer();
+  const contentType = format === "webp" ? "image/webp" : format === "png" ? "image/png" : "image/jpeg";
 
   const uploadUrl = await storage.getObjectEntityUploadURL();
-  const res = await fetch(uploadUrl, { method: "PUT", body: resized, headers: { "Content-Type": "image/jpeg" } });
+  const res = await fetch(uploadUrl, { method: "PUT", body: resized, headers: { "Content-Type": contentType } });
   if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
   const newPath = storage.normalizeObjectEntityPath(uploadUrl);
-  return { objectPath: newPath, width, height, originalSize: originalBuffer.length, newSize: resized.length };
+  return { objectPath: newPath, width, height, originalSize: originalBuffer.length, newSize: resized.length, purpose };
+}
+
+export async function generateMarketplaceImages(objectPath: string): Promise<ResizeResult[]> {
+  return Promise.all(MARKETPLACE_SPECS.map((spec) => resizeProductImage(objectPath, spec.width, spec.height, spec.purpose, spec.format, spec.quality)));
 }
 
 export interface BackgroundRemovalResult {
@@ -389,9 +504,97 @@ export async function removeProductBackground(objectPath: string): Promise<Backg
   return { objectPath: newPath, service: "remove.bg" };
 }
 
-
 export function generateBarcode(): string {
   return randomUUID().replace(/-/g, "").slice(0, 13).toUpperCase();
+}
+
+export async function generateBarcodeImage(barcode: string, format: "code128" | "ean13" | "upca" = "code128"): Promise<{ objectPath: string; buffer: Buffer }> {
+  const buffer = await bwipjs.toBuffer({ bcid: format, text: barcode, scale: 3, height: 10, includetext: true, textxalign: "center" });
+  const uploadUrl = await storage.getObjectEntityUploadURL();
+  const res = await fetch(uploadUrl, { method: "PUT", body: buffer, headers: { "Content-Type": "image/png" } });
+  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+  const objectPath = storage.normalizeObjectEntityPath(uploadUrl);
+  return { objectPath, buffer };
+}
+
+export async function importProductsXlsx(companyId: number, buffer: Buffer): Promise<{ total: number; success: number; failed: number; errors: string[] }> {
+  const workbook = XLSX.read(buffer, { type: "buffer" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet) as any[];
+  const stats = { total: rows.length, success: 0, failed: 0, errors: [] as string[] };
+  const existing = await db.select({ sku: productsTable.sku }).from(productsTable).where(eq(productsTable.companyId, companyId));
+  const existingSkus = new Set(existing.map(r => r.sku));
+
+  for (const row of rows) {
+    try {
+      const name = String(row.name || row["Product Name"] || "").trim();
+      const category = String(row.category || row["Category"] || "Uncategorized").trim();
+      if (!name) throw new Error("Missing product name");
+      let sku = String(row.sku || row["SKU"] || "").trim();
+      if (!sku) sku = generateSku(name, category, companyId, Array.from(existingSkus));
+      if (existingSkus.has(sku)) { stats.errors.push(`Duplicate SKU skipped: ${sku}`); stats.failed++; continue; }
+      existingSkus.add(sku);
+      const price = parseFloat(row.price || row["Price"] || "0") || 0;
+      const mrp = parseFloat(row.mrp || row["MRP"] || row["Mrp"] || "0") || 0;
+      const stockQuantity = parseInt(row.stockQuantity || row["Stock"] || row["Stock Quantity"] || "0", 10) || 0;
+      await db.insert(productsTable).values({
+        companyId,
+        name,
+        sku,
+        category,
+        subcategory: String(row.subcategory || row["Subcategory"] || "").trim() || undefined,
+        brand: String(row.brand || row["Brand"] || "").trim() || undefined,
+        description: String(row.description || row["Description"] || "").trim() || undefined,
+        shortDescription: String(row.shortDescription || row["Short Description"] || "").trim() || undefined,
+        price,
+        mrp: mrp || price,
+        costPrice: parseFloat(row.costPrice || row["Cost Price"] || "0") || 0,
+        gst: parseFloat(row.gst || row["GST"] || "0") || 0,
+        stockQuantity,
+        reorderLevel: parseInt(row.reorderLevel || row["Reorder Level"] || "10", 10) || 10,
+        weight: String(row.weight || row["Weight"] || "").trim() || undefined,
+        dimensions: String(row.dimensions || row["Dimensions"] || "").trim() || undefined,
+        hsn: String(row.hsn || row["HSN"] || "").trim() || undefined,
+        barcode: String(row.barcode || row["Barcode"] || "").trim() || undefined,
+        status: "active",
+      });
+      stats.success++;
+    } catch (e: any) {
+      stats.failed++;
+      stats.errors.push(`Row ${stats.success + stats.failed}: ${e.message}`);
+    }
+  }
+  return stats;
+}
+
+export async function exportProductsXlsx(companyId: number): Promise<Buffer> {
+  const rows = await db.select().from(productsTable).where(eq(productsTable.companyId, companyId));
+  const data = rows.map((p) => ({
+    "Product Name": p.name,
+    "SKU": p.sku,
+    "Barcode": p.barcode || "",
+    "Brand": p.brand || "",
+    "Category": p.category,
+    "Subcategory": p.subcategory || "",
+    "Description": p.description || "",
+    "Short Description": p.shortDescription || "",
+    "Price": p.price,
+    "MRP": p.mrp,
+    "Cost Price": p.costPrice,
+    "GST (%)": p.gst,
+    "Stock Quantity": p.stockQuantity,
+    "Reorder Level": p.reorderLevel,
+    "Weight": p.weight || "",
+    "Dimensions": p.dimensions || "",
+    "HSN": p.hsn || "",
+    "Warehouse Location": p.warehouseLocation || "",
+    "Status": p.status,
+    "Created At": p.createdAt.toISOString(),
+  }));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb, ws, "Products");
+  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
 }
 
 export { normalizeObjectPath };

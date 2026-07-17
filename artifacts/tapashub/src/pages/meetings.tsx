@@ -334,7 +334,6 @@ export default function MeetingsPage() {
         <TabsList>
           <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
           <TabsTrigger value="my">My Meetings</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
         <TabsContent value={selectedTab}>
           <div className="grid gap-4">
@@ -354,9 +353,6 @@ export default function MeetingsPage() {
                             <MonitorSpeaker className="h-3 w-3" /> Live
                           </Badge>
                         )}
-                        <Badge variant="outline" className="text-xs">
-                          LiveKit
-                        </Badge>
                         <Badge variant={m.status === "ongoing" ? "default" : "secondary"}>
                           {m.status}
                         </Badge>

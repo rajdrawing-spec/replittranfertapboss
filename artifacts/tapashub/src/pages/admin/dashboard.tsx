@@ -142,7 +142,7 @@ export default function AdminDashboard() {
             <CardContent className="p-4 flex flex-col gap-3">
               <div className="p-2 rounded-lg bg-primary/10 w-fit"><Phone className="h-5 w-5 text-primary" /></div>
               <div className="font-medium">Instant Meeting</div>
-              <p className="text-xs text-muted-foreground">Start a Jitsi video call for the selected company.</p>
+              <p className="text-xs text-muted-foreground">Start a LiveKit video call for the selected company.</p>
               <Button size="sm" onClick={startInstantMeeting} className="w-full">Start Instant <ArrowRight className="ml-2 h-4 w-4" /></Button>
             </CardContent>
           </Card>

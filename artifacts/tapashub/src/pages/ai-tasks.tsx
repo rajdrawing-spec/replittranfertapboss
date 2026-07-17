@@ -1,8 +1,9 @@
 import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
-import { CheckSquare, ListTodo, Users, Settings, Activity, ClipboardList, BarChart3, Building2, FolderKanban, FileCode2, Video } from "lucide-react"
+import { CheckSquare, ListTodo, Users, Settings, Activity, ClipboardList, BarChart3, Building2, FolderKanban, FileCode2, Video, Loader2 } from "lucide-react"
 import { useCompany } from "@/contexts/company-context"
 import { useAuth } from "@/contexts/auth-context"
+import { useMeeting } from "@/contexts/meeting-context"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmptyState } from "@/components/empty-state"
 import { Button } from "@/components/ui/button"
@@ -19,6 +20,7 @@ import { AiTaskProjects } from "@/components/ai-tasks/projects"
 import { AiTaskPrompts } from "@/components/ai-tasks/prompts"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
+import { useToast } from "@/hooks/use-toast"
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "")
 
@@ -34,6 +36,8 @@ interface EmployeeProfile {
 export default function AiTasksPage() {
   const { activeCompany } = useCompany()
   const { hasPermission } = useAuth()
+  const { startCall } = useMeeting()
+  const { toast } = useToast()
   const companyId = activeCompany?.id
 
   const canManage = hasPermission("ai_tasks.manage")
@@ -79,16 +83,39 @@ export default function AiTasksPage() {
     )
   }
 
+  const [startingMeeting, setStartingMeeting] = React.useState(false)
   const startTaskMeeting = async () => {
-    const res = await fetch(`${basePath}/api/meetings`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ companyId, title: "AI Task Discussion" }),
-    })
-    if (!res.ok) return
-    const meeting = await res.json()
-    window.open(meeting.roomUrl, "_blank", "noopener,noreferrer")
+    if (!companyId) return
+    setStartingMeeting(true)
+    try {
+      const res = await fetch(`${basePath}/api/meetings`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, title: "AI Task Discussion" }),
+      })
+      if (!res.ok) {
+        toast({ title: "Failed to start meeting", description: await res.text(), variant: "destructive" })
+        return
+      }
+      const meeting = await res.json()
+      const tokenRes = await fetch(
+        `${basePath}/api/meetings/token?roomName=${encodeURIComponent(meeting.meetingId)}&companyId=${companyId}`,
+        { credentials: "include" },
+      )
+      if (!tokenRes.ok) {
+        const err = await tokenRes.json().catch(() => ({ error: "Failed to get token" }))
+        toast({ title: "Failed to join", description: err.error, variant: "destructive" })
+        return
+      }
+      const { token, serverUrl } = await tokenRes.json()
+      await fetch(`${basePath}/api/meetings/join/${meeting.meetingId}`, { method: "POST", credentials: "include" })
+      startCall({ id: meeting.id, meetingId: meeting.meetingId, title: meeting.title, companyId }, token, serverUrl)
+    } catch (e) {
+      toast({ title: "Failed to start meeting", description: String(e), variant: "destructive" })
+    } finally {
+      setStartingMeeting(false)
+    }
   }
 
   return (
@@ -100,7 +127,10 @@ export default function AiTasksPage() {
             AI-powered daily task generation and approval workflow.
           </p>
         </div>
-        <Button onClick={startTaskMeeting}><Video className="mr-2 h-4 w-4" /> Discuss with Team</Button>
+        <Button onClick={startTaskMeeting} disabled={startingMeeting}>
+          {startingMeeting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Video className="mr-2 h-4 w-4" />}
+          Discuss with Team
+        </Button>
       </div>
 
       <Tabs defaultValue="templates" className="w-full">

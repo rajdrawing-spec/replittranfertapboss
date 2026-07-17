@@ -15,6 +15,7 @@ import {
   ensureCompanyChannels,
   getCompanyUsers,
 } from "./chat.service";
+import { getMeetingByMeetingId } from "../meetings/meeting.service";
 
 // In-memory ephemeral state
 const tokenMap = new Map<string, { userId: number; expiresAt: number }>();
@@ -36,6 +37,19 @@ export function broadcastMeetingRinging(
     for (const sid of sockets) {
       _io.to(sid).emit("meeting:ringing", data);
     }
+  }
+}
+
+/** Emit a meeting:declined event to the organizer's socket connections. */
+export function broadcastMeetingDeclined(
+  organizerUserId: number,
+  data: { meetingId: string; title: string; declinedByName: string },
+) {
+  if (!_io) return;
+  const sockets = presenceMap.get(organizerUserId);
+  if (!sockets) return;
+  for (const sid of sockets) {
+    _io.to(sid).emit("meeting:declined", data);
   }
 }
 
@@ -207,6 +221,21 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
         callback?.({ ok: true, users: online });
       } catch (e) {
         callback?.({ ok: false, error: String(e) });
+      }
+    });
+
+    socket.on("meeting:declined", async ({ meetingId }: { meetingId: string }) => {
+      try {
+        const meeting = await getMeetingByMeetingId(meetingId);
+        if (!meeting) return;
+        const declinedByName = await getUserDisplayName(userId);
+        broadcastMeetingDeclined(meeting.organizerId, {
+          meetingId,
+          title: meeting.title,
+          declinedByName,
+        });
+      } catch (e) {
+        logger.error({ err: e, userId, meetingId }, "meeting:declined relay failed");
       }
     });
 

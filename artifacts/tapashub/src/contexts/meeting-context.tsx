@@ -8,6 +8,7 @@ import * as ReactDOM from "react-dom"
 import { useQueryClient } from "@tanstack/react-query"
 import { io, type Socket } from "socket.io-client"
 import { useAuth } from "@/contexts/auth-context"
+import { useToast } from "@/hooks/use-toast"
 import { MeetingOverlay } from "@/components/meetings/livekit-room"
 import { IncomingCallPopup, type IncomingCallData } from "@/components/meetings/incoming-call-popup"
 
@@ -47,6 +48,7 @@ export function useMeeting(): MeetingContextValue {
 export function MeetingProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   const queryClient = useQueryClient()
+  const { toast } = useToast()
 
   const [activeCall, setActiveCall] = React.useState<ActiveCall | null>(null)
   const [isMinimized, setIsMinimized] = React.useState(false)
@@ -55,6 +57,9 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
   // Keep a ref so the leaveCall closure always sees the current value
   const activeCallRef = React.useRef<ActiveCall | null>(null)
   activeCallRef.current = activeCall
+
+  // Ref to the shared socket so event handlers and decline can access it
+  const socketRef = React.useRef<ReturnType<typeof io> | null>(null)
 
   // ── Call management ────────────────────────────────────────────────────────
 
@@ -118,10 +123,19 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
       reconnectionAttempts: 10,
     })
 
+    socketRef.current = s
+
     s.on("meeting:ringing", (data: IncomingCallData) => {
       // Ignore the event if the user is already in a call
       if (activeCallRef.current) return
       setIncomingCall(data)
+    })
+
+    s.on("meeting:declined", (data: { meetingId: string; title: string; declinedByName: string }) => {
+      toast({
+        title: "Meeting declined",
+        description: `${data.declinedByName} declined to join ${data.title}`,
+      })
     })
 
     s.on("connect_error", (err) => {
@@ -131,9 +145,10 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
     })
 
     return () => {
+      socketRef.current = null
       s.disconnect()
     }
-  }, [user?.id])
+  }, [user?.id, toast])
 
   // ── Accept incoming call ───────────────────────────────────────────────────
 
@@ -163,8 +178,11 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
   }, [incomingCall, startCall, queryClient])
 
   const handleDeclineCall = React.useCallback(() => {
+    if (incomingCall && socketRef.current) {
+      socketRef.current.emit("meeting:declined", { meetingId: incomingCall.meetingId })
+    }
     setIncomingCall(null)
-  }, [])
+  }, [incomingCall])
 
   return (
     <MeetingContext.Provider

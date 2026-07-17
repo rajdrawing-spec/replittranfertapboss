@@ -67,7 +67,10 @@ export function createSocketToken(userId: number): string {
 export function initSocketServer(httpServer: HttpServer): SocketServer {
   const io = new SocketServer(httpServer, {
     cors: { origin: true, credentials: true },
-    path: "/socket.io",
+    // Mounted under /api so the traffic follows the same routing as every
+    // other API call — in production only /api/* is forwarded to this server,
+    // so a bare /socket.io path never reaches it.
+    path: "/api/socket.io",
   });
   _io = io;
 

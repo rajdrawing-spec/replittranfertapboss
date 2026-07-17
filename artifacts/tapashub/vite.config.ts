@@ -152,7 +152,9 @@ export default defineConfig({
       // Route Socket.IO through the Vite dev server to the API server so the
       // WebSocket upgrade reaches the Socket.IO instance. Replit's path-proxy
       // drops WS upgrades, so the Vite proxy is required for chat in dev.
-      '/socket.io': {
+      // The socket is mounted at /api/socket.io so the same path also works
+      // in production, where only /api/* is forwarded to the backend.
+      '/api/socket.io': {
         target: 'http://localhost:8080',
         changeOrigin: true,
         ws: true,

@@ -65,6 +65,7 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
 
   const startCall = React.useCallback(
     (meeting: ActiveCallMeeting, token: string, serverUrl: string) => {
+      leavingRef.current = false
       setActiveCall({ meeting, token, serverUrl })
       setIsMinimized(false)
       // Dismiss any pending incoming call popup when user starts/joins a call
@@ -73,7 +74,12 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
     [],
   )
 
+  // Set when the user explicitly leaves so the onDisconnected handler does
+  // not try to auto-rejoin a call the user intentionally ended.
+  const leavingRef = React.useRef(false)
+
   const leaveCall = React.useCallback(async () => {
+    leavingRef.current = true
     const call = activeCallRef.current
     if (call) {
       try {
@@ -105,7 +111,10 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
     if (!user?.id) return
 
     const s: Socket = io({
-      path: "/socket.io",
+      // /api/socket.io so the connection follows the same routing as all API
+      // calls (works in dev AND in the deployed app, where only /api/* is
+      // forwarded to the backend).
+      path: "/api/socket.io",
       // auth as a function — invoked by socket.io-client before each
       // connection/reconnection handshake, so every attempt gets a fresh token
       auth: (cb: (data: object) => void) => {
@@ -114,13 +123,11 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
           .then(({ token }) => cb({ token }))
           .catch(() => cb({})) // empty object → server rejects → connect_error
       },
-      transports: ["websocket"],
+      // Default transports: polling first (works through any proxy), then
+      // upgrade to WebSocket when possible.
       reconnection: true,
       reconnectionDelay: 2_000,
       reconnectionDelayMax: 30_000,
-      // Cap retries: if the server keeps rejecting (e.g. session expired /
-      // server never comes back) we stop after 10 attempts rather than forever
-      reconnectionAttempts: 10,
     })
 
     socketRef.current = s
@@ -154,28 +161,102 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
 
   const handleAcceptCall = React.useCallback(async () => {
     if (!incomingCall) return
-    const res = await fetch(
-      `/api/meetings/token?roomName=${encodeURIComponent(incomingCall.meetingId)}&companyId=${incomingCall.companyId}`,
-      { credentials: "include" },
-    )
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: "Failed to get token" }))
-      throw new Error(err.error || "Failed to get call token")
+    try {
+      const res = await fetch(
+        `/api/meetings/token?roomName=${encodeURIComponent(incomingCall.meetingId)}&companyId=${incomingCall.companyId}`,
+        { credentials: "include" },
+      )
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Failed to get token" }))
+        throw new Error(err.error || "Failed to get call token")
+      }
+      const { token, serverUrl } = await res.json()
+      startCall(
+        { meetingId: incomingCall.meetingId, title: incomingCall.title, companyId: incomingCall.companyId },
+        token,
+        serverUrl,
+      )
+      // Mark joined server-side (best-effort)
+      fetch(`/api/meetings/join/${incomingCall.meetingId}`, {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => {})
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
+    } catch (e: any) {
+      // A rejected accept must never crash the app — surface the reason
+      // (meeting ended/cancelled, not a participant, LiveKit down, ...)
+      toast({
+        title: "Could not join the call",
+        description: e?.message || "The meeting may have ended or been cancelled.",
+        variant: "destructive",
+      })
+    } finally {
+      setIncomingCall(null)
     }
-    const { token, serverUrl } = await res.json()
-    startCall(
-      { meetingId: incomingCall.meetingId, title: incomingCall.title, companyId: incomingCall.companyId },
-      token,
-      serverUrl,
-    )
-    // Mark joined server-side (best-effort)
-    fetch(`/api/meetings/join/${incomingCall.meetingId}`, {
-      method: "POST",
-      credentials: "include",
-    }).catch(() => {})
-    queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
-    setIncomingCall(null)
-  }, [incomingCall, startCall, queryClient])
+  }, [incomingCall, startCall, queryClient, toast])
+
+  // ── Unexpected-disconnect recovery ─────────────────────────────────────────
+  // LiveKit tokens have a 4h TTL and connections can drop (network blip,
+  // sleep/wake, server restart). When the room disconnects and the user did
+  // NOT click Leave, fetch a fresh token and rejoin automatically. The
+  // LiveKitRoom is keyed on the token, so a new token forces a clean
+  // reconnect with a valid credential.
+  const handleRoomDisconnected = React.useCallback(async () => {
+    const call = activeCallRef.current
+    if (!call) return
+    if (leavingRef.current) {
+      // User-initiated leave — leaveCall already handles cleanup
+      leavingRef.current = false
+      return
+    }
+    const MAX_ATTEMPTS = 4
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      // Bail if the user left / call changed while we were retrying
+      const current = activeCallRef.current
+      if (!current || current.meeting.meetingId !== call.meeting.meetingId || leavingRef.current) return
+      try {
+        const res = await fetch(
+          `/api/meetings/token?roomName=${encodeURIComponent(call.meeting.meetingId)}&companyId=${call.meeting.companyId}`,
+          { credentials: "include" },
+        )
+        if (res.ok) {
+          const { token, serverUrl } = await res.json()
+          if (attempt === 1) toast({ title: "Reconnecting to call…" })
+          setActiveCall((prev) =>
+            prev && prev.meeting.meetingId === call.meeting.meetingId
+              ? { ...prev, token, serverUrl }
+              : prev,
+          )
+          return
+        }
+        if (res.status >= 400 && res.status < 500) {
+          // Meeting ended/cancelled or access revoked — end the call cleanly
+          const err = await res.json().catch(() => ({}))
+          toast({
+            title: "Call ended",
+            description: (err as any).error || "The meeting is no longer available.",
+          })
+          setActiveCall(null)
+          setIsMinimized(false)
+          queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
+          return
+        }
+        // 5xx — transient backend trouble; fall through to retry
+      } catch {
+        // network failure — fall through to retry
+      }
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, attempt * 2_000)) // 2s, 4s, 6s backoff
+      }
+    }
+    toast({
+      title: "Call disconnected",
+      description: "Could not reconnect. Please rejoin from the Meetings page.",
+      variant: "destructive",
+    })
+    setActiveCall(null)
+    setIsMinimized(false)
+  }, [queryClient, toast])
 
   const handleDeclineCall = React.useCallback(() => {
     if (incomingCall && socketRef.current) {
@@ -195,6 +276,7 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
         activeCall={activeCall}
         isMinimized={isMinimized}
         onLeave={leaveCall}
+        onDisconnected={handleRoomDisconnected}
         onMinimize={() => setIsMinimized(true)}
         onExpand={() => setIsMinimized(false)}
       />

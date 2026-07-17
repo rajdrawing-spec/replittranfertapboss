@@ -207,49 +207,75 @@ export default function ChatPage() {
     onSuccess: () => refetchPolls(),
   })
 
+  // Keep the currently-selected channel in a ref so socket event handlers can
+  // read it without forcing the socket to be torn down on every channel switch.
+  const selectedChannelRef = React.useRef(selectedChannel)
+  selectedChannelRef.current = selectedChannel
+
   React.useEffect(() => {
     if (!companyId || !userId) return
-    let s: Socket | null = null
-    fetch(`/api/chat/token`, { credentials: "include" })
-      .then((r) => r.json())
-      .then(({ token }) => {
-        s = io({
-          path: "/socket.io",
-          auth: { token },
-          transports: ["websocket"],
-          reconnection: true,
-          reconnectionDelay: 1000,
-        })
-        s.on("connect", () => {
-          s!.emit("join", { companyId }, (res: any) => {
-            if (!res.ok) toast({ title: "Chat join failed", description: res.error, variant: "destructive" })
-          })
-        })
-        s.on("message:new", (msg: ChatMessage) => {
-          setMessages((prev) => [...prev, msg])
-          queryClient.invalidateQueries({ queryKey: ["/api/chat/channels", companyId] })
-        })
-        s.on("message:reaction", (msg: ChatMessage) => {
-          setMessages((prev) => prev.map((m) => (m.id === msg.id ? msg : m)))
-        })
-        s.on("typing", ({ channelId, userId: uid, typing }: any) => {
-          setTypingUsers((prev) => {
-            if (selectedChannel?.id !== channelId) return prev
-            if (typing) return prev.includes(uid) ? prev : [...prev, uid]
-            return prev.filter((id) => id !== uid)
-          })
-        })
-        s.on("channel:update", () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/chat/channels", companyId] })
-        })
-        setSocket(s)
+    // Socket tokens are single-use on the server: `auth` must be a *function*
+    // so every connection AND automatic reconnection fetches a fresh token.
+    // A static token works once, then every reconnect fails forever with
+    // "Invalid or expired token".
+    const s: Socket = io({
+      // /api/socket.io so the connection follows the same routing as all API
+      // calls (works in dev AND in the deployed app, where only /api/* is
+      // forwarded to the backend).
+      path: "/api/socket.io",
+      auth: (cb: (data: object) => void) => {
+        fetch(`/api/chat/token`, { credentials: "include" })
+          .then((r) => r.json())
+          .then(({ token }) => cb({ token }))
+          .catch(() => cb({}))
+      },
+      // Default transports: start with HTTP long-polling (works through any
+      // proxy), then upgrade to WebSocket when the proxy allows it. A dropped
+      // WS upgrade no longer kills chat entirely.
+      reconnection: true,
+      reconnectionDelay: 1_000,
+      reconnectionDelayMax: 15_000,
+    })
+    // Fires on the initial connect AND on every successful reconnect —
+    // re-join the company room and the channel the user is currently viewing
+    // so messages and typing indicators keep flowing after a drop.
+    s.on("connect", () => {
+      s.emit("join", { companyId }, (res: any) => {
+        if (!res.ok) toast({ title: "Chat join failed", description: res.error, variant: "destructive" })
       })
-      .catch((err) => toast({ title: "Chat failed", description: String(err), variant: "destructive" }))
+      const ch = selectedChannelRef.current
+      if (ch) {
+        s.emit("join:channel", { channelId: ch.id }, () => {})
+      }
+    })
+    s.on("message:new", (msg: ChatMessage) => {
+      setMessages((prev) => {
+        if (msg.channelId !== selectedChannelRef.current?.id) return prev
+        if (prev.some((m) => m.id === msg.id)) return prev
+        return [...prev, msg]
+      })
+      queryClient.invalidateQueries({ queryKey: ["/api/chat/channels", companyId] })
+    })
+    s.on("message:reaction", (msg: ChatMessage) => {
+      setMessages((prev) => prev.map((m) => (m.id === msg.id ? msg : m)))
+    })
+    s.on("typing", ({ channelId, userId: uid, typing }: any) => {
+      setTypingUsers((prev) => {
+        if (selectedChannelRef.current?.id !== channelId) return prev
+        if (typing) return prev.includes(uid) ? prev : [...prev, uid]
+        return prev.filter((id) => id !== uid)
+      })
+    })
+    s.on("channel:update", () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/chat/channels", companyId] })
+    })
+    setSocket(s)
 
     return () => {
-      s?.disconnect()
+      s.disconnect()
+      setSocket(null)
     }
-  }, [companyId, userId, selectedChannel?.id, queryClient, toast])
+  }, [companyId, userId, queryClient, toast])
 
   React.useEffect(() => {
     if (!selectedChannel || !socket) return

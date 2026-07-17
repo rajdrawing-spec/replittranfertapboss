@@ -160,6 +160,9 @@ interface MeetingOverlayProps {
   activeCall: ActiveCall | null
   isMinimized: boolean
   onLeave: () => void
+  /** Fired when the room disconnects for ANY reason (network, token expiry,
+   * server close). The provider decides whether to auto-rejoin or end. */
+  onDisconnected: () => void
   onMinimize: () => void
   onExpand: () => void
 }
@@ -168,6 +171,7 @@ export function MeetingOverlay({
   activeCall,
   isMinimized,
   onLeave,
+  onDisconnected,
   onMinimize,
   onExpand,
 }: MeetingOverlayProps) {
@@ -187,6 +191,10 @@ export function MeetingOverlay({
        * When full-screen: it covers the viewport at z-index 50.
        */}
       <LiveKitRoom
+        // Key on the token: when the provider issues a fresh token after an
+        // unexpected disconnect, the room remounts and connects with the new
+        // credential (LiveKit ignores token prop changes while connected).
+        key={activeCall.token}
         token={activeCall.token}
         serverUrl={activeCall.serverUrl}
         audio={true}
@@ -214,7 +222,7 @@ export function MeetingOverlay({
                 background: "#0a0a0a",
               }
         }
-        onDisconnected={onLeave}
+        onDisconnected={onDisconnected}
       >
         {isMinimized ? (
           // Keep audio alive. Video publication is paused by ControlBar state;

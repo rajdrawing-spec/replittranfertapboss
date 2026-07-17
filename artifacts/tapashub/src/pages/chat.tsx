@@ -8,12 +8,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
 import { EmptyState } from "@/components/empty-state"
-import { MessageSquare, Pin, Search, Send, Paperclip, Megaphone, User, Video, BarChart, Briefcase, Smile, X } from "lucide-react"
 import { ChatSkeleton } from "@/components/skeletons"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useMeeting } from "@/contexts/meeting-context"
+import {
+  MessageSquare, Pin, Search, Send, Paperclip, Megaphone, User, Video, BarChart, Briefcase, Smile, X, Building2,
+} from "lucide-react"
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "")
 
@@ -69,11 +73,27 @@ interface UserStatus {
 const EMOJIS = ["👍", "❤️", "😂", "🎉", "🤔", "👀"]
 
 export default function ChatPage() {
-  const { activeCompany } = useCompany()
+  const { activeCompany, companies, isParentView } = useCompany()
   const { user, hasPermission } = useAuth()
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const companyId = activeCompany?.id
+  const { startCall } = useMeeting()
+  const parentCompany = companies.find((c) => c.mode === "parent")
+
+  // In the parent view, let the user pick which workspace to chat in.
+  const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>(
+    activeCompany?.id?.toString() ?? parentCompany?.id?.toString() ?? "",
+  )
+  const companyId = selectedCompanyId ? Number(selectedCompanyId) : activeCompany?.id ?? parentCompany?.id
+  const selectedCompany = companies.find((c) => c.id === companyId)
+
+  React.useEffect(() => {
+    if (!selectedCompanyId) {
+      const defaultId = activeCompany?.id ?? parentCompany?.id
+      if (defaultId) setSelectedCompanyId(defaultId.toString())
+    }
+  }, [activeCompany?.id, parentCompany?.id])
+
   const userId = user?.id
   const canManage = hasPermission("chat.manage")
 
@@ -310,13 +330,53 @@ export default function ChatPage() {
       return
     }
     const meeting = await res.json()
-    window.open(meeting.roomUrl, "_blank", "noopener,noreferrer")
+
+    // Join through the shared meeting context instead of opening the raw wss:// roomUrl.
+    const tokenRes = await fetch(
+      `/api/meetings/token?roomName=${encodeURIComponent(meeting.meetingId)}&companyId=${companyId}`,
+      { credentials: "include" },
+    )
+    if (!tokenRes.ok) {
+      toast({ title: "Meeting created, but failed to join", description: await tokenRes.text(), variant: "destructive" })
+      return
+    }
+    const { token, serverUrl } = await tokenRes.json()
+    await fetch(`/api/meetings/join/${meeting.meetingId}`, { method: "POST", credentials: "include" })
+    startCall({ id: meeting.id, meetingId: meeting.meetingId, title: meeting.title, companyId: companyId! }, token, serverUrl)
+    queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
   }
 
   if (!companyId) {
     return (
-      <div className="p-6">
-        <EmptyState icon={MessageSquare} message="No company selected" hint="Select a company to start chatting." />
+      <div className="p-4 md:p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <MessageSquare className="h-6 w-6" /> Chat
+          </h1>
+        </div>
+        <Card>
+          <CardContent className="p-6 space-y-4">
+            <div className="flex justify-center">
+              <Building2 className="h-12 w-12 text-muted-foreground" />
+            </div>
+            <div className="text-center space-y-1">
+              <p className="text-lg font-medium">Select a workspace</p>
+              <p className="text-sm text-muted-foreground">Choose a company or subsidiary to start chatting.</p>
+            </div>
+            <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+              <SelectTrigger className="w-full max-w-md mx-auto">
+                <SelectValue placeholder="Choose a workspace" />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((c) => (
+                  <SelectItem key={c.id} value={c.id.toString()}>
+                    {c.name} {c.mode === "parent" ? "(Parent)" : "(Subsidiary)"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -329,8 +389,24 @@ export default function ChatPage() {
     <div className="h-[calc(100vh-8rem)] flex flex-col md:flex-row gap-4 p-4 md:p-6">
       <Card className="w-full md:w-64 shrink-0 flex flex-col">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <MessageSquare className="h-4 w-4" /> Channels
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" /> Channels
+            </span>
+            {isParentView && companies.length > 0 && (
+              <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+                <SelectTrigger className="w-28 h-8 text-xs">
+                  <SelectValue placeholder="Workspace" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies.map((c) => (
+                    <SelectItem key={c.id} value={c.id.toString()} className="text-xs">
+                      {c.name} {c.mode === "parent" ? "(Parent)" : "(Subsidiary)"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="flex-1 overflow-y-auto space-y-1">

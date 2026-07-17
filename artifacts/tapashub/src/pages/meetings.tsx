@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { EmptyState } from "@/components/empty-state"
 import { MeetingSkeleton } from "@/components/skeletons"
 import {
@@ -25,6 +26,7 @@ import {
   Loader2,
   AlertTriangle,
   MonitorSpeaker,
+  Building2,
 } from "lucide-react"
 
 interface Meeting {
@@ -61,12 +63,27 @@ interface User {
 }
 
 export default function MeetingsPage() {
-  const { activeCompany } = useCompany()
+  const { activeCompany, companies, isParentView } = useCompany()
   const { user } = useAuth()
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { activeCall, startCall, leaveCall, setMinimized, isMinimized } = useMeeting()
-  const companyId = activeCompany?.id
+  const parentCompany = companies.find((c) => c.mode === "parent")
+
+  // In the parent view, let the user pick which workspace to manage.
+  const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>(
+    activeCompany?.id?.toString() ?? parentCompany?.id?.toString() ?? "",
+  )
+  const companyId = selectedCompanyId ? Number(selectedCompanyId) : activeCompany?.id ?? parentCompany?.id
+
+  React.useEffect(() => {
+    if (!selectedCompanyId) {
+      const defaultId = activeCompany?.id ?? parentCompany?.id
+      if (defaultId) setSelectedCompanyId(defaultId.toString())
+    }
+  }, [activeCompany?.id, parentCompany?.id])
+
+  const selectedCompany = companies.find((c) => c.id === companyId)
 
   // Auto-join when navigated here with ?join=<meetingId>
   const autoJoinAttempted = React.useRef(false)
@@ -194,7 +211,7 @@ export default function MeetingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           companyId,
-          title: "Instant Meeting",
+          title: `${selectedCompany?.name ?? "Instant"} Meeting`,
           duration: settings?.defaultDuration ?? 30,
           provider: "livekit",
         }),
@@ -245,8 +262,35 @@ export default function MeetingsPage() {
 
   if (!companyId) {
     return (
-      <div className="p-6">
-        <EmptyState icon={Video} message="No company selected" hint="Select a company to manage meetings." />
+      <div className="p-4 md:p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Video className="h-6 w-6" /> Meetings
+          </h1>
+        </div>
+        <Card>
+          <CardContent className="p-6 space-y-4">
+            <div className="flex justify-center">
+              <Building2 className="h-12 w-12 text-muted-foreground" />
+            </div>
+            <div className="text-center space-y-1">
+              <p className="text-lg font-medium">Select a workspace</p>
+              <p className="text-sm text-muted-foreground">Choose a company or subsidiary to manage meetings.</p>
+            </div>
+            <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+              <SelectTrigger className="w-full max-w-md mx-auto">
+                <SelectValue placeholder="Choose a workspace" />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((c) => (
+                  <SelectItem key={c.id} value={c.id.toString()}>
+                    {c.name} {c.mode === "parent" ? "(Parent)" : "(Subsidiary)"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -281,11 +325,28 @@ export default function MeetingsPage() {
         </Card>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Video className="h-6 w-6" /> Meetings
+          {selectedCompany && (
+            <Badge variant="outline" className="text-xs font-normal">{selectedCompany.name}</Badge>
+          )}
         </h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {isParentView && companies.length > 0 && (
+            <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+              <SelectTrigger className="w-full sm:w-56">
+                <SelectValue placeholder="Choose workspace" />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((c) => (
+                  <SelectItem key={c.id} value={c.id.toString()}>
+                    {c.name} {c.mode === "parent" ? "(Parent)" : "(Subsidiary)"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           {settings?.livekitConfigured === false && (
             <Badge variant="destructive" className="gap-1 text-xs">
               <AlertTriangle className="h-3 w-3" />

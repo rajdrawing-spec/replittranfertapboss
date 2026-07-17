@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useLocation } from "wouter"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,7 @@ import { Activity, Users, MessageSquare, Video, CheckSquare, Bot, AlertCircle, S
 import { useCompany } from "@/contexts/company-context"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { useMeeting } from "@/contexts/meeting-context"
 
 interface AdminMetrics {
   activeUsers: number
@@ -42,14 +43,20 @@ export default function AdminDashboard() {
   const [, setLocation] = useLocation()
   const { activeCompany, companies, isParentView, setActiveCompanyId } = useCompany()
   const { toast } = useToast()
-  const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>(activeCompany?.id?.toString() ?? "")
-  const companyId = selectedCompanyId ? Number(selectedCompanyId) : activeCompany?.id
+  const { startCall } = useMeeting()
+  const queryClient = useQueryClient()
+  const parentCompany = companies.find((c) => c.mode === "parent")
+  const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>(
+    activeCompany?.id?.toString() ?? parentCompany?.id?.toString() ?? "",
+  )
+  const companyId = selectedCompanyId ? Number(selectedCompanyId) : activeCompany?.id ?? parentCompany?.id
 
   React.useEffect(() => {
-    if (activeCompany?.id && !selectedCompanyId) {
-      setSelectedCompanyId(activeCompany.id.toString())
+    if (!selectedCompanyId) {
+      const defaultId = activeCompany?.id ?? parentCompany?.id
+      if (defaultId) setSelectedCompanyId(defaultId.toString())
     }
-  }, [activeCompany?.id])
+  }, [activeCompany?.id, parentCompany?.id])
 
   const selectedCompany = companies.find((c) => c.id === companyId)
 
@@ -69,7 +76,21 @@ export default function AdminDashboard() {
       return
     }
     const meeting = await res.json()
-    window.open(meeting.roomUrl, "_blank", "noopener,noreferrer")
+
+    // Fetch token and join through the shared meeting context instead of opening the
+    // wss:// roomUrl directly (browsers do not allow navigating to a WebSocket URL).
+    const tokenRes = await fetch(
+      `/api/meetings/token?roomName=${encodeURIComponent(meeting.meetingId)}&companyId=${companyId}`,
+      { credentials: "include" },
+    )
+    if (!tokenRes.ok) {
+      toast({ title: "Meeting created, but failed to join", description: await tokenRes.text(), variant: "destructive" })
+      return
+    }
+    const { token, serverUrl } = await tokenRes.json()
+    await fetch(`/api/meetings/join/${meeting.meetingId}`, { method: "POST", credentials: "include" })
+    startCall({ id: meeting.id, meetingId: meeting.meetingId, title: meeting.title, companyId }, token, serverUrl)
+    queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
   }
 
   const openChat = () => {

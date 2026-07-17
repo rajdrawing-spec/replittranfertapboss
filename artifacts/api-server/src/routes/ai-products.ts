@@ -4,8 +4,9 @@ import { db, productsTable, productAiMetadataTable, productImagesTable, productV
 import { eq, and, sql, desc } from "drizzle-orm";
 import { isAiProductsEnabled } from "../lib/features";
 import {
-  analyzeProductImage, generateProductContent, generateMarketplaceTemplate,
-  computeHealthScore, saveAiMetadata, generateBarcode, ensureUniqueSku,
+  analyzeProductImages, generateProductContent, generateMarketplaceTemplate,
+  computeHealthScore, saveAiMetadata, generateBarcode, ensureUniqueSku, generateImageName,
+  resizeProductImage, removeProductBackground,
 } from "../lib/product-ai.service";
 import { requirePermission } from "../middleware/authz";
 import { canAccessCompany } from "../lib/company-scope";
@@ -33,24 +34,38 @@ function ensureCompany(req: any, res: any, companyId?: number) {
   return true;
 }
 
-router.post("/ai-products/:productId/analyze-image", requirePermission("inventory.read"), async (req: any, res: any) => {
+router.post("/ai-products/:productId/analyze-images", requirePermission("inventory.read"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { productId } = IdParam.parse(parseParams(req.params));
-    const { objectPath } = z.object({ objectPath: z.string() }).parse(req.body);
-    const [product] = await db.select({ companyId: productsTable.companyId }).from(productsTable).where(eq(productsTable.id, productId));
+    const { objectPaths } = z.object({ objectPaths: z.array(z.string()) }).parse(req.body);
+    if (!objectPaths.length) { res.status(400).json({ error: "At least one image is required" }); return; }
+    const [product] = await db.select({ companyId: productsTable.companyId, name: productsTable.name }).from(productsTable).where(eq(productsTable.id, productId));
     if (!product || !ensureCompany(req, res, product.companyId)) return;
 
-    const result = await analyzeProductImage(productId, objectPath);
+    const result = await analyzeProductImages(objectPaths);
     await saveAiMetadata(productId, {
+      keywords: result.keywords,
+      seoTags: result.seoTags,
       attributes: result.attributes,
       aiAnalysis: result as any,
     });
-    const image = await db.insert(productImagesTable).values({
-      productId, companyId: product.companyId, objectPath: objectPath,
-      aiTags: result.tags, isPrimary: false,
-    }).returning();
-    res.json({ ...result, imageId: image[0]?.id });
+
+    const images = await Promise.all(
+      objectPaths.map((objectPath, i) =>
+        db.insert(productImagesTable).values({
+          productId,
+          companyId: product.companyId,
+          objectPath,
+          aiTags: result.tags,
+          altText: generateImageName(product.name, i === 0 ? "front" : `angle-${i}`, i),
+          isPrimary: i === 0,
+        }).returning()
+      )
+    );
+    const score = await computeHealthScore(productId);
+    await saveAiMetadata(productId, { healthScore: score });
+    res.json({ ...result, imageIds: images.map(img => img[0]?.id), healthScore: score });
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Image analysis failed" }); }
 });
 
@@ -72,17 +87,25 @@ router.post("/ai-products/:productId/apply-content", requirePermission("inventor
     const { productId } = IdParam.parse(parseParams(req.params));
     const [product] = await db.select({ companyId: productsTable.companyId }).from(productsTable).where(eq(productsTable.id, productId));
     if (!product || !ensureCompany(req, res, product.companyId)) return;
-    const { name, description, seoTitle, seoDescription, keywords, attributes, category, suggestedPrice } = z.object({
-      name: z.string().optional(), description: z.string().optional(), seoTitle: z.string().optional(),
-      seoDescription: z.string().optional(), keywords: z.array(z.string()).optional(),
-      attributes: z.record(z.string(), z.string()).optional(), category: z.string().optional(), suggestedPrice: z.number().nullable().optional(),
+    const { name, shortDescription, description, seoTitle, seoDescription, keywords, seoTags, attributes, category, subcategory, suggestedPrice, mrp, brand, weight, dimensions, hsn, gst } = z.object({
+      name: z.string().optional(), shortDescription: z.string().optional(), description: z.string().optional(),
+      seoTitle: z.string().optional(), seoDescription: z.string().optional(),
+      keywords: z.array(z.string()).optional(), seoTags: z.array(z.string()).optional(),
+      attributes: z.record(z.string(), z.string()).optional(), category: z.string().optional(), subcategory: z.string().optional(),
+      suggestedPrice: z.number().nullable().optional(), mrp: z.number().nullable().optional(),
+      brand: z.string().optional(), weight: z.string().optional(), dimensions: z.string().optional(),
+      hsn: z.string().optional(), gst: z.number().nullable().optional(),
     }).parse(req.body);
 
     await db.update(productsTable).set({
-      name: name ?? undefined, description: description ?? undefined, category: category ?? undefined,
-      price: suggestedPrice ?? undefined, updatedAt: new Date(),
+      name: name ?? undefined, shortDescription: shortDescription ?? undefined, description: description ?? undefined,
+      category: category ?? undefined, subcategory: subcategory ?? undefined,
+      price: suggestedPrice ?? undefined, mrp: mrp ?? undefined,
+      brand: brand ?? undefined, weight: weight ?? undefined, dimensions: dimensions ?? undefined,
+      hsn: hsn ?? undefined, gst: gst ?? undefined,
+      updatedAt: new Date(),
     }).where(eq(productsTable.id, productId));
-    await saveAiMetadata(productId, { seoTitle, seoDescription, keywords, attributes });
+    await saveAiMetadata(productId, { seoTitle, seoDescription, keywords, seoTags, attributes });
     const score = await computeHealthScore(productId);
     await saveAiMetadata(productId, { healthScore: score });
     res.json({ ok: true, healthScore: score });
@@ -94,8 +117,15 @@ router.post("/ai-products/:productId/generate-sku", requirePermission("inventory
   try {
     const { productId } = IdParam.parse(parseParams(req.params));
     const [product] = await db.select().from(productsTable).where(eq(productsTable.id, productId));
-    if (!product || !ensureCompany(req, res, product.companyId)) return;
-    const sku = await ensureUniqueSku(productId, product.name, product.category);
+    if (!product || !ensureCompany(req, res, product.companyId)) {
+      // Allow SKU generation for a new product when the body contains name/category/companyId.
+      const { name, category, companyId } = z.object({ name: z.string(), category: z.string(), companyId: z.number() }).parse(req.body);
+      if (!ensureCompany(req, res, companyId)) return;
+      const sku = await ensureUniqueSku(companyId, name, category);
+      res.json({ sku });
+      return;
+    }
+    const sku = await ensureUniqueSku(product.companyId, product.name, product.category);
     res.json({ sku });
   } catch (e) { req.log.error(e); res.status(500).json({ error: "SKU generation failed" }); }
 });
@@ -119,6 +149,37 @@ router.post("/ai-products/:productId/marketplace/:marketplace", requirePermissio
     const result = await generateMarketplaceTemplate(productId, marketplace);
     res.json(result);
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Marketplace template generation failed" }); }
+});
+
+router.post("/ai-products/:productId/images/:imageIndex/resize", requirePermission("inventory.write"), async (req: any, res: any) => {
+  if (!gate(req, res)) return;
+  try {
+    const { productId, imageIndex } = z.object({ productId: z.coerce.number(), imageIndex: z.coerce.number() }).parse(req.params);
+    const { width, height } = z.object({ width: z.number(), height: z.number() }).parse(req.body);
+    const [product] = await db.select({ companyId: productsTable.companyId }).from(productsTable).where(eq(productsTable.id, productId));
+    if (!product || !ensureCompany(req, res, product.companyId)) return;
+    const images = await db.select({ objectPath: productImagesTable.objectPath }).from(productImagesTable).where(eq(productImagesTable.productId, productId)).orderBy(productImagesTable.id).limit(50);
+    const img = images[imageIndex];
+    if (!img) { res.status(404).json({ error: "Image not found" }); return; }
+    const result = await resizeProductImage(img.objectPath, width, height);
+    const [newImg] = await db.insert(productImagesTable).values({ productId, companyId: product.companyId, objectPath: result.objectPath, altText: `${width}x${height}` }).returning();
+    res.json({ ...result, imageId: newImg.id });
+  } catch (e) { req.log.error(e); res.status(500).json({ error: (e as Error).message }); }
+});
+
+router.post("/ai-products/:productId/images/:imageIndex/remove-background", requirePermission("inventory.write"), async (req: any, res: any) => {
+  if (!gate(req, res)) return;
+  try {
+    const { productId, imageIndex } = z.object({ productId: z.coerce.number(), imageIndex: z.coerce.number() }).parse(req.params);
+    const [product] = await db.select({ companyId: productsTable.companyId }).from(productsTable).where(eq(productsTable.id, productId));
+    if (!product || !ensureCompany(req, res, product.companyId)) return;
+    const images = await db.select({ objectPath: productImagesTable.objectPath }).from(productImagesTable).where(eq(productImagesTable.productId, productId)).orderBy(productImagesTable.id).limit(50);
+    const img = images[imageIndex];
+    if (!img) { res.status(404).json({ error: "Image not found" }); return; }
+    const result = await removeProductBackground(img.objectPath);
+    const [newImg] = await db.insert(productImagesTable).values({ productId, companyId: product.companyId, objectPath: result.objectPath, altText: "no-bg" }).returning();
+    res.json({ ...result, imageId: newImg.id });
+  } catch (e) { req.log.error(e); res.status(500).json({ error: (e as Error).message }); }
 });
 
 router.post("/ai-products/:productId/health-score", requirePermission("inventory.read"), async (req: any, res: any) => {
@@ -241,9 +302,12 @@ router.post("/ai-products/import-csv", requirePermission("inventory.write"), asy
           const name = row.name?.trim() || "Untitled";
           if (name === "Untitled" && !row.name?.trim()) throw new Error("Name is required");
           await db.insert(productsTable).values({
-            companyId, name, sku: row.sku?.trim() || generateBarcode(), category: row.category?.trim() || "General",
-            description: row.description?.trim(), price: cleanNumber(row.price), costPrice: cleanNumber(row.costprice),
-            stockQuantity: cleanInteger(row.stockquantity), reorderLevel: cleanInteger(row.reorderlevel) || 10,
+            companyId, name, sku: row.sku?.trim() || generateBarcode(), brand: row.brand?.trim(),
+            category: row.category?.trim() || "General", subcategory: row.subcategory?.trim(),
+            description: row.description?.trim(), shortDescription: row.shortdescription?.trim(),
+            price: cleanNumber(row.price), mrp: cleanNumber(row.mrp), costPrice: cleanNumber(row.costprice),
+            gst: cleanNumber(row.gst), stockQuantity: cleanInteger(row.stockquantity), reorderLevel: cleanInteger(row.reorderlevel) || 10,
+            weight: row.weight?.trim(), dimensions: row.dimensions?.trim(), hsn: row.hsn?.trim(),
             warehouseLocation: row.warehouselocation?.trim(), status: row.status?.trim() || "active",
           });
           success++;
@@ -329,11 +393,12 @@ router.post("/ai-products/import-jobs/:jobId/process", requirePermission("invent
         }
         await db.insert(productsTable).values({
           companyId: job.companyId,
-          name, sku, category: row.category?.trim() || "General",
-          description: row.description?.trim(),
-          price, costPrice,
-          stockQuantity: cleanInteger(row.stockquantity),
+          name, sku, brand: row.brand?.trim(), category: row.category?.trim() || "General", subcategory: row.subcategory?.trim(),
+          description: row.description?.trim(), shortDescription: row.shortdescription?.trim(),
+          price, mrp: cleanNumber(row.mrp), costPrice,
+          gst: cleanNumber(row.gst), stockQuantity: cleanInteger(row.stockquantity),
           reorderLevel: cleanInteger(row.reorderlevel) || 10,
+          weight: row.weight?.trim(), dimensions: row.dimensions?.trim(), hsn: row.hsn?.trim(),
           warehouseLocation: row.warehouselocation?.trim(),
           status: row.status?.trim() || "active",
         });
@@ -355,8 +420,11 @@ router.post("/ai-products/export-csv", requirePermission("inventory.read"), asyn
     if (!ensureCompany(req, res, companyId)) return;
     const items = await db.select().from(productsTable).where(eq(productsTable.companyId, companyId));
     const rows = items.map(p => ({
-      name: p.name, sku: p.sku, barcode: p.barcode, category: p.category, description: p.description,
-      price: p.price, costPrice: p.costPrice, stockQuantity: p.stockQuantity, reorderLevel: p.reorderLevel,
+      name: p.name, sku: p.sku, barcode: p.barcode, brand: p.brand, category: p.category, subcategory: p.subcategory,
+      description: p.description, shortDescription: p.shortDescription,
+      price: p.price, mrp: p.mrp, costPrice: p.costPrice, gst: p.gst,
+      stockQuantity: p.stockQuantity, reorderLevel: p.reorderLevel,
+      weight: p.weight, dimensions: p.dimensions, hsn: p.hsn,
       warehouseLocation: p.warehouseLocation, status: p.status,
     }));
     const csv = stringify(rows, { header: true });

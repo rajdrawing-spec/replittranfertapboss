@@ -9,27 +9,50 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Search, Plus, Pencil, Trash2, PackageSearch, AlertTriangle, Sparkles, Upload, Download } from "lucide-react"
+import { Search, Plus, Pencil, Trash2, PackageSearch, AlertTriangle, Sparkles, Upload, Download, Wand2, ScanBarcode, ImagePlus, Loader2 } from "lucide-react"
 import { useCompany } from "@/contexts/company-context"
 import { useToast } from "@/hooks/use-toast"
+import { useUpload } from "@workspace/object-storage-web"
 import AiProductPanel from "@/components/ai-products/ai-product-panel"
 
 const API_BASE = ""
 
 interface ProductForm {
-  companyId: string; name: string; sku: string; category: string
-  description: string; price: string; costPrice: string
-  stockQuantity: string; reorderLevel: string; warehouseLocation: string; status: string
+  companyId: string
+  name: string
+  sku: string
+  brand: string
+  category: string
+  subcategory: string
+  description: string
+  shortDescription: string
+  price: string
+  mrp: string
+  costPrice: string
+  gst: string
+  stockQuantity: string
+  reorderLevel: string
+  warehouseLocation: string
+  weight: string
+  dimensions: string
+  hsn: string
+  status: string
+  imageUrl: string
 }
+
 const emptyForm = (): ProductForm => ({
-  companyId: "", name: "", sku: "", category: "", description: "",
-  price: "", costPrice: "", stockQuantity: "0", reorderLevel: "10",
-  warehouseLocation: "", status: "active",
+  companyId: "", name: "", sku: "", brand: "", category: "", subcategory: "",
+  description: "", shortDescription: "", price: "", mrp: "", costPrice: "", gst: "",
+  stockQuantity: "0", reorderLevel: "10", warehouseLocation: "", weight: "", dimensions: "", hsn: "",
+  status: "active", imageUrl: "",
 })
 
 export default function Inventory() {
   const { activeCompany } = useCompany()
   const { toast } = useToast()
+  const { uploadFile, isUploading: uploadingImage } = useUpload({
+    onError: (e) => toast({ title: "Upload failed", description: e.message, variant: "destructive" }),
+  })
   const [search, setSearch] = React.useState("")
   const [page, setPage] = React.useState(1)
   const [showDialog, setShowDialog] = React.useState(false)
@@ -39,8 +62,12 @@ export default function Inventory() {
   const [saving, setSaving] = React.useState(false)
   const [deleting, setDeleting] = React.useState<number | null>(null)
   const [importing, setImporting] = React.useState(false)
-  const [importPath, setImportPath] = React.useState("")
+  const [importFile, setImportFile] = React.useState<File | null>(null)
   const [importingJob, setImportingJob] = React.useState(false)
+  const [generatingSku, setGeneratingSku] = React.useState(false)
+  const [analyzingImages, setAnalyzingImages] = React.useState(false)
+  const [pendingImages, setPendingImages] = React.useState<string[]>([])
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const { data: companies } = useListCompanies({ query: { enabled: true, queryKey: ["/api/companies"] } })
 
@@ -55,28 +82,43 @@ export default function Inventory() {
   function openAdd() {
     setEditing(null)
     setForm({ ...emptyForm(), companyId: activeCompany ? String(activeCompany.id) : "" })
+    setPendingImages([])
     setShowDialog(true)
   }
   function openEdit(p: any) {
     setEditing(p)
     setForm({
-      companyId: String(p.companyId), name: p.name, sku: p.sku ?? "", category: p.category ?? "",
-      description: p.description ?? "", price: String(p.price), costPrice: String(p.costPrice ?? ""),
-      stockQuantity: String(p.stockQuantity), reorderLevel: String(p.reorderLevel),
-      warehouseLocation: p.warehouseLocation ?? "", status: p.status,
+      companyId: String(p.companyId), name: p.name, sku: p.sku ?? "", brand: p.brand ?? "",
+      category: p.category ?? "", subcategory: p.subcategory ?? "",
+      description: p.description ?? "", shortDescription: p.shortDescription ?? "",
+      price: String(p.price), mrp: String(p.mrp ?? ""), costPrice: String(p.costPrice ?? ""),
+      gst: String(p.gst ?? ""), stockQuantity: String(p.stockQuantity), reorderLevel: String(p.reorderLevel),
+      warehouseLocation: p.warehouseLocation ?? "", weight: p.weight ?? "", dimensions: p.dimensions ?? "", hsn: p.hsn ?? "",
+      status: p.status, imageUrl: p.imageUrl ?? "",
     })
+    setPendingImages([])
     setShowDialog(true)
   }
 
   async function handleSave() {
     setSaving(true)
     try {
+      let sku = form.sku.trim()
+      // Auto-generate SKU if empty
+      if (!sku) {
+        sku = await generateSkuInternal(parseInt(form.companyId), form.name, form.category)
+      }
       const body = {
-        companyId: parseInt(form.companyId), name: form.name, sku: form.sku || undefined,
-        category: form.category || undefined, description: form.description || undefined,
-        price: parseFloat(form.price), costPrice: form.costPrice ? parseFloat(form.costPrice) : undefined,
+        companyId: parseInt(form.companyId), name: form.name, sku,
+        brand: form.brand || undefined, category: form.category || undefined, subcategory: form.subcategory || undefined,
+        description: form.description || undefined, shortDescription: form.shortDescription || undefined,
+        price: parseFloat(form.price), mrp: form.mrp ? parseFloat(form.mrp) : undefined,
+        costPrice: form.costPrice ? parseFloat(form.costPrice) : undefined,
+        gst: form.gst ? parseFloat(form.gst) : undefined,
         stockQuantity: parseInt(form.stockQuantity), reorderLevel: parseInt(form.reorderLevel),
-        warehouseLocation: form.warehouseLocation || undefined, status: form.status,
+        warehouseLocation: form.warehouseLocation || undefined, weight: form.weight || undefined,
+        dimensions: form.dimensions || undefined, hsn: form.hsn || undefined, status: form.status,
+        imageUrl: form.imageUrl || undefined,
       }
       const url = editing ? `${API_BASE}/api/products/${editing.id}` : `${API_BASE}/api/products`
       const res = await fetch(url, {
@@ -84,11 +126,88 @@ export default function Inventory() {
         headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error()
+
+      // Persist any uploaded images against the product
+      if (pendingImages.length > 0) {
+        const saved = await res.json()
+        const productId = saved.id || editing?.id
+        if (productId) {
+          await Promise.all(pendingImages.map((objectPath, i) =>
+            fetch(`${API_BASE}/api/products/${productId}/images`, {
+              method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ objectPath, isPrimary: i === 0, altText: `${form.name} ${i === 0 ? "front" : "angle " + i}` }),
+            })
+          ))
+          // Trigger AI analysis on the uploaded images
+          analyzeImagesInternal(productId, pendingImages)
+        }
+      }
+
       toast({ title: editing ? "Product updated" : "Product added" })
       setShowDialog(false); refetch()
     } catch {
       toast({ title: "Error", description: "Could not save product", variant: "destructive" })
     } finally { setSaving(false) }
+  }
+
+  async function generateSkuInternal(companyId: number, name: string, category: string): Promise<string> {
+    try {
+      const res = await fetch(`${API_BASE}/api/ai-products/0/generate-sku`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, name, category }),
+      })
+      if (!res.ok) throw new Error()
+      const { sku } = await res.json()
+      return sku
+    } catch {
+      // Fallback simple SKU if service fails
+      return `${category.slice(0, 3).toUpperCase() || "PRD"}-${Date.now().toString().slice(-6)}`
+    }
+  }
+
+  async function generateSku() {
+    if (!form.name || !form.category) {
+      toast({ title: "Enter name and category first", variant: "destructive" })
+      return
+    }
+    setGeneratingSku(true)
+    try {
+      const sku = await generateSkuInternal(parseInt(form.companyId || "0") || activeCompany?.id || 0, form.name, form.category)
+      setForm(f => ({ ...f, sku }))
+    } catch {
+      toast({ title: "SKU generation failed", variant: "destructive" })
+    } finally { setGeneratingSku(false) }
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+    const uploaded: string[] = []
+    for (const file of files) {
+      const res = await uploadFile(file)
+      if (res?.objectPath) uploaded.push(res.objectPath)
+    }
+    if (uploaded.length) {
+      setPendingImages(prev => [...prev, ...uploaded])
+      if (!form.imageUrl) setForm(f => ({ ...f, imageUrl: uploaded[0] }))
+    }
+    e.target.value = ""
+  }
+
+  async function analyzeImagesInternal(productId: number, objectPaths: string[]) {
+    if (!objectPaths.length) return
+    setAnalyzingImages(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/ai-products/${productId}/analyze-images`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ objectPaths }),
+      })
+      if (!res.ok) throw new Error()
+      const result = await res.json()
+      toast({ title: "AI analysis complete", description: `Detected ${result.category || "product"} · health ${result.healthScore}/100` })
+    } catch {
+      toast({ title: "Image analysis failed", variant: "destructive" })
+    } finally { setAnalyzingImages(false) }
   }
 
   async function handleDelete(id: number) {
@@ -193,7 +312,7 @@ export default function Inventory() {
                         <div className="text-xs text-muted-foreground">{p.companyName}</div>
                       </TableCell>
                       <TableCell className="font-mono text-xs">{p.sku ?? "—"}</TableCell>
-                      <TableCell className="text-sm">{p.category ?? "—"}</TableCell>
+                      <TableCell className="text-sm">{p.category ?? "—"}{p.subcategory ? ` · ${p.subcategory}` : ""}</TableCell>
                       <TableCell className="font-semibold">₹{Number(p.price).toLocaleString("en-IN")}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5">
@@ -233,10 +352,10 @@ export default function Inventory() {
       </Card>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-3xl">
           <DialogHeader><DialogTitle>{editing ? "Edit Product" : "Add Product"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
-            <div className="col-span-2 space-y-1.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
+            <div className="col-span-3 space-y-1.5">
               <Label>Company *</Label>
               <Select value={form.companyId} onValueChange={v => f("companyId", v)}>
                 <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
@@ -244,20 +363,50 @@ export default function Inventory() {
               </Select>
             </div>
             <div className="col-span-2 space-y-1.5"><Label>Product Name *</Label><Input value={form.name} onChange={e => f("name", e.target.value)} placeholder="Product name" /></div>
-            <div className="space-y-1.5"><Label>SKU</Label><Input value={form.sku} onChange={e => f("sku", e.target.value)} placeholder="SKU-001" /></div>
+            <div className="space-y-1.5">
+              <Label>SKU</Label>
+              <div className="flex gap-2">
+                <Input value={form.sku} onChange={e => f("sku", e.target.value)} placeholder="Auto-generated if empty" />
+                <Button variant="outline" size="icon" onClick={generateSku} disabled={generatingSku} title="Generate SKU"><ScanBarcode className="w-4 h-4" /></Button>
+              </div>
+            </div>
+            <div className="space-y-1.5"><Label>Brand</Label><Input value={form.brand} onChange={e => f("brand", e.target.value)} placeholder="Brand" /></div>
             <div className="space-y-1.5"><Label>Category</Label><Input value={form.category} onChange={e => f("category", e.target.value)} placeholder="e.g. Apparel" /></div>
+            <div className="space-y-1.5"><Label>Subcategory</Label><Input value={form.subcategory} onChange={e => f("subcategory", e.target.value)} placeholder="e.g. Women's Tops" /></div>
             <div className="space-y-1.5"><Label>Sale Price (₹) *</Label><Input value={form.price} onChange={e => f("price", e.target.value)} type="number" min="0" /></div>
+            <div className="space-y-1.5"><Label>MRP (₹)</Label><Input value={form.mrp} onChange={e => f("mrp", e.target.value)} type="number" min="0" /></div>
             <div className="space-y-1.5"><Label>Cost Price (₹)</Label><Input value={form.costPrice} onChange={e => f("costPrice", e.target.value)} type="number" min="0" /></div>
+            <div className="space-y-1.5"><Label>GST (%)</Label><Input value={form.gst} onChange={e => f("gst", e.target.value)} type="number" min="0" placeholder="e.g. 5, 12, 18" /></div>
             <div className="space-y-1.5"><Label>Stock Qty</Label><Input value={form.stockQuantity} onChange={e => f("stockQuantity", e.target.value)} type="number" min="0" /></div>
             <div className="space-y-1.5"><Label>Reorder Level</Label><Input value={form.reorderLevel} onChange={e => f("reorderLevel", e.target.value)} type="number" min="0" /></div>
-            <div className="col-span-2 space-y-1.5"><Label>Warehouse Location</Label><Input value={form.warehouseLocation} onChange={e => f("warehouseLocation", e.target.value)} placeholder="e.g. Warehouse A, Rack 3" /></div>
-            <div className="col-span-2 space-y-1.5"><Label>Description</Label><Input value={form.description} onChange={e => f("description", e.target.value)} placeholder="Product description" /></div>
+            <div className="space-y-1.5"><Label>Weight</Label><Input value={form.weight} onChange={e => f("weight", e.target.value)} placeholder="e.g. 250g" /></div>
+            <div className="space-y-1.5"><Label>Dimensions</Label><Input value={form.dimensions} onChange={e => f("dimensions", e.target.value)} placeholder="L x W x H cm" /></div>
+            <div className="space-y-1.5"><Label>HSN Code</Label><Input value={form.hsn} onChange={e => f("hsn", e.target.value)} placeholder="HSN" /></div>
+            <div className="col-span-3 space-y-1.5"><Label>Warehouse Location</Label><Input value={form.warehouseLocation} onChange={e => f("warehouseLocation", e.target.value)} placeholder="e.g. Warehouse A, Rack 3" /></div>
+            <div className="col-span-3 space-y-1.5"><Label>Short Description</Label><Input value={form.shortDescription} onChange={e => f("shortDescription", e.target.value)} placeholder="30-50 word description" /></div>
+            <div className="col-span-3 space-y-1.5"><Label>Description</Label><Input value={form.description} onChange={e => f("description", e.target.value)} placeholder="Full product description" /></div>
             <div className="space-y-1.5">
               <Label>Status</Label>
               <Select value={form.status} onValueChange={v => f("status", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent>
               </Select>
+            </div>
+
+            <div className="col-span-3 space-y-2">
+              <Label className="flex items-center gap-2"><ImagePlus className="w-4 h-4" /> Product Images</Label>
+              <div className="flex items-center gap-3">
+                <Input type="file" accept="image/*" multiple onChange={handleImageUpload} disabled={uploadingImage} />
+                {uploadingImage && <Loader2 className="w-4 h-4 animate-spin" />}
+              </div>
+              {pendingImages.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {pendingImages.map((path, i) => (
+                    <Badge key={i} variant="outline" className="text-xs">{path.split("/").pop()}</Badge>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">Upload 1–10 images. AI will auto-detect category, color, material, and more on save.</p>
             </div>
           </div>
           <DialogFooter>
@@ -280,14 +429,14 @@ export default function Inventory() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Import Products CSV</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
-            <Input type="file" accept=".csv" onChange={e => setImportPath(e.target.files?.[0]?.name || "")} />
-            <p className="text-xs text-muted-foreground">Columns: name, sku, category, description, price, costPrice, stockQuantity, reorderLevel, warehouseLocation, status</p>
+            <Input ref={fileInputRef} type="file" accept=".csv" onChange={e => setImportFile(e.target.files?.[0] || null)} />
+            <p className="text-xs text-muted-foreground">Columns: name, sku, brand, category, subcategory, description, shortDescription, price, mrp, costPrice, gst, stockQuantity, reorderLevel, weight, dimensions, hsn, warehouseLocation, status</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setImporting(false)}>Cancel</Button>
             <Button
-              onClick={() => { const f = (document.querySelector('input[type="file"]') as HTMLInputElement)?.files?.[0]; if (f) importCsv(f); }}
-              disabled={importingJob || !importPath}
+              onClick={() => { if (importFile) importCsv(importFile); }}
+              disabled={importingJob || !importFile}
             >{importingJob ? "Importing…" : "Import"}</Button>
           </DialogFooter>
         </DialogContent>

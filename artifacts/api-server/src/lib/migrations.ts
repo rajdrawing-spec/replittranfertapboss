@@ -461,6 +461,99 @@ export async function applyMigrations(): Promise<void> {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS workload_snapshots_company_date_idx ON workload_snapshots(company_id, snapshot_date)`);
 
+    // ── Product AI / e-commerce fields (added July 2026) ───────────────────────
+    await db.execute(sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS subcategory TEXT`);
+    await db.execute(sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS short_description TEXT`);
+    await db.execute(sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS mrp REAL NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS gst REAL NOT NULL DEFAULT 0`);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS product_images (
+        id          SERIAL PRIMARY KEY,
+        product_id  INTEGER   NOT NULL,
+        company_id  INTEGER   NOT NULL,
+        object_path TEXT      NOT NULL,
+        is_primary  BOOLEAN   NOT NULL DEFAULT false,
+        alt_text    TEXT,
+        ai_tags     JSONB     NOT NULL DEFAULT '[]',
+        created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS product_images_product_id_idx ON product_images(product_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS product_images_company_id_idx ON product_images(company_id)`);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS product_variants (
+        id              SERIAL PRIMARY KEY,
+        product_id      INTEGER   NOT NULL,
+        company_id      INTEGER   NOT NULL,
+        sku             TEXT      NOT NULL,
+        name            TEXT      NOT NULL,
+        barcode         TEXT,
+        price           REAL      NOT NULL DEFAULT 0,
+        stock_quantity  INTEGER   NOT NULL DEFAULT 0,
+        attributes      JSONB     NOT NULL DEFAULT '{}',
+        created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS product_variants_product_id_idx ON product_variants(product_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS product_variants_company_id_idx ON product_variants(company_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS product_variants_sku_idx ON product_variants(sku)`);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS product_ai_metadata (
+        id              SERIAL PRIMARY KEY,
+        product_id      INTEGER   NOT NULL UNIQUE,
+        company_id      INTEGER   NOT NULL,
+        seo_title       TEXT,
+        seo_description TEXT,
+        keywords        JSONB     NOT NULL DEFAULT '[]',
+        seo_tags        JSONB     NOT NULL DEFAULT '[]',
+        attributes      JSONB     NOT NULL DEFAULT '{}',
+        health_score    INTEGER   DEFAULT 0,
+        ai_analysis     JSONB     NOT NULL DEFAULT '{}',
+        created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS product_ai_metadata_product_id_idx ON product_ai_metadata(product_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS product_ai_metadata_company_id_idx ON product_ai_metadata(company_id)`);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS product_import_jobs (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER   NOT NULL,
+        status      TEXT      NOT NULL DEFAULT 'pending',
+        file_path   TEXT      NOT NULL,
+        stats       JSONB     NOT NULL DEFAULT '{"total":0,"success":0,"failed":0,"errors":[]}',
+        error       TEXT,
+        created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS product_import_jobs_company_id_idx ON product_import_jobs(company_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS product_import_jobs_status_idx ON product_import_jobs(status)`);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS product_marketplace_templates (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER   NOT NULL,
+        marketplace TEXT      NOT NULL,
+        category    TEXT      NOT NULL,
+        template    JSONB     NOT NULL,
+        is_active   BOOLEAN   NOT NULL DEFAULT true,
+        created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS product_marketplace_templates_company_id_idx ON product_marketplace_templates(company_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS product_marketplace_templates_marketplace_idx ON product_marketplace_templates(marketplace)`);
+    await db.execute(sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS brand TEXT`);
+    await db.execute(sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS weight TEXT`);
+    await db.execute(sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS dimensions TEXT`);
+    await db.execute(sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS hsn TEXT`);
+
     logger.info("Startup migrations applied (schema)");
   } catch (e) {
     // Log but never crash the server — missing tables are better discovered

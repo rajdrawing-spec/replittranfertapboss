@@ -138,13 +138,7 @@ export function MeetingSettings() {
               onCheckedChange={(v) => setValues({ ...values, screenShareEnabled: v })}
             />
           </div>
-          <div className="flex items-center justify-between">
-            <Label>Recording</Label>
-            <Switch
-              checked={values.recordingEnabled ?? false}
-              onCheckedChange={(v) => setValues({ ...values, recordingEnabled: v })}
-            />
-          </div>
+          {/* Recording disabled until recording infrastructure is ready (Task 11). */}
         </div>
         <Button onClick={() => update.mutate()} disabled={update.isPending}>
           Save

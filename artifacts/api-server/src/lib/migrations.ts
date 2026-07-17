@@ -407,9 +407,9 @@ export async function applyMigrations(): Promise<void> {
     await db.execute(sql`ALTER TABLE meeting_participants ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'invited'`);
     await db.execute(sql`ALTER TABLE meeting_participants ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP`);
     await db.execute(sql`ALTER TABLE meeting_participants ADD COLUMN IF NOT EXISTS left_at TIMESTAMP`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS meeting_participants_meeting_user_idx ON meeting_participants(meeting_id, user_id)`);
     // The join endpoint uses ON CONFLICT (meeting_id, user_id), which requires a
-    // UNIQUE index — dedupe any existing rows first, then create it.
+    // UNIQUE index. The old non-unique index is redundant once the unique index
+    // exists, so dedupe, create the unique index, then drop the redundant one.
     await db.execute(sql`
       DELETE FROM meeting_participants a
       USING meeting_participants b
@@ -418,6 +418,7 @@ export async function applyMigrations(): Promise<void> {
         AND a.id < b.id
     `);
     await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS meeting_participants_meeting_user_uidx ON meeting_participants(meeting_id, user_id)`);
+    await db.execute(sql`DROP INDEX IF EXISTS meeting_participants_meeting_user_idx`);
 
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS meeting_templates (

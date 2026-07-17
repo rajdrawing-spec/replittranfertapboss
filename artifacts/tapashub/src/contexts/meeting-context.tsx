@@ -88,37 +88,50 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
   // ── Incoming call socket listener ──────────────────────────────────────────
   // This socket is separate from the one in chat.tsx so that meeting
   // notifications arrive on every page, not only when Chat is open.
+  //
+  // Reconnection strategy: Socket.IO's `auth` option accepts a *function*
+  // that is called fresh before every connection attempt, including automatic
+  // reconnects. Each call fetches a new one-time token from the server so
+  // reconnects always authenticate with a valid credential. No server changes
+  // are required — `createSocketToken` already generates a fresh token on
+  // each GET /api/chat/token request.
 
   React.useEffect(() => {
     if (!user?.id) return
-    let s: Socket | null = null
 
-    fetch("/api/chat/token", { credentials: "include" })
-      .then((r) => r.json())
-      .then(({ token }) => {
-        if (!token) return
-        s = io({
-          path: "/socket.io",
-          auth: { token },
-          transports: ["websocket"],
-          // Reconnection disabled: the one-time token is consumed on first
-          // auth and cannot re-authenticate a new handshake. The user will
-          // simply not receive ringing events if the socket drops — they'll
-          // still see the notification in the notifications list.
-          reconnection: false,
-        })
-        s.on("meeting:ringing", (data: IncomingCallData) => {
-          // Ignore if already in a call
-          if (activeCallRef.current) return
-          setIncomingCall(data)
-        })
-      })
-      .catch(() => {
-        // best-effort — ringing notifications are non-critical
-      })
+    const s: Socket = io({
+      path: "/socket.io",
+      // auth as a function — invoked by socket.io-client before each
+      // connection/reconnection handshake, so every attempt gets a fresh token
+      auth: (cb: (data: object) => void) => {
+        fetch("/api/chat/token", { credentials: "include" })
+          .then((r) => r.json())
+          .then(({ token }) => cb({ token }))
+          .catch(() => cb({})) // empty object → server rejects → connect_error
+      },
+      transports: ["websocket"],
+      reconnection: true,
+      reconnectionDelay: 2_000,
+      reconnectionDelayMax: 30_000,
+      // Cap retries: if the server keeps rejecting (e.g. session expired /
+      // server never comes back) we stop after 10 attempts rather than forever
+      reconnectionAttempts: 10,
+    })
+
+    s.on("meeting:ringing", (data: IncomingCallData) => {
+      // Ignore the event if the user is already in a call
+      if (activeCallRef.current) return
+      setIncomingCall(data)
+    })
+
+    s.on("connect_error", (err) => {
+      // Non-fatal — meeting notifications are best-effort. Socket.IO will
+      // fetch a new token and retry automatically up to reconnectionAttempts.
+      console.debug("[meeting-socket] connect error:", err.message)
+    })
 
     return () => {
-      s?.disconnect()
+      s.disconnect()
     }
   }, [user?.id])
 

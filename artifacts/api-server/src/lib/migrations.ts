@@ -270,6 +270,16 @@ export async function applyMigrations(): Promise<void> {
     await db.execute(sql`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_announcement BOOLEAN NOT NULL DEFAULT false`);
     await db.execute(sql`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN NOT NULL DEFAULT false`);
     await db.execute(sql`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP`);
+    // Legacy prod column from the pre-channels chat schema; current inserts don't
+    // provide it, so it must not be NOT NULL. Checked in JS because DO $ blocks
+    // don't survive the sql template ($ gets mangled).
+    const legacyCompanyId = await db.execute(sql`
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'chat_messages' AND column_name = 'company_id'
+    `);
+    if (legacyCompanyId.rows.length > 0) {
+      await db.execute(sql`ALTER TABLE chat_messages ALTER COLUMN company_id DROP NOT NULL`);
+    }
     await db.execute(sql`CREATE INDEX IF NOT EXISTS chat_messages_channel_id_idx ON chat_messages(channel_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS chat_messages_created_at_idx ON chat_messages(created_at)`);
 
@@ -398,6 +408,16 @@ export async function applyMigrations(): Promise<void> {
     await db.execute(sql`ALTER TABLE meeting_participants ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP`);
     await db.execute(sql`ALTER TABLE meeting_participants ADD COLUMN IF NOT EXISTS left_at TIMESTAMP`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS meeting_participants_meeting_user_idx ON meeting_participants(meeting_id, user_id)`);
+    // The join endpoint uses ON CONFLICT (meeting_id, user_id), which requires a
+    // UNIQUE index — dedupe any existing rows first, then create it.
+    await db.execute(sql`
+      DELETE FROM meeting_participants a
+      USING meeting_participants b
+      WHERE a.meeting_id = b.meeting_id
+        AND a.user_id = b.user_id
+        AND a.id < b.id
+    `);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS meeting_participants_meeting_user_uidx ON meeting_participants(meeting_id, user_id)`);
 
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS meeting_templates (

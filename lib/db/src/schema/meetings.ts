@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, boolean, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, boolean, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -86,7 +86,7 @@ export const meetingParticipantsTable = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => ({
-    meetingUserIdx: index("meeting_participants_meeting_user_idx").on(table.meetingId, table.userId),
+    meetingUserIdx: uniqueIndex("meeting_participants_meeting_user_uidx").on(table.meetingId, table.userId),
   }),
 );
 

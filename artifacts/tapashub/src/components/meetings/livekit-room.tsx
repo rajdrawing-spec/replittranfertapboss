@@ -1,31 +1,28 @@
+/**
+ * LiveKit meeting UI components.
+ *
+ * Architecture: MeetingOverlay owns the SINGLE LiveKitRoom for the entire app.
+ * It is mounted inside MeetingProvider (at the root level) so the connection
+ * persists across page navigation. FullScreenCallUI and MiniPlayerUI render
+ * *inside* that shared room — they never create their own connection.
+ */
 import * as React from "react"
+import * as ReactDOM from "react-dom"
 import {
   LiveKitRoom,
   VideoConference,
-  GridLayout,
-  ParticipantTile,
-  useTracks,
-  ControlBar,
   RoomAudioRenderer,
   ConnectionStateToast,
 } from "@livekit/components-react"
 import "@livekit/components-styles"
-import { Track } from "livekit-client"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { X, Maximize2, Minimize2, Clock, Users, Loader2, AlertTriangle, MonitorSpeaker } from "lucide-react"
+import { X, Maximize2, Minimize2, Clock, Users, MonitorSpeaker } from "lucide-react"
+import type { ActiveCall } from "@/contexts/meeting-context"
 
-interface LiveKitRoomProps {
-  roomName: string
-  serverUrl: string
-  token: string
-  displayName: string
-  onClose: () => void
-  onMinimize?: () => void
-}
+// ── Timer ─────────────────────────────────────────────────────────────────────
 
-// Meeting timer hook
 function useMeetingTimer() {
   const [seconds, setSeconds] = React.useState(0)
   React.useEffect(() => {
@@ -40,22 +37,35 @@ function useMeetingTimer() {
     : `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
 }
 
-function MeetingContent({ roomName, onClose, onMinimize }: { roomName: string; onClose: () => void; onMinimize?: () => void }) {
+// ── Full-screen UI ────────────────────────────────────────────────────────────
+// Renders inside the shared LiveKitRoom context — no connection management here.
+
+function FullScreenCallUI({
+  roomName,
+  onClose,
+  onMinimize,
+}: {
+  roomName: string
+  onClose: () => void
+  onMinimize: () => void
+}) {
   const timer = useMeetingTimer()
   const [leaveOpen, setLeaveOpen] = React.useState(false)
-  const [isFullscreen, setIsFullscreen] = React.useState(false)
   const containerRef = React.useRef<HTMLDivElement>(null)
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {})
+      containerRef.current?.requestFullscreen().catch(() => {})
     } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {})
+      document.exitFullscreen().catch(() => {})
     }
   }
 
   return (
-    <div ref={containerRef} style={{ display: "flex", flexDirection: "column", height: "100%", background: "hsl(var(--background))" }}>
+    <div
+      ref={containerRef}
+      style={{ display: "flex", flexDirection: "column", height: "100%", background: "hsl(var(--background))" }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 bg-card border-b z-10 shrink-0">
         <div className="flex items-center gap-3">
@@ -67,11 +77,9 @@ function MeetingContent({ roomName, onClose, onMinimize }: { roomName: string; o
           </Badge>
         </div>
         <div className="flex items-center gap-1">
-          {onMinimize && (
-            <Button variant="ghost" size="icon" onClick={onMinimize} title="Minimize">
-              <Minimize2 className="h-4 w-4" />
-            </Button>
-          )}
+          <Button variant="ghost" size="icon" onClick={onMinimize} title="Minimize">
+            <Minimize2 className="h-4 w-4" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={toggleFullscreen} title="Fullscreen">
             <Maximize2 className="h-4 w-4" />
           </Button>
@@ -81,7 +89,7 @@ function MeetingContent({ roomName, onClose, onMinimize }: { roomName: string; o
         </div>
       </div>
 
-      {/* LiveKit video conference area */}
+      {/* Video area */}
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
         <VideoConference />
       </div>
@@ -106,35 +114,15 @@ function MeetingContent({ roomName, onClose, onMinimize }: { roomName: string; o
   )
 }
 
-export default function TapBossLiveKitRoom({ roomName, serverUrl, token, displayName, onClose, onMinimize }: LiveKitRoomProps) {
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", background: "#0a0a0a" }}>
-      <LiveKitRoom
-        video={true}
-        audio={true}
-        token={token}
-        serverUrl={serverUrl}
-        data-lk-theme="default"
-        style={{ flex: 1, minHeight: 0 }}
-        onDisconnected={onClose}
-      >
-        <MeetingContent roomName={roomName} onClose={onClose} onMinimize={onMinimize} />
-      </LiveKitRoom>
-    </div>
-  )
-}
+// ── Mini-player UI ────────────────────────────────────────────────────────────
+// Renders inside the shared LiveKitRoom context — audio stays connected.
 
-// Floating mini-player shown when the user navigates away during a call
-export function MeetingMiniPlayer({
+function MiniPlayerUI({
   roomName,
-  serverUrl,
-  token,
   onExpand,
   onLeave,
 }: {
   roomName: string
-  serverUrl: string
-  token: string
   onExpand: () => void
   onLeave: () => void
 }) {
@@ -142,35 +130,112 @@ export function MeetingMiniPlayer({
 
   return (
     <div className="fixed bottom-4 right-4 z-50 w-72 rounded-xl overflow-hidden shadow-2xl border border-border bg-card">
+      <RoomAudioRenderer />
+      <div className="flex items-center justify-between px-3 py-2 bg-card border-b">
+        <div className="flex items-center gap-2 min-w-0">
+          <MonitorSpeaker className="h-3.5 w-3.5 text-primary shrink-0" />
+          <span className="text-xs font-medium truncate">{roomName}</span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="text-xs text-muted-foreground tabular-nums">{timer}</span>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onExpand} title="Expand">
+            <Maximize2 className="h-3 w-3" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={onLeave} title="Leave">
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+      <div className="px-3 py-1.5 text-xs text-muted-foreground flex items-center gap-1">
+        <Users className="h-3 w-3" />
+        <span>Audio active · click to expand</span>
+      </div>
+    </div>
+  )
+}
+
+// ── Overlay — the single LiveKitRoom for the whole app ────────────────────────
+
+interface MeetingOverlayProps {
+  activeCall: ActiveCall | null
+  isMinimized: boolean
+  onLeave: () => void
+  onMinimize: () => void
+  onExpand: () => void
+}
+
+export function MeetingOverlay({
+  activeCall,
+  isMinimized,
+  onLeave,
+  onMinimize,
+  onExpand,
+}: MeetingOverlayProps) {
+  if (!activeCall) return null
+
+  const roomName = activeCall.meeting.title || activeCall.meeting.meetingId
+
+  return (
+    <>
+      {/*
+       * Single LiveKitRoom — never remounts regardless of minimized state,
+       * so the WebRTC connection and audio track persist across navigation.
+       *
+       * When minimized: the wrapper is collapsed to 0×0 with overflow:hidden
+       * so it's invisible. RoomAudioRenderer keeps audio playing inside it.
+       *
+       * When full-screen: it covers the viewport at z-index 50.
+       */}
       <LiveKitRoom
-        video={false}
+        token={activeCall.token}
+        serverUrl={activeCall.serverUrl}
         audio={true}
-        token={token}
-        serverUrl={serverUrl}
+        video={true}
         data-lk-theme="default"
+        style={
+          isMinimized
+            ? {
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: 0,
+                height: 0,
+                overflow: "hidden",
+                // No pointerEvents style here — the container is 0×0 so it
+                // can't intercept clicks anyway, and descendants rendered via
+                // portal (below) are outside this element in the DOM.
+              }
+            : {
+                position: "fixed",
+                inset: 0,
+                zIndex: 50,
+                display: "flex",
+                flexDirection: "column",
+                background: "#0a0a0a",
+              }
+        }
         onDisconnected={onLeave}
       >
-        <RoomAudioRenderer />
-        <div className="flex items-center justify-between px-3 py-2 bg-card border-b">
-          <div className="flex items-center gap-2 min-w-0">
-            <MonitorSpeaker className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span className="text-xs font-medium truncate">{roomName}</span>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-xs text-muted-foreground tabular-nums">{timer}</span>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onExpand} title="Expand">
-              <Maximize2 className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={onLeave} title="Leave">
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
-        </div>
-        <div className="px-3 py-1.5 text-xs text-muted-foreground flex items-center gap-1">
-          <Users className="h-3 w-3" />
-          <span>Audio active · click to expand</span>
-        </div>
+        {isMinimized ? (
+          // Keep audio alive. Video publication is paused by ControlBar state;
+          // no video UI is rendered here.
+          <RoomAudioRenderer />
+        ) : (
+          <FullScreenCallUI roomName={roomName} onClose={onLeave} onMinimize={onMinimize} />
+        )}
       </LiveKitRoom>
-    </div>
+
+      {/*
+       * Mini-player: rendered via portal directly into document.body so it sits
+       * OUTSIDE the collapsed 0×0 LiveKitRoom container. This guarantees that
+       * expand/leave buttons receive pointer events on every page, not just
+       * the meetings page.
+       */}
+      {isMinimized &&
+        ReactDOM.createPortal(
+          <MiniPlayerUI roomName={roomName} onExpand={onExpand} onLeave={onLeave} />,
+          document.body,
+        )}
+    </>
   )
 }

@@ -1,0 +1,161 @@
+# TapBoss Migration: Replace Jitsi with LiveKit
+
+## Objective
+
+Remove the existing Jitsi integration completely and replace it with a production-ready LiveKit implementation for all real-time communication features.
+
+The current Jitsi integration is unreliable, redirects to 8x8 login pages, and does not provide the user experience we need. We want a fully integrated communication system similar to Microsoft Teams, Slack, or Discord.
+
+## Requirements
+
+### Remove
+
+* Remove all Jitsi Meet SDK code.
+* Remove all Jitsi components.
+* Remove Jitsi configuration files.
+* Remove unused dependencies.
+* Remove any iframe-based meeting implementation.
+* Clean up unused environment variables.
+
+### Implement LiveKit
+
+Integrate the latest stable LiveKit Server and React SDK.
+
+Features required:
+
+* One-to-one audio calls
+* One-to-one video calls
+* Group audio calls
+* Group video calls
+* Team meeting rooms
+* Join by room ID
+* Screen sharing
+* Camera on/off
+* Microphone mute/unmute
+* Switch camera and microphone devices
+* Participant list
+* Active speaker detection
+* Grid view
+* Speaker view
+* Connection quality indicators
+* Auto reconnect
+* Meeting timer
+* Leave meeting confirmation
+
+### Chat Integration
+
+Keep the existing Socket.IO messaging system.
+
+During calls support:
+
+* In-call chat
+* File sharing
+* Emoji reactions
+* Typing indicators
+
+### Authentication
+
+Reuse the existing TapBoss authentication.
+
+Users must:
+
+* Automatically join using their account
+* Never see LiveKit login screens
+* Never create external accounts
+* Never leave the TapBoss application
+
+Generate LiveKit access tokens from the backend using JWT.
+
+### Backend
+
+Implement:
+
+* LiveKit token endpoint
+* Room creation endpoint
+* Join room endpoint
+* End call endpoint
+* Meeting history
+* Call logs
+
+### Database
+
+Store:
+
+* Room ID
+* Meeting name
+* Creator
+* Participants
+* Join time
+* Leave time
+* Call duration
+* Meeting status
+
+### UI
+
+Create a modern Microsoft Teams/Slack style interface.
+
+Required screens:
+
+* Incoming call popup
+* Outgoing call popup
+* Call ringing screen
+* Video meeting window
+* Floating mini player
+* Full screen mode
+* Mobile responsive layout
+
+### Performance
+
+Optimize for:
+
+* Fast loading
+* Low latency
+* Smooth switching between rooms
+* Stable reconnects
+* Efficient bandwidth usage
+
+### Infrastructure
+
+Architecture should be:
+
+React Frontend
+
+↓
+
+Node.js API
+
+↓
+
+Socket.IO
+
+↓
+
+LiveKit Server
+
+↓
+
+Coturn TURN Server
+
+↓
+
+PostgreSQL
+
+↓
+
+Redis (optional for scaling)
+
+Do not host the LiveKit media server inside Replit. Prepare the project so LiveKit runs on a VPS (AWS EC2, DigitalOcean, Hetzner, etc.) while the TapBoss frontend and backend continue running on Replit.
+
+### Deliverables
+
+1. Remove all Jitsi code.
+2. Integrate LiveKit completely.
+3. Update environment variables.
+4. Create a migration guide.
+5. Update README.
+6. Ensure all existing chat functionality continues to work.
+7. Verify voice, video, screen sharing, and group meetings are fully functional.
+8. Fix any UI or build errors introduced during the migration.
+9. Produce production-ready, well-documented code with no placeholder implementations.
+
+The final result should provide a seamless communication experience comparable to Microsoft Teams or Slack while remaining fully integrated into TapBoss with no external branding or login requirements.

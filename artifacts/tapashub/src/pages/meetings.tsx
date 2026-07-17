@@ -68,6 +68,34 @@ export default function MeetingsPage() {
   const { activeCall, startCall, leaveCall, setMinimized, isMinimized } = useMeeting()
   const companyId = activeCompany?.id
 
+  // Auto-join when navigated here with ?join=<meetingId>
+  const autoJoinAttempted = React.useRef(false)
+  React.useEffect(() => {
+    if (autoJoinAttempted.current || !companyId || activeCall) return
+    const params = new URLSearchParams(window.location.search)
+    const joinId = params.get("join")
+    if (!joinId) return
+    autoJoinAttempted.current = true
+    // Remove the param from the URL without reloading
+    const url = new URL(window.location.href)
+    url.searchParams.delete("join")
+    window.history.replaceState(null, "", url.toString())
+    // Fetch token and join
+    fetch(`/api/meetings/token?roomName=${encodeURIComponent(joinId)}&companyId=${companyId}`, {
+      credentials: "include",
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Failed to get token")
+        return r.json()
+      })
+      .then(async ({ token, serverUrl }: { token: string; serverUrl: string }) => {
+        await fetch(`/api/meetings/join/${joinId}`, { method: "POST", credentials: "include" })
+        startCall({ meetingId: joinId, title: "Meeting", companyId }, token, serverUrl)
+        queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
+      })
+      .catch((e) => toast({ title: "Auto-join failed", description: String(e), variant: "destructive" }))
+  }, [companyId, activeCall, startCall, queryClient, toast])
+
   const [joiningId, setJoiningId] = React.useState<number | null>(null)
   const [scheduleOpen, setScheduleOpen] = React.useState(false)
   const [selectedTab, setSelectedTab] = React.useState("upcoming")

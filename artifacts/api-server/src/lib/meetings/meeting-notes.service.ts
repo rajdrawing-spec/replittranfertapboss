@@ -384,6 +384,55 @@ export async function assignActionItem(noteId: number, companyId: number, itemIn
   return updated;
 }
 
+// ── Stuck-note sweep ──────────────────────────────────────────────────────────
+// If the server restarts mid-pipeline, a note stays in "processing" forever:
+// the claim/retry logic only reclaims "failed" rows, so nothing can retry it
+// and the UI polls indefinitely. The sweep fails any note that has been
+// processing longer than the threshold, making it reclaimable again.
+
+/** Longest a real pipeline run can plausibly take (Gemini call + task fan-out). */
+const STUCK_PROCESSING_MS = 15 * 60 * 1000;
+const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+
+export const STUCK_NOTE_ERROR =
+  "Processing timed out — likely a server restart interrupted it. Click Retry to run it again.";
+
+/**
+ * Fail notes stuck in "processing" for longer than the threshold.
+ * Returns the number of notes swept. Uses updated_at (stamped when a note is
+ * claimed/reclaimed) so a freshly retried note gets the full window again.
+ */
+export async function sweepStuckMeetingNotes(olderThanMs: number = STUCK_PROCESSING_MS): Promise<number> {
+  const cutoff = new Date(Date.now() - olderThanMs);
+  const swept = await db
+    .update(aiMeetingNotesTable)
+    .set({ status: "failed", error: STUCK_NOTE_ERROR, updatedAt: new Date() })
+    .where(and(eq(aiMeetingNotesTable.status, "processing"), sql`${aiMeetingNotesTable.updatedAt} < ${cutoff}`))
+    .returning({ id: aiMeetingNotesTable.id, companyId: aiMeetingNotesTable.companyId, title: aiMeetingNotesTable.title });
+  if (swept.length > 0) {
+    logger.warn({ noteIds: swept.map((n) => n.id) }, "Swept stuck AI meeting notes to failed");
+    for (const note of swept) {
+      void emitNotification({
+        type: "system",
+        title: "Meeting notes failed",
+        message: `AI notes for "${note.title}" timed out. Open Team → Meeting Notes to retry.`,
+        severity: "error",
+        companyId: note.companyId,
+        actionUrl: "/chat",
+      });
+    }
+  }
+  return swept.length;
+}
+
+/** Run the stuck-note sweep now and then periodically. Call once at startup. */
+export function startStuckNoteSweeper(): void {
+  const run = () => sweepStuckMeetingNotes().catch((err) => logger.error({ err }, "Stuck meeting-note sweep failed"));
+  void run();
+  const timer = setInterval(run, SWEEP_INTERVAL_MS);
+  timer.unref?.();
+}
+
 export async function getMeetingNote(id: number, companyId: number) {
   const [note] = await db
     .select()

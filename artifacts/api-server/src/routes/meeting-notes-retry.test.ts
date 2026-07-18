@@ -50,6 +50,8 @@ const H = vi.hoisted(() => {
         return cond.conds.filter(Boolean).some((c: any) => match(row, c));
       case "eq":
         return row[field(cond.col)] === cond.val;
+      case "lt":
+        return row[field(cond.col)] < cond.val;
       default:
         return true;
     }
@@ -137,7 +139,14 @@ vi.mock("drizzle-orm", () => ({
   or: (...conds: any[]) => ({ op: "or", conds }),
   ilike: (col: string, val: any) => ({ op: "ilike", col, val }),
   desc: (col: string) => ({ op: "desc", col }),
-  sql: (() => ({ op: "sql" })) as any,
+  // The sweep uses sql`${col} < ${cutoff}`; translate that tagged template
+  // into a comparable condition descriptor for the fake matcher.
+  sql: ((strings: TemplateStringsArray, ...vals: any[]) => {
+    if (strings.length === 3 && strings[1]?.trim() === "<") {
+      return { op: "lt", col: vals[0], val: vals[1] };
+    }
+    return { op: "sql" };
+  }) as any,
 }));
 
 vi.mock("@clerk/express", () => ({
@@ -201,6 +210,7 @@ vi.mock("../lib/auth-user", async (importActual) => {
 });
 
 import meetingsRouter from "./meetings";
+import { sweepStuckMeetingNotes, STUCK_NOTE_ERROR } from "../lib/meetings/meeting-notes.service";
 
 const ALPHA = 1;
 const BETA = 2;
@@ -350,5 +360,30 @@ describe("POST /meetings/notes/:id/retry", () => {
     seedNote();
     const res = await request(app).post("/meetings/notes/not-a-number/retry").send({ companyId: ALPHA });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("sweepStuckMeetingNotes", () => {
+  it("fails notes stuck in processing past the threshold and leaves fresh/terminal notes alone", async () => {
+    const stuckId = seedNote({ status: "processing", updatedAt: new Date(Date.now() - 20 * 60 * 1000) });
+    const freshId = seedNote({ status: "processing", updatedAt: new Date() });
+    const doneId = seedNote({ status: "done", updatedAt: new Date(Date.now() - 20 * 60 * 1000) });
+
+    const swept = await sweepStuckMeetingNotes();
+    expect(swept).toBe(1);
+
+    const byId = (id: number) => H.store.ai_meeting_notes.find((r) => r.id === id)!;
+    expect(byId(stuckId).status).toBe("failed");
+    expect(byId(stuckId).error).toBe(STUCK_NOTE_ERROR);
+    expect(byId(freshId).status).toBe("processing");
+    expect(byId(doneId).status).toBe("done");
+  });
+
+  it("a swept note becomes retryable again", async () => {
+    const stuckId = seedNote({ status: "processing", updatedAt: new Date(Date.now() - 20 * 60 * 1000) });
+    await sweepStuckMeetingNotes();
+    const res = await retry(stuckId);
+    expect(res.status).toBe(202);
+    expect(H.store.ai_meeting_notes.find((r) => r.id === stuckId)!.status).toBe("processing");
   });
 });

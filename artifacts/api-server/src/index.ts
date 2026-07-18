@@ -6,6 +6,7 @@ import { ensureStarterCompanies } from "./lib/seed-companies";
 import { startIntegrationScheduler } from "./lib/integration-sync";
 import { startAiTaskScheduler } from "./lib/ai-tasks/scheduler";
 import { initSocketServer } from "./lib/chat/socket-server";
+import { startStuckNoteSweeper } from "./lib/meetings/meeting-notes.service";
 
 import { registerAdapters } from "./lib/adapters";
 import { applyMigrations, repairOrphanedAllocations } from "./lib/migrations";
@@ -43,6 +44,9 @@ server.listen(port, () => {
   registerAdapters();
   startIntegrationScheduler();
   startAiTaskScheduler().catch((err) => logger.error({ err }, "Failed to start AI task scheduler"));
+  // Fail AI meeting notes stuck in "processing" (e.g. after a mid-pipeline
+  // restart) so they become retryable; runs at startup and every 5 minutes.
+  startStuckNoteSweeper();
 }).on('error', (err: Error) => {
   logger.error({ err }, "Error listening on port");
   process.exit(1);

@@ -1,0 +1,478 @@
+You can give Replit AI the following detailed prompt.
+
+# Build TapBoss Call Center Module (Exotel Ready)
+
+Build a professional Call Center module for TapBoss. Do NOT integrate Exotel yet. Instead, create the complete UI, database, APIs, and architecture so I can later add my Exotel credentials and API.
+
+## Goal
+
+TapBoss should work like a real call center.
+
+Employees should never use their personal phone numbers.
+
+Customers only see our business numbers.
+
+The system must support multiple Exotel numbers.
+
+---
+
+# Sidebar
+
+Create only one menu.
+
+☎ Call Center
+
+Inside Call Center create:
+
+* Dashboard
+* Dial Pad
+* Incoming Calls
+* Active Calls
+* Call History
+* Contacts
+* Business Numbers
+* Settings
+
+Do not create duplicate Call pages anywhere else.
+
+---
+
+# Dashboard
+
+Show cards
+
+Today's Calls
+
+Incoming Calls
+
+Outgoing Calls
+
+Missed Calls
+
+Average Duration
+
+Active Agents
+
+Current Active Calls
+
+Live Queue
+
+---
+
+# Dial Pad
+
+Modern phone dial pad.
+
+Business Number selector.
+
+Example
+
+▼ Sales (+91XXXXXXXX01)
+
+▼ Support (+91XXXXXXXX02)
+
+▼ HR (+91XXXXXXXX03)
+
+▼ Finance (+91XXXXXXXX04)
+
+▼ Orders (+91XXXXXXXX05)
+
+Phone Number field
+
+Call button
+
+When Call is pressed
+
+DO NOT call Exotel yet.
+
+Instead call
+
+POST /api/call/outgoing
+
+Return mock response.
+
+The Exotel API will be added later.
+
+---
+
+# Incoming Calls
+
+Create incoming call screen.
+
+Large caller name.
+
+Large phone number.
+
+Department.
+
+Buttons
+
+Answer
+
+Reject
+
+Mute
+
+Transfer
+
+Hold
+
+Keypad
+
+Speaker
+
+End Call
+
+Currently use mock websocket events.
+
+Later Exotel webhooks will replace them.
+
+---
+
+# Active Call Screen
+
+Show
+
+Caller
+
+Department
+
+Call Timer
+
+Recording Status
+
+Mute
+
+Hold
+
+Transfer
+
+Conference
+
+Keypad
+
+AI Notes
+
+End Call
+
+Professional call center UI.
+
+---
+
+# Call History
+
+Table
+
+Date
+
+Caller
+
+Number
+
+Department
+
+Incoming
+
+Outgoing
+
+Missed
+
+Duration
+
+Recording
+
+Status
+
+AI Summary
+
+Notes
+
+Search
+
+Filter
+
+Pagination
+
+---
+
+# Contacts
+
+Company contacts only.
+
+Name
+
+Department
+
+Phone
+
+Email
+
+Tags
+
+Search
+
+Favorite
+
+Quick Call
+
+---
+
+# Business Numbers
+
+Admin page.
+
+Fields
+
+Department
+
+Display Name
+
+Business Number
+
+Exotel SID
+
+Exotel Virtual Number
+
+Status
+
+Default
+
+Only administrators can edit.
+
+---
+
+# Settings
+
+Placeholder only.
+
+Later Exotel credentials will be added.
+
+Account SID
+
+API Key
+
+API Token
+
+Webhook URL
+
+Caller ID
+
+Recording
+
+Call Queue
+
+Leave empty for now.
+
+---
+
+# Database
+
+Create tables.
+
+business_numbers
+
+id
+
+department
+
+display_name
+
+phone_number
+
+exotel_sid
+
+status
+
+is_default
+
+created_at
+
+contacts
+
+id
+
+name
+
+phone
+
+email
+
+department
+
+favorite
+
+created_at
+
+call_logs
+
+id
+
+call_id
+
+business_number_id
+
+contact_id
+
+direction
+
+status
+
+duration
+
+recording_url
+
+summary
+
+notes
+
+started_at
+
+ended_at
+
+users_permissions
+
+user_id
+
+business_number_id
+
+can_make_calls
+
+can_receive_calls
+
+---
+
+# Mock Backend APIs
+
+POST /api/call/outgoing
+
+POST /api/call/incoming
+
+POST /api/call/answer
+
+POST /api/call/reject
+
+POST /api/call/end
+
+GET /api/call/history
+
+GET /api/business-numbers
+
+GET /api/contacts
+
+Everything should return mock JSON until Exotel is connected.
+
+---
+
+# Architecture
+
+Create a CallService interface.
+
+Create ExotelProvider.ts.
+
+Do NOT implement Exotel.
+
+Only create methods.
+
+makeCall()
+
+receiveCall()
+
+hangup()
+
+transferCall()
+
+holdCall()
+
+muteCall()
+
+conferenceCall()
+
+recordCall()
+
+Later I will paste my Exotel API credentials.
+
+---
+
+# WebSocket
+
+Create Socket.IO events.
+
+incoming_call
+
+call_answered
+
+call_rejected
+
+call_started
+
+call_ended
+
+call_hold
+
+call_resume
+
+call_transfer
+
+call_recording
+
+Use mock events.
+
+---
+
+# Permissions
+
+Admin
+
+Manage numbers
+
+View all calls
+
+Configure system
+
+Manager
+
+View department calls
+
+Receive calls
+
+Employee
+
+Make calls
+
+Receive calls
+
+View own history
+
+---
+
+# UI Style
+
+Professional call center.
+
+Very clean.
+
+Responsive.
+
+Desktop first.
+
+Mobile friendly.
+
+Dark mode compatible.
+
+No duplicate menus.
+
+No placeholder lorem ipsum.
+
+Use realistic sample data.
+
+---
+
+# IMPORTANT
+
+Do NOT connect Exotel.
+
+Prepare everything so I only need to paste my Exotel Account SID, API Key, API Token, and webhook URL later.
+
+The code should be modular, production-ready, and easy to integrate with Exotel Voice APIs and webhooks in the future.
+
+This prompt will have Replit build the complete **call center framework** first. Once it's ready, you can plug in your Exotel API credentials with minimal code changes instead of redesigning the application later.

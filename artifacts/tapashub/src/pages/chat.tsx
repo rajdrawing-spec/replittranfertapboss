@@ -121,6 +121,9 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = React.useState("")
   const [searchResults, setSearchResults] = React.useState<ChatMessage[]>([])
   const [usersOpen, setUsersOpen] = React.useState(false)
+  const [dmQuery, setDmQuery] = React.useState("")
+  const [mentionQuery, setMentionQuery] = React.useState<string | null>(null)
+  const [showMentions, setShowMentions] = React.useState(false)
   const [notesOpen, setNotesOpen] = React.useState(false)
   const [notesQuery, setNotesQuery] = React.useState("")
   const [openNoteId, setOpenNoteId] = React.useState<number | null>(null)
@@ -147,14 +150,14 @@ export default function ChatPage() {
     enabled: !!companyId,
   })
 
-  const { data: channelUsers } = useQuery<ChatUser[]>({
+  const { data: channelUsers, isLoading: isLoadingUsers } = useQuery<ChatUser[]>({
     queryKey: ["/api/chat/users", companyId],
     queryFn: async () => {
       const res = await fetch(`/api/chat/users?companyId=${companyId}`, { credentials: "include" })
       if (!res.ok) throw new Error(await res.text())
       return res.json()
     },
-    enabled: !!companyId && (usersOpen || scheduleOpen),
+    enabled: !!companyId,
   })
 
   // ── Scheduled / upcoming meetings ──────────────────────────────────────────
@@ -359,6 +362,18 @@ export default function ChatPage() {
       })
       .catch((e) => toast({ title: "Could not join the meeting", description: String(e), variant: "destructive" }))
   }, [companyId, activeCall, startCall, queryClient, toast])
+
+  const insertMention = (name: string) => {
+    const cursor = input.length
+    const textBeforeCursor = input.slice(0, cursor)
+    const match = textBeforeCursor.match(/@([\w.]*)$/)
+    if (match) {
+      const before = textBeforeCursor.slice(0, textBeforeCursor.length - match[0].length)
+      setInput(`${before}@${name} `)
+    }
+    setShowMentions(false)
+    setMentionQuery(null)
+  }
 
   const sendMessage = () => {
     if (!socket || !selectedChannel || !input.trim()) return
@@ -694,14 +709,59 @@ export default function ChatPage() {
                 <button onClick={() => setReplyTo(null)}><X className="h-3 w-3" /></button>
               </div>
             )}
-            <div className="flex items-center gap-2">
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-                placeholder={replyTo ? "Reply..." : "Type a message..."}
-                className="flex-1"
-              />
+            <div className="flex items-center gap-2 relative">
+              <div className="flex-1 relative">
+                <Input
+                  value={input}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setInput(value)
+                    const cursor = e.target.selectionStart ?? value.length
+                    const textBeforeCursor = value.slice(0, cursor)
+                    const match = textBeforeCursor.match(/@([\w.]*)$/)
+                    if (match) {
+                      setMentionQuery(match[1].toLowerCase())
+                      setShowMentions(true)
+                    } else {
+                      setShowMentions(false)
+                      setMentionQuery(null)
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage() }
+                  }}
+                  placeholder={replyTo ? "Reply..." : "Type a message... @name to mention"}
+                  className="w-full"
+                />
+                {showMentions && (
+                  <div className="absolute bottom-full left-0 mb-1 w-full max-h-[180px] overflow-y-auto rounded-md border bg-popover shadow-md z-10 p-1 space-y-1">
+                    {(channelUsers?.filter((u) => u.id !== userId).filter((u) => {
+                      const q = (mentionQuery ?? "").toLowerCase()
+                      return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+                    }).length ?? 0) === 0 ? (
+                      <div className="text-xs text-muted-foreground px-2 py-1">No matching members</div>
+                    ) : (
+                      channelUsers
+                        ?.filter((u) => u.id !== userId)
+                        .filter((u) => {
+                          const q = (mentionQuery ?? "").toLowerCase()
+                          return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+                        })
+                        .slice(0, 6)
+                        .map((u) => (
+                          <button
+                            key={u.id}
+                            onClick={() => insertMention(u.name)}
+                            className="w-full text-left rounded px-2 py-1 hover:bg-muted text-sm"
+                          >
+                            <div className="font-medium">{u.name}</div>
+                            <div className="text-xs text-muted-foreground">{u.email}</div>
+                          </button>
+                        ))
+                    )}
+                  </div>
+                )}
+              </div>
               <input
                 type="file"
                 multiple
@@ -744,22 +804,47 @@ export default function ChatPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={usersOpen} onOpenChange={setUsersOpen}>
+      <Dialog open={usersOpen} onOpenChange={(o) => { setUsersOpen(o); if (!o) setDmQuery("") }}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Start Direct Message</DialogTitle>
           </DialogHeader>
+          <Input
+            placeholder="Search team members…"
+            value={dmQuery}
+            onChange={(e) => setDmQuery(e.target.value)}
+            className="mb-2"
+          />
           <div className="max-h-[300px] overflow-y-auto space-y-1">
-            {channelUsers?.map((u) => (
-              <button
-                key={u.id}
-                onClick={() => startDirect(u.id)}
-                className="w-full text-left rounded-md border p-2 hover:bg-muted text-sm"
-              >
-                <div className="font-medium">{u.name}</div>
-                <div className="text-xs text-muted-foreground">{u.email}</div>
-              </button>
-            ))}
+            {isLoadingUsers ? (
+              <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+            ) : (
+              (channelUsers?.filter((u) => u.id !== userId).filter((u) => {
+                const q = dmQuery.toLowerCase()
+                return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+              })?.length ?? 0) === 0 ? (
+                <div className="text-center text-sm text-muted-foreground py-6">
+                  No team members found. Invite members from <strong>Team &amp; Roles</strong> to chat with them.
+                </div>
+              ) : (
+                channelUsers
+                  ?.filter((u) => u.id !== userId)
+                  .filter((u) => {
+                    const q = dmQuery.toLowerCase()
+                    return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+                  })
+                  .map((u) => (
+                    <button
+                      key={u.id}
+                      onClick={() => startDirect(u.id)}
+                      className="w-full text-left rounded-md border p-2 hover:bg-muted text-sm"
+                    >
+                      <div className="font-medium">{u.name}</div>
+                      <div className="text-xs text-muted-foreground">{u.email}</div>
+                    </button>
+                  ))
+              )
+            )}
           </div>
         </DialogContent>
       </Dialog>

@@ -7,6 +7,7 @@ import * as React from "react"
 import * as ReactDOM from "react-dom"
 import { useQueryClient } from "@tanstack/react-query"
 import { io, type Socket } from "socket.io-client"
+import { DisconnectReason } from "livekit-client"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { MeetingOverlay } from "@/components/meetings/livekit-room"
@@ -201,12 +202,27 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
   // NOT click Leave, fetch a fresh token and rejoin automatically. The
   // LiveKitRoom is keyed on the token, so a new token forces a clean
   // reconnect with a valid credential.
-  const handleRoomDisconnected = React.useCallback(async () => {
+  const handleRoomDisconnected = React.useCallback(async (reason?: DisconnectReason) => {
     const call = activeCallRef.current
     if (!call) return
     if (leavingRef.current) {
       // User-initiated leave — leaveCall already handles cleanup
       leavingRef.current = false
+      return
+    }
+    if (reason === DisconnectReason.CLIENT_INITIATED) {
+      // The user clicked LiveKit's built-in Leave button in the control bar.
+      // That disconnects the room directly, bypassing our leaveCall(), so do
+      // the same cleanup here instead of treating it as a dropped connection
+      // (which would silently auto-rejoin them).
+      leavingRef.current = false
+      setActiveCall(null)
+      setIsMinimized(false)
+      fetch(`/api/meetings/leave/${call.meeting.meetingId}`, {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => {})
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
       return
     }
     const MAX_ATTEMPTS = 4

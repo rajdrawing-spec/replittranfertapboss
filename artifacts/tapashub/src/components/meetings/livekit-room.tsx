@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { X, Maximize2, Minimize2, Clock, Users, MonitorSpeaker } from "lucide-react"
 import type { ActiveCall } from "@/contexts/meeting-context"
+import type { DisconnectReason } from "livekit-client"
 
 // ── Timer ─────────────────────────────────────────────────────────────────────
 
@@ -161,8 +162,9 @@ interface MeetingOverlayProps {
   isMinimized: boolean
   onLeave: () => void
   /** Fired when the room disconnects for ANY reason (network, token expiry,
-   * server close). The provider decides whether to auto-rejoin or end. */
-  onDisconnected: () => void
+   * server close, or the user clicking LiveKit's built-in Leave button). The
+   * provider inspects the reason to decide whether to auto-rejoin or end. */
+  onDisconnected: (reason?: DisconnectReason) => void
   onMinimize: () => void
   onExpand: () => void
 }

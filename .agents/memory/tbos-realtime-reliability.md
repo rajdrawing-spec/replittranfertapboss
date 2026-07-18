@@ -10,3 +10,5 @@ description: Socket.IO + LiveKit lessons — single-use tokens, /api socket path
 
 **Why:** prevents recurring chat/call failures across dev and prod; reconnect auth and prod routing are invisible in local happy-path testing.
 **How to apply:** any new realtime feature (sockets, calls) must use auth-as-function, `/api`-prefixed paths, and reconnect-aware join logic.
+
+- LiveKit's built-in control-bar Leave button disconnects the room directly, bypassing app-level leaveCall(); the onDisconnected handler must check `reason === DisconnectReason.CLIENT_INITIATED` and treat it as an intentional leave, or the auto-reconnect logic silently rejoins the user ("leave not working").

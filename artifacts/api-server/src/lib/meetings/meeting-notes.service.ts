@@ -242,6 +242,77 @@ export async function listMeetingNotes(companyId: number, opts: { channelId?: nu
     .limit(Math.min(opts.limit ?? 50, 200));
 }
 
+/**
+ * Manually assign an action item that the AI couldn't match to an employee.
+ * Creates the generated task + notification and stamps the taskId back into
+ * the note's actionItems JSON. Errors with a message on invalid input.
+ */
+export async function assignActionItem(noteId: number, companyId: number, itemIndex: number, employeeId: number) {
+  // Everything runs in one transaction with the note row locked FOR UPDATE:
+  // concurrent assigns (same or different items of the same note) serialize,
+  // which prevents double-created tasks and lost array updates. The action
+  // items array only changes after processing completes, so the row lock is
+  // the only concurrency control needed for index-based addressing.
+  const { updated, item, fullName } = await db.transaction(async (tx) => {
+    const [note] = await tx
+      .select()
+      .from(aiMeetingNotesTable)
+      .where(and(eq(aiMeetingNotesTable.id, noteId), eq(aiMeetingNotesTable.companyId, companyId)))
+      .for("update");
+    if (!note) throw new Error("Note not found");
+    const items = [...(note.actionItems ?? [])];
+    const item = items[itemIndex];
+    if (!item) throw new Error("Action item not found");
+    if (item.taskId) throw new Error("This action item already has a task");
+
+    const [employee] = await tx
+      .select({ id: employeesTable.id, firstName: employeesTable.firstName, lastName: employeesTable.lastName })
+      .from(employeesTable)
+      .where(and(eq(employeesTable.id, employeeId), eq(employeesTable.companyId, companyId)))
+      .limit(1);
+    if (!employee) throw new Error("Employee not found in this company");
+    const fullName = `${employee.firstName} ${employee.lastName}`.trim();
+
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const [task] = await tx
+      .insert(generatedTasksTable)
+      .values({
+        companyId,
+        employeeId: employee.id,
+        generatedDate: todayIso,
+        title: item.title,
+        description: item.description || `Action item from meeting "${note.title}".`,
+        priority: item.priority ?? "medium",
+        status: "assigned",
+        source: "ai_customized",
+        aiCustomizations: { origin: "meeting_assistant", meetingId: note.meetingId, manualAssignment: true },
+        dueDate: item.dueDate ?? null,
+      })
+      .returning({ id: generatedTasksTable.id });
+    if (!task) throw new Error("Failed to create task");
+
+    items[itemIndex] = { ...item, assigneeName: fullName, assigneeUserId: undefined, taskId: task.id };
+    const [updated] = await tx
+      .update(aiMeetingNotesTable)
+      .set({ actionItems: items, updatedAt: new Date() })
+      .where(and(eq(aiMeetingNotesTable.id, noteId), eq(aiMeetingNotesTable.companyId, companyId)))
+      .returning();
+    return { updated, item, fullName };
+  });
+
+  const note = updated;
+  void emitNotification({
+    type: "hr",
+    title: `New action item for ${fullName}`,
+    message: `"${item.title}" from meeting "${note.title}"${item.dueDate ? ` — due ${item.dueDate}` : ""}.`,
+    severity: "info",
+    companyId,
+    actionUrl: "/admin/ai-tasks",
+  });
+
+  return updated;
+}
+
 export async function getMeetingNote(id: number, companyId: number) {
   const [note] = await db
     .select()

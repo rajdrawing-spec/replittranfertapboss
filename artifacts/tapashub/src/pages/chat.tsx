@@ -149,6 +149,41 @@ export default function ChatPage() {
     enabled: !!companyId && notesOpen,
   })
 
+  // Employees list for manually assigning unmatched action items
+  const { data: employeesData } = useQuery<{ items: Array<{ id: number; firstName: string; lastName: string }> }>({
+    queryKey: ["/api/employees", companyId, "for-assign"],
+    queryFn: async () => {
+      const res = await fetch(`/api/employees?companyId=${companyId}&limit=200`, { credentials: "include" })
+      if (!res.ok) throw new Error(await res.text())
+      return res.json()
+    },
+    enabled: !!companyId && !!openNoteId,
+  })
+
+  const [assigningIndex, setAssigningIndex] = React.useState<number | null>(null)
+  const assignActionItem = async (itemIndex: number, employeeId: string) => {
+    if (!openNoteId || assigningIndex !== null) return
+    setAssigningIndex(itemIndex)
+    try {
+      const res = await fetch(`/api/meetings/notes/${openNoteId}/action-items/${itemIndex}/assign`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, employeeId: Number(employeeId) }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        toast({ title: "Could not assign", description: err.error || "Assignment failed", variant: "destructive" })
+        return
+      }
+      toast({ title: "Action item assigned", description: "A task was created and the assignee was notified." })
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings/notes", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings/notes", companyId, "detail", openNoteId] })
+    } finally {
+      setAssigningIndex(null)
+    }
+  }
+
   const { data: openNote } = useQuery<MeetingNoteDetail>({
     queryKey: ["/api/meetings/notes", companyId, "detail", openNoteId],
     queryFn: async () => {
@@ -688,6 +723,25 @@ export default function ChatPage() {
                               {item.assigneeName ? `Assigned to ${item.assigneeName}` : "Unassigned"}
                               {item.dueDate ? ` · Due ${item.dueDate}` : ""}
                             </div>
+                            {!item.taskId && (
+                              <div className="mt-2 max-w-[240px]">
+                                <Select
+                                  disabled={assigningIndex !== null}
+                                  onValueChange={(v) => assignActionItem(i, v)}
+                                >
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue placeholder={assigningIndex === i ? "Assigning..." : "Assign to employee..."} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {employeesData?.items?.map((e) => (
+                                      <SelectItem key={e.id} value={e.id.toString()} className="text-xs">
+                                        {e.firstName} {e.lastName}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
                             {item.description && <div className="text-xs text-muted-foreground mt-1">{item.description}</div>}
                           </div>
                         ))}

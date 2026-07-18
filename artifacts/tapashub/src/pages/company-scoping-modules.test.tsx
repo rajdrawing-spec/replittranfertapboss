@@ -30,6 +30,18 @@ vi.mock("@/hooks/use-toast", () => ({
   useToast: () => ({ toast: () => {} }),
 }))
 
+// Pages gate on permissions; grant everything so the admin views render.
+vi.mock("@/contexts/auth-context", () => ({
+  useAuth: () => ({
+    user: { id: 1, email: "admin@test", isSuperAdmin: true, permissions: ["*"] },
+    isSuperAdmin: true,
+    hasPermission: () => true,
+    loading: false,
+    logout: async () => {},
+    refetch: async () => {},
+  }),
+}))
+
 import Inventory from "@/pages/inventory"
 import Finance from "@/pages/finance"
 import HR from "@/pages/hr"

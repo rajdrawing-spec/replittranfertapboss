@@ -5,12 +5,46 @@ import { eq } from "drizzle-orm";
 import { requireSuperAdmin } from "../middleware/authz";
 import { PERMISSIONS } from "../lib/permissions";
 import { writeAudit } from "../lib/audit";
+import { emitNotification } from "../lib/notify";
 
 const router = Router();
 
 // GET /permissions — the permission catalog (for the roles editor & invite form).
 router.get("/permissions", requireSuperAdmin, async (_req, res) => {
   res.json(PERMISSIONS);
+});
+
+// POST /access-requests — any authenticated user asks the Super Admin for
+// access to a module. Emits a notification; best-effort, no persistent queue.
+// In-memory cooldown prevents notification spam (1 request/module/user/hour).
+const accessRequestCooldown = new Map<string, number>();
+const ACCESS_REQUEST_COOLDOWN_MS = 60 * 60 * 1000;
+router.post("/access-requests", async (req, res) => {
+  try {
+    const u = (req as any).localUser as User | undefined;
+    if (!u) { res.status(401).json({ error: "Authentication required" }); return; }
+    const module = String(req.body?.module ?? "").slice(0, 100).trim();
+    if (!module) { res.status(400).json({ error: "module is required" }); return; }
+    const cdKey = `${u.id}:${module.toLowerCase()}`;
+    const last = accessRequestCooldown.get(cdKey) ?? 0;
+    if (Date.now() - last < ACCESS_REQUEST_COOLDOWN_MS) {
+      res.status(429).json({ error: "Request already sent. Please wait before requesting again." });
+      return;
+    }
+    accessRequestCooldown.set(cdKey, Date.now());
+    await emitNotification({
+      type: "security",
+      title: "Access request",
+      message: `${u.name ?? u.email} (${u.email}) requested access to ${module}. Grant it via Team & Roles.`,
+      severity: "warning",
+      actionUrl: "/admin/access",
+    });
+    void writeAudit({ userId: u.id, userEmail: u.email, action: "access.request", targetType: "permission", targetId: module, description: `Requested access to ${module}` });
+    res.status(201).json({ ok: true });
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to submit access request" });
+  }
 });
 
 // GET /roles — list roles (Super Admin only; used by the access-control page).

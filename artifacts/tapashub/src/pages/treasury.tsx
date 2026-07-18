@@ -37,6 +37,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { adminApi } from "@/lib/admin-api"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
+import { RequestAccessGate } from "@/components/access-gate"
 
 /* ─────────────────────────────── Types ─────────────────────────────── */
 
@@ -218,7 +219,9 @@ function KpiCard({
 
 export default function Treasury() {
   const { toast } = useToast()
-  const { isSuperAdmin } = useAuth()
+  const { hasPermission } = useAuth()
+  const canView = hasPermission("treasury.view")
+  const canManage = hasPermission("treasury.manage")
   const qc = useQueryClient()
 
   const [page, setPage] = React.useState(1)
@@ -237,6 +240,7 @@ export default function Treasury() {
     queryKey: ["/api/treasury/summary"],
     queryFn: () => adminApi.get("/treasury/summary"),
     refetchInterval: 30_000,
+    enabled: canView,
   })
 
   const listKey = ["/api/treasury/entries", page, statusFilter, sourceFilter]
@@ -245,6 +249,7 @@ export default function Treasury() {
     queryFn: () => adminApi.get(
       `/treasury/entries?page=${page}&limit=25${statusFilter !== "all" ? `&status=${statusFilter}` : ""}${sourceFilter !== "all" ? `&fundingSource=${sourceFilter}` : ""}`
     ),
+    enabled: canView,
   })
 
   const invalidate = () => {
@@ -354,16 +359,8 @@ export default function Treasury() {
   const totalPages = Math.ceil((list?.total ?? 0) / 25)
 
   /* ─────────── Access guard ────────── */
-  if (!isSuperAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
-        <AlertCircle className="w-10 h-10 text-amber-400" />
-        <h2 className="text-lg font-semibold">Super Admin Access Required</h2>
-        <p className="text-sm text-muted-foreground max-w-xs">
-          The TapasHub Treasury is only accessible to super administrators.
-        </p>
-      </div>
-    )
+  if (!canView) {
+    return <RequestAccessGate module="Treasury" />
   }
 
   if (summaryError) {
@@ -402,7 +399,7 @@ export default function Treasury() {
           <Button variant="outline" size="sm" className="gap-2" onClick={handleExport}>
             <Download className="w-4 h-4" />Export
           </Button>
-          {isSuperAdmin && (
+          {canManage && (
             <Button size="sm" className="gap-2" onClick={openAdd}>
               <Plus className="w-4 h-4" />Add Funding
             </Button>
@@ -694,17 +691,17 @@ export default function Treasury() {
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Ref #</TableHead>
-                  {isSuperAdmin && <TableHead className="w-20" />}
+                  {canManage && <TableHead className="w-20" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {listLoading ? (
                   Array.from({ length: 6 }).map((_, i) => (
-                    <TableRow key={i}><TableCell colSpan={isSuperAdmin ? 8 : 7}><Skeleton className="h-7 w-full" /></TableCell></TableRow>
+                    <TableRow key={i}><TableCell colSpan={canManage ? 8 : 7}><Skeleton className="h-7 w-full" /></TableCell></TableRow>
                   ))
                 ) : !list?.items?.length ? (
                   <TableRow>
-                    <TableCell colSpan={isSuperAdmin ? 8 : 7} className="h-32 text-center text-muted-foreground">
+                    <TableCell colSpan={canManage ? 8 : 7} className="h-32 text-center text-muted-foreground">
                       <Landmark className="w-8 h-8 mx-auto mb-2 opacity-30" />
                       No treasury entries yet. Add your first funding source.
                     </TableCell>
@@ -786,7 +783,7 @@ export default function Treasury() {
                       }
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground font-mono">{e.referenceNumber ?? "—"}</TableCell>
-                    {isSuperAdmin && (
+                    {canManage && (
                       <TableCell>
                         {!e.isReversed && (
                           <div className="flex gap-1">

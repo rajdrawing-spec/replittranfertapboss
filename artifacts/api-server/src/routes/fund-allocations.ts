@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, fundAllocationsTable, companiesTable, approvalsTable, usersTable, shareholdersTable, transactionsTable } from "@workspace/db";
 import type { User, RequiredApprover } from "@workspace/db";
 import { eq, and, or, inArray, desc, sql, isNotNull, ne } from "drizzle-orm";
-import { requireSuperAdmin } from "../middleware/authz";
+import { requirePermission } from "../middleware/authz";
 import { companyScope } from "../lib/company-scope";
 import { executeFundAllocation } from "../lib/fund-allocation";
 import { FUND_APPROVAL_THRESHOLD } from "../lib/finance-config";
@@ -11,7 +11,7 @@ import { writeAudit } from "../lib/audit";
 
 const router = Router();
 
-router.get("/fund-allocations", async (req, res) => {
+router.get("/fund-allocations", requirePermission("funds.view"), async (req, res) => {
   try {
     const { status, companyId, page = "1", limit = "20" } = req.query as Record<string, string>;
     const pageNum = parseInt(page);
@@ -49,11 +49,11 @@ router.get("/fund-allocations", async (req, res) => {
   }
 });
 
-router.get("/fund-allocations/threshold", (_req, res) => {
+router.get("/fund-allocations/threshold", requirePermission("funds.view"), (_req, res) => {
   res.json({ threshold: FUND_APPROVAL_THRESHOLD });
 });
 
-router.post("/fund-allocations", requireSuperAdmin, async (req, res) => {
+router.post("/fund-allocations", requirePermission("funds.manage"), async (req, res) => {
   try {
     const u = (req as any).localUser as User;
     const { fromCompanyId, toCompanyId, amount, purpose, note, equityChangePercent } = req.body ?? {};
@@ -193,7 +193,7 @@ router.post("/fund-allocations", requireSuperAdmin, async (req, res) => {
 // Only pending_approval records may be changed; executed/rejected/cancelled are immutable.
 // Allowed fields: amount, purpose, note, equityChangePercent.
 // The linked approval record (if any) is kept in sync.
-router.patch("/fund-allocations/:id", requireSuperAdmin, async (req, res) => {
+router.patch("/fund-allocations/:id", requirePermission("funds.manage"), async (req, res) => {
   try {
     const id = parseInt(String(req.params.id));
     const u = (req as any).localUser as User;
@@ -267,7 +267,7 @@ router.patch("/fund-allocations/:id", requireSuperAdmin, async (req, res) => {
 // Hard-deletes a fund allocation and its linked finance transactions atomically.
 //
 // Uses SELECT … FOR UPDATE to prevent a race with concurrent approval-execution.
-router.delete("/fund-allocations/:id", requireSuperAdmin, async (req, res) => {
+router.delete("/fund-allocations/:id", requirePermission("funds.manage"), async (req, res) => {
   const id = parseInt(String(req.params.id));
   const u = (req as any).localUser as User;
 

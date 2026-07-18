@@ -15,6 +15,7 @@ import { ArrowRight, Trash2, Landmark, Pencil, ShieldCheck, Wallet, TrendingUp, 
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
+import { RequestAccessGate } from "@/components/access-gate"
 
 interface Company { id: number; name: string; type: string; ownershipPercent: number }
 interface Allocation {
@@ -66,7 +67,10 @@ const allocToForm = (a: Allocation): Form => ({
 
 export default function FundAllocations() {
   const { toast } = useToast()
-  const { isSuperAdmin } = useAuth()
+  const { hasPermission } = useAuth()
+  const canView = hasPermission("funds.view")
+  const canManage = hasPermission("funds.manage")
+  const canViewTreasury = hasPermission("treasury.view")
   const qc = useQueryClient()
   const [statusFilter, setStatusFilter] = React.useState("all")
   const [showDialog, setShowDialog] = React.useState(false)
@@ -83,6 +87,7 @@ export default function FundAllocations() {
   const { data: thresholdData } = useQuery<{ threshold: number }>({
     queryKey: ["/api/fund-allocations/threshold"],
     queryFn: () => adminApi.get("/fund-allocations/threshold"),
+    enabled: canView,
   })
 
   // Working capital snapshot — feeds the "Capital by Company" section
@@ -98,7 +103,7 @@ export default function FundAllocations() {
     queryFn: () => adminApi.get("/treasury/working-capital"),
     refetchInterval: 60_000,
     staleTime: 30_000,
-    enabled: isSuperAdmin,
+    enabled: canViewTreasury,
   })
   const threshold = thresholdData?.threshold ?? 100000
 
@@ -106,6 +111,7 @@ export default function FundAllocations() {
   const { data, isLoading } = useQuery<{ items: Allocation[]; total: number }>({
     queryKey: listKey,
     queryFn: () => adminApi.get(`/fund-allocations${statusFilter !== "all" ? `?status=${statusFilter}` : ""}`),
+    enabled: canView,
   })
   const items = data?.items ?? []
 
@@ -229,6 +235,10 @@ export default function FundAllocations() {
     return (Number.isFinite(amt) && amt >= threshold) || eq > 0
   })()
 
+  if (!canView) {
+    return <RequestAccessGate module="Fund Allocation" />
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -236,7 +246,7 @@ export default function FundAllocations() {
           <h1 className="text-2xl font-bold tracking-tight">Fund Allocation</h1>
           <p className="text-muted-foreground text-sm">Move capital from Tapas Hub into a sub-brand. Each allocation is recorded in finance on both sides.</p>
         </div>
-        {isSuperAdmin && (
+        {canManage && (
           <Button onClick={openCreate}>
             <Wallet className="mr-2 h-4 w-4" /> Allocate Funds
           </Button>
@@ -256,7 +266,7 @@ export default function FundAllocations() {
       </Card>
 
       {/* ─── Capital Distribution by Company ─────────────────────────── */}
-      {isSuperAdmin && wcData && wcData.byCompany.length > 0 && (
+      {canManage && wcData && wcData.byCompany.length > 0 && (
         <Card className="bg-card/60">
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -399,17 +409,17 @@ export default function FundAllocations() {
                 <TableHead>Status</TableHead>
                 <TableHead>Requested by</TableHead>
                 <TableHead>Date</TableHead>
-                {isSuperAdmin && <TableHead className="w-20" />}
+                {canManage && <TableHead className="w-20" />}
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}><TableCell colSpan={isSuperAdmin ? 8 : 7}><Skeleton className="h-6 w-full" /></TableCell></TableRow>
+                  <TableRow key={i}><TableCell colSpan={canManage ? 8 : 7}><Skeleton className="h-6 w-full" /></TableCell></TableRow>
                 ))
               ) : items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={isSuperAdmin ? 8 : 7} className="py-12 text-center text-muted-foreground">
+                  <TableCell colSpan={canManage ? 8 : 7} className="py-12 text-center text-muted-foreground">
                     <Landmark className="mx-auto mb-2 h-8 w-8 opacity-40" />
                     No fund allocations yet.
                   </TableCell>
@@ -497,7 +507,7 @@ export default function FundAllocations() {
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">{a.requestedByName}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{new Date(a.createdAt).toLocaleDateString("en-IN")}</TableCell>
-                    {isSuperAdmin && (
+                    {canManage && (
                       <TableCell>
                         <div className="flex items-center gap-1">
                           {/* Edit: only for pending allocations */}

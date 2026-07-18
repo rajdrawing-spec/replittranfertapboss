@@ -23,6 +23,8 @@ import {
 } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { useCompany } from "@/contexts/company-context"
+import { useAuth } from "@/contexts/auth-context"
+import { RequestAccessGate } from "@/components/access-gate"
 import { useToast } from "@/hooks/use-toast"
 
 const API_BASE = ""
@@ -165,6 +167,8 @@ function BalanceSection({ balance, loading }: { balance: BalanceData | undefined
 /* ── Main page ── */
 export default function Finance() {
   const { activeCompany } = useCompany()
+  const { hasPermission } = useAuth()
+  const canViewFinance = hasPermission("finance.view")
   const { toast } = useToast()
   const [typeFilter, setTypeFilter] = React.useState("all")
   const [page, setPage] = React.useState(1)
@@ -198,13 +202,13 @@ export default function Finance() {
   if (typeFilter !== "all") params.type = typeFilter
 
   const { data, isLoading, refetch } = useListTransactions(params, {
-    query: { enabled: true, queryKey: getListTransactionsQueryKey(params) }
+    query: { enabled: canViewFinance, queryKey: getListTransactionsQueryKey(params) }
   })
 
   const pnlParams: Record<string, string> = {}
   if (activeCompany) pnlParams.companyId = String(activeCompany.id)
   const { data: pnl } = useGetPnlSummary(pnlParams, {
-    query: { enabled: true, queryKey: getGetPnlSummaryQueryKey(pnlParams) }
+    query: { enabled: canViewFinance, queryKey: getGetPnlSummaryQueryKey(pnlParams) }
   })
 
   // Balance
@@ -212,6 +216,7 @@ export default function Finance() {
   const { data: balance, isLoading: balanceLoading } = useQuery<BalanceData>({
     queryKey: [balanceKey],
     queryFn: () => fetch(API_BASE + balanceKey, { credentials: "include" }).then(r => r.json()),
+    enabled: canViewFinance,
   })
 
   function openAdd() {
@@ -368,6 +373,10 @@ export default function Finance() {
   ] : []
 
   const isSubsidiary = activeCompany?.mode === "subsidiary"
+
+  if (!hasPermission("finance.view")) {
+    return <RequestAccessGate module="Finance" />
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">

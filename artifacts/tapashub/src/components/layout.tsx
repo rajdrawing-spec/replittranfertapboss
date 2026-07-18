@@ -56,6 +56,8 @@ interface NavItem {
   name: string
   href: string
   icon: React.ElementType
+  /** Permission required to see this item. Undefined = always visible. */
+  perm?: string
 }
 
 /* ─────────────────────────────────────────────────────
@@ -64,38 +66,38 @@ interface NavItem {
 
 const parentNav: NavItem[] = [
   { name: "Portfolio Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Companies", href: "/companies", icon: Building2 },
-  { name: "Marketing", href: "/marketing", icon: Megaphone },
-  { name: "Finance", href: "/finance", icon: Wallet },
-  { name: "Treasury", href: "/treasury", icon: Landmark },
-  { name: "Fund Allocation", href: "/fund-allocation", icon: Landmark },
-  { name: "Shareholders", href: "/shareholders", icon: PieChart },
+  { name: "Companies", href: "/companies", icon: Building2, perm: "platform.companies" },
+  { name: "Marketing", href: "/marketing", icon: Megaphone, perm: "marketing.view" },
+  { name: "Finance", href: "/finance", icon: Wallet, perm: "finance.view" },
+  { name: "Treasury", href: "/treasury", icon: Landmark, perm: "treasury.view" },
+  { name: "Fund Allocation", href: "/fund-allocation", icon: Landmark, perm: "funds.view" },
+  { name: "Shareholders", href: "/shareholders", icon: PieChart, perm: "shareholders.view" },
   { name: "Analytics", href: "/analytics", icon: TrendingUp },
-  { name: "HR & People", href: "/hr", icon: Users },
-  { name: "Team & Roles", href: "/admin/access", icon: ShieldCheck },
-  { name: "Documents", href: "/documents", icon: FileText },
-  { name: "Account Directory", href: "/accounts", icon: Contact },
-  { name: "Approvals", href: "/approvals", icon: CheckSquare },
+  { name: "HR & People", href: "/hr", icon: Users, perm: "hr.view" },
+  { name: "Team & Roles", href: "/admin/access", icon: ShieldCheck, perm: "platform.roles" },
+  { name: "Documents", href: "/documents", icon: FileText, perm: "documents.view" },
+  { name: "Account Directory", href: "/accounts", icon: Contact, perm: "directory.view" },
+  { name: "Approvals", href: "/approvals", icon: CheckSquare, perm: "approvals.view" },
   { name: "Director Portal", href: "/director", icon: PieChart },
-  { name: "AI Reports", href: "/ai-reports", icon: Bot },
-  { name: "AI Insights", href: "/ai-assistant", icon: Bot },
+  { name: "AI Reports", href: "/ai-reports", icon: Bot, perm: "ai.reports" },
+  { name: "AI Insights", href: "/ai-assistant", icon: Bot, perm: "ai.read" },
 ]
 
 const baseSubsidiaryNav: NavItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Orders", href: "/orders", icon: ShoppingCart },
-  { name: "Products", href: "/inventory", icon: PackageSearch },
-  { name: "Shipping", href: "/shipping", icon: Truck },
-  { name: "Customers", href: "/crm", icon: UsersRound },
-  { name: "Marketing", href: "/marketing", icon: Megaphone },
-  { name: "Finance", href: "/finance", icon: Wallet },
-  { name: "Documents", href: "/documents", icon: FileText },
-  { name: "AI Tasks", href: "/ai-tasks", icon: CheckSquare },
+  { name: "Orders", href: "/orders", icon: ShoppingCart, perm: "orders.view" },
+  { name: "Products", href: "/inventory", icon: PackageSearch, perm: "inventory.view" },
+  { name: "Shipping", href: "/shipping", icon: Truck, perm: "shipping.view" },
+  { name: "Customers", href: "/crm", icon: UsersRound, perm: "crm.view" },
+  { name: "Marketing", href: "/marketing", icon: Megaphone, perm: "marketing.view" },
+  { name: "Finance", href: "/finance", icon: Wallet, perm: "finance.view" },
+  { name: "Documents", href: "/documents", icon: FileText, perm: "documents.view" },
+  { name: "AI Tasks", href: "/ai-tasks", icon: CheckSquare, perm: "ai_tasks.read" },
   { name: "Planner", href: "/planner", icon: CalendarDays },
-  { name: "Chat", href: "/chat", icon: MessageSquare },
-  { name: "Meetings", href: "/meetings", icon: Video },
-  { name: "Account Directory", href: "/accounts", icon: Contact },
-  { name: "Integrations", href: "/integrations", icon: Globe2 },
+  { name: "Chat", href: "/chat", icon: MessageSquare, perm: "chat.read" },
+  { name: "Meetings", href: "/meetings", icon: Video, perm: "meetings.read" },
+  { name: "Account Directory", href: "/accounts", icon: Contact, perm: "directory.view" },
+  { name: "Integrations", href: "/integrations", icon: Globe2, perm: "platform.integrations" },
 ]
 
 const industryExtras: Record<string, NavItem[]> = {
@@ -280,7 +282,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = React.useState(true)
   const [mobileOpen, setMobileOpen] = React.useState(false)
   const { activeCompany, isParentView } = useCompany()
-  const { logout, user: authUser, isSuperAdmin } = useAuth()
+  const { logout, user: authUser, isSuperAdmin, hasPermission } = useAuth()
 
   // "Team & Roles" is already in parentNav when in the TapasHub parent context;
   // only add it here (via adminNav) for subsidiary views to avoid duplication.
@@ -293,7 +295,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
         { name: "Admin Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
       ]
     : []
-  const navItems = [...getNavItems(activeCompany), ...adminNav]
+  const navItems = [...getNavItems(activeCompany), ...adminNav].filter(
+    (item) => !item.perm || hasPermission(item.perm),
+  )
   const collapsed = !sidebarOpen
 
   const { data: aiTasksUnread } = useQuery<{ count: number }>({

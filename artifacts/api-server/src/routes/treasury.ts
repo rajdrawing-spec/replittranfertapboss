@@ -16,7 +16,7 @@ import { Router } from "express";
 import { db, treasuryEntriesTable, fundAllocationsTable, companiesTable, transactionsTable } from "@workspace/db";
 import type { User } from "@workspace/db";
 import { eq, and, ne, desc, sql, inArray } from "drizzle-orm";
-import { requireSuperAdmin } from "../middleware/authz";
+import { requirePermission } from "../middleware/authz";
 import { writeAudit } from "../lib/audit";
 
 const router = Router();
@@ -95,7 +95,7 @@ async function subsidiaryIncomeMap(subsidiaryIds: number[]): Promise<Record<numb
      • monthlyInflow[]   — capital raised per month (last 6 months)
      • monthlyRevenue[]  — subsidiary income per month (last 6 months)
    ─────────────────────────────────────────────── */
-router.get("/treasury/summary", requireSuperAdmin, async (req, res) => {
+router.get("/treasury/summary", requirePermission("treasury.view"), async (req, res) => {
   try {
     // ── Capital raised ─────────────────────────────────────────────────────
     const [raised] = await db
@@ -258,7 +258,7 @@ router.get("/treasury/summary", requireSuperAdmin, async (req, res) => {
    utilizationPct = totalSpent / totalCapital
    byCompany[]    includes both allocated (budget) and spent (actual)
    ─────────────────────────────────────────────── */
-router.get("/treasury/working-capital", requireSuperAdmin, async (req, res) => {
+router.get("/treasury/working-capital", requirePermission("treasury.view"), async (req, res) => {
   try {
     const [raised] = await db
       .select({ total: sql<number>`coalesce(sum(amount), 0)` })
@@ -338,7 +338,7 @@ router.get("/treasury/working-capital", requireSuperAdmin, async (req, res) => {
 /* ─────────────────────────────────────────────
    GET /treasury/entries
    ─────────────────────────────────────────────── */
-router.get("/treasury/entries", requireSuperAdmin, async (req, res) => {
+router.get("/treasury/entries", requirePermission("treasury.view"), async (req, res) => {
   try {
     const { status, fundingSource, page = "1", limit = "50" } = req.query as Record<string, string>;
     const pageNum  = Math.max(1, parseInt(page));
@@ -365,7 +365,7 @@ router.get("/treasury/entries", requireSuperAdmin, async (req, res) => {
 /* ─────────────────────────────────────────────
    POST /treasury/entries
    ─────────────────────────────────────────────── */
-router.post("/treasury/entries", requireSuperAdmin, async (req, res) => {
+router.post("/treasury/entries", requirePermission("treasury.manage"), async (req, res) => {
   try {
     const u = (req as any).localUser as User;
     const { fundingSource, investorName, amount, date, currency, paymentMethod, referenceNumber, description, notes, status } = req.body ?? {};
@@ -411,7 +411,7 @@ router.post("/treasury/entries", requireSuperAdmin, async (req, res) => {
 /* ─────────────────────────────────────────────
    PATCH /treasury/entries/:id
    ─────────────────────────────────────────────── */
-router.patch("/treasury/entries/:id", requireSuperAdmin, async (req, res) => {
+router.patch("/treasury/entries/:id", requirePermission("treasury.manage"), async (req, res) => {
   try {
     const id = parseInt(String(req.params.id));
     const u  = (req as any).localUser as User;
@@ -470,7 +470,7 @@ router.patch("/treasury/entries/:id", requireSuperAdmin, async (req, res) => {
 /* ─────────────────────────────────────────────
    POST /treasury/entries/:id/reverse
    ─────────────────────────────────────────────── */
-router.post("/treasury/entries/:id/reverse", requireSuperAdmin, async (req, res) => {
+router.post("/treasury/entries/:id/reverse", requirePermission("treasury.manage"), async (req, res) => {
   try {
     const id = parseInt(String(req.params.id));
     const u  = (req as any).localUser as User;

@@ -45,4 +45,5 @@
 - [TBOS parent-view company actions](tbos-parent-view-actions.md) — company-scoped quick actions (chat, instant meeting) need a company picker in the parent dashboard; backend already enforces companyId on POST.
 - [TBOS Jitsi provider choice](tbos-jitsi-provider.md) — free public `meet.jit.si` is the default; Jitsi as a Service (JaaS) requires an API key + paid plan and only adds value when you need recordings, branding, or dial-in.
 - [TBOS JaaS JWT integration](tbos-jaas-jwt.md) — store `vpaas-magic-cookie-<apiKey>/<appId>` as `JITSIAAS_MAGIC_COOKIE`; backend signs HS256 JWT with `Buffer.from(apiKey,"hex")`; room URL becomes `https://8x8.vc/<appId>/<roomName>?jwt=<token>`; frontend SDK gets `jwt` prop and parses JaaS server URL into `domain=8x8.vc` + `roomName=<appId>/<roomName>`.
+- [TBOS granular RBAC](tbos-rbac-permissions.md) — treasury/funds use permission keys not requireSuperAdmin; RequestAccessGate flow; fake-DB tests must mock authz middleware.
 - [TBOS group-call join policy](tbos-group-call-policy.md) — any company member may join a meeting in their workspace; only explicitly rejected invitees are blocked.

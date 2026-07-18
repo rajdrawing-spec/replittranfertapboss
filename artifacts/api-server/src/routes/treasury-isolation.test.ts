@@ -159,6 +159,22 @@ vi.mock("@clerk/express", () => ({
   clerkClient: { users: { getUser: vi.fn() } },
 }));
 
+// Permission middleware would hit the real roles table via getUserPermissions;
+// this suite verifies company scoping, not role permissions, so pass through
+// any signed-in user (unauthenticated requests still get 401).
+vi.mock("../middleware/authz", () => ({
+  requirePermission: () => (req: any, res: any, next: any) => {
+    if (!req.localUser) { res.status(401).json({ error: "Authentication required" }); return; }
+    next();
+  },
+  requireSuperAdmin: (req: any, res: any, next: any) => {
+    if (!req.localUser || req.localUser.role !== "super_admin") {
+      res.status(403).json({ error: "Super Admin access required" }); return;
+    }
+    next();
+  },
+}));
+
 // Side-effecting helpers hit by the POST path only — no-op them.
 vi.mock("../lib/fund-allocation", () => ({ executeFundAllocation: vi.fn() }));
 vi.mock("../lib/notify", () => ({ emitNotification: vi.fn() }));

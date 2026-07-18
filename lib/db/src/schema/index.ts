@@ -32,5 +32,6 @@ export * from "./ai-task-settings";
 export * from "./chat";
 export * from "./connect";
 export * from "./meetings";
+export * from "./call-center";
 export * from "./conversations";
 export * from "./messages";

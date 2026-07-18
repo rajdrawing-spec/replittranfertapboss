@@ -40,6 +40,23 @@ export function broadcastMeetingRinging(
   }
 }
 
+/**
+ * Broadcast a call-center event to specific users' socket connections.
+ * Events (mock until Exotel webhooks replace them): incoming_call,
+ * call_answered, call_rejected, call_started, call_ended, call_hold,
+ * call_resume, call_transfer, call_recording.
+ */
+export function broadcastCallEvent(userIds: number[], event: string, data: Record<string, unknown>) {
+  if (!_io) return;
+  for (const userId of userIds) {
+    const sockets = presenceMap.get(userId);
+    if (!sockets) continue;
+    for (const sid of sockets) {
+      _io.to(sid).emit(event, data);
+    }
+  }
+}
+
 /** Emit a meeting:declined event to the organizer's socket connections. */
 export function broadcastMeetingDeclined(
   organizerUserId: number,

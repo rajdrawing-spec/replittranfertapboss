@@ -54,6 +54,8 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "chat.manage", label: "Manage chat", group: "Chat" },
   { key: "meetings.read", label: "View meetings", group: "Meetings" },
   { key: "meetings.manage", label: "Manage meetings", group: "Meetings" },
+  { key: "callcenter.view", label: "Use the call center (make/receive calls, own history)", group: "Call Center" },
+  { key: "callcenter.manage", label: "Manage call center (numbers, settings, all calls)", group: "Call Center" },
 ];
 
 export const ALL_MODULE_PERMISSIONS = PERMISSIONS.filter((p) => !p.key.startsWith("platform.")).map((p) => p.key);
@@ -74,7 +76,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
   { key: "sales_manager", name: "Sales Manager", description: "Manages customers and sales orders.", permissions: ["dashboard.view", "crm.view", "crm.manage", "orders.view", "marketing.view", "chat.read"] },
   { key: "inventory_manager", name: "Inventory Manager", description: "Manages stock and products.", permissions: ["dashboard.view", "inventory.view", "inventory.manage", "orders.view", "chat.read"] },
   { key: "shipping_manager", name: "Shipping Manager", description: "Manages shipments and returns.", permissions: ["dashboard.view", "shipping.view", "shipping.manage", "orders.view", "chat.read"] },
-  { key: "customer_support", name: "Customer Support", description: "Views customers and orders to help buyers.", permissions: ["dashboard.view", "crm.view", "orders.view", "chat.read"] },
+  { key: "customer_support", name: "Customer Support", description: "Views customers and orders to help buyers.", permissions: ["dashboard.view", "crm.view", "orders.view", "chat.read", "callcenter.view"] },
   { key: "finance", name: "Finance", description: "Access to finance and documents.", permissions: ["dashboard.view", "finance.view", "finance.manage", "treasury.view", "treasury.manage", "funds.view", "funds.manage", "documents.view", "shareholders.view", "chat.read"] },
   { key: "director", name: "Director", description: "Company oversight: dashboard, finance, approvals and shareholder cap table.", permissions: ["dashboard.view", "finance.view", "treasury.view", "funds.view", "approvals.view", "approvals.manage", "shareholders.view", "documents.view", "chat.read", "chat.manage", "meetings.read", "meetings.manage"] },
   { key: "investor", name: "Investor", description: "Read-only high-level financial view.", permissions: ["dashboard.view", "finance.view", "meetings.read"] },

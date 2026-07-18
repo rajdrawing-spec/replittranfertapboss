@@ -29,6 +29,7 @@ import {
   PieChart,
   LogOut,
   Contact,
+  Headset,
   Truck,
   ShieldCheck,
   ScrollText,
@@ -95,6 +96,7 @@ const baseSubsidiaryNav: NavItem[] = [
   { name: "AI Tasks", href: "/ai-tasks", icon: CheckSquare, perm: "ai_tasks.read" },
   { name: "Planner", href: "/planner", icon: CalendarDays },
   { name: "Team", href: "/chat", icon: MessageSquare, perm: "chat.read" },
+  { name: "Call Center", href: "/call-center", icon: Headset, perm: "callcenter.view" },
   { name: "Account Directory", href: "/accounts", icon: Contact, perm: "directory.view" },
   { name: "Integrations", href: "/integrations", icon: Globe2, perm: "platform.integrations" },
 ]

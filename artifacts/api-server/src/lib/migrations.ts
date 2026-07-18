@@ -598,6 +598,70 @@ export async function applyMigrations(): Promise<void> {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS ai_meeting_notes_company_id_idx ON ai_meeting_notes(company_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS ai_meeting_notes_channel_id_idx ON ai_meeting_notes(channel_id)`);
 
+    // ── Call Center module ────────────────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS business_numbers (
+        id                    SERIAL PRIMARY KEY,
+        company_id            INTEGER NOT NULL,
+        department            TEXT NOT NULL,
+        display_name          TEXT NOT NULL,
+        phone_number          TEXT NOT NULL,
+        exotel_sid            TEXT,
+        exotel_virtual_number TEXT,
+        status                TEXT NOT NULL DEFAULT 'active',
+        is_default            BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at            TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS business_numbers_company_id_idx ON business_numbers(company_id)`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS call_contacts (
+        id         SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL,
+        name       TEXT NOT NULL,
+        phone      TEXT NOT NULL,
+        email      TEXT,
+        department TEXT,
+        tags       TEXT[] NOT NULL DEFAULT '{}',
+        favorite   BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS call_contacts_company_id_idx ON call_contacts(company_id)`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS call_logs (
+        id                 SERIAL PRIMARY KEY,
+        company_id         INTEGER NOT NULL,
+        call_id            TEXT NOT NULL,
+        business_number_id INTEGER,
+        contact_id         INTEGER,
+        user_id            INTEGER,
+        caller_name        TEXT,
+        caller_number      TEXT NOT NULL,
+        direction          TEXT NOT NULL,
+        status             TEXT NOT NULL,
+        duration           INTEGER NOT NULL DEFAULT 0,
+        recording_url      TEXT,
+        summary            TEXT,
+        notes              TEXT,
+        started_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+        ended_at           TIMESTAMP
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS call_logs_company_id_idx ON call_logs(company_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS call_logs_call_id_idx ON call_logs(call_id)`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS call_number_permissions (
+        id                 SERIAL PRIMARY KEY,
+        company_id         INTEGER NOT NULL,
+        user_id            INTEGER NOT NULL,
+        business_number_id INTEGER NOT NULL,
+        can_make_calls     BOOLEAN NOT NULL DEFAULT TRUE,
+        can_receive_calls  BOOLEAN NOT NULL DEFAULT TRUE
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS call_number_permissions_company_id_idx ON call_number_permissions(company_id)`);
+
     logger.info("Startup migrations applied (schema)");
   } catch (e) {
     // Log but never crash the server — missing tables are better discovered

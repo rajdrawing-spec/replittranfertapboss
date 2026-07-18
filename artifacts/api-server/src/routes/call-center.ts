@@ -476,6 +476,36 @@ router.patch("/call/logs/:id/notes", requirePermission("callcenter.view"), async
   }
 });
 
+// ── Test Exotel connection ────────────────────────────────────────────────────
+router.post("/call-center/test-connection", requirePermission("callcenter.manage"), async (req, res) => {
+  try {
+    const companyId = companyIdFrom(req);
+    if (!companyId || !canAccessCompany(req, companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    const { accountSid, apiKey, apiToken } = req.body ?? {};
+    if (!accountSid || !apiKey || !apiToken) {
+      res.status(400).json({ error: "accountSid, apiKey, and apiToken are required" }); return;
+    }
+    // Verify by hitting Exotel's calls list endpoint (lightweight, read-only)
+    const credentials = Buffer.from(`${apiKey}:${apiToken}`).toString("base64");
+    const exotelRes = await fetch(
+      `https://api.exotel.com/v1/Accounts/${encodeURIComponent(accountSid)}/Calls.json?PageSize=1`,
+      { headers: { Authorization: `Basic ${credentials}` }, signal: AbortSignal.timeout(8000) }
+    );
+    if (exotelRes.status === 200 || exotelRes.status === 204) {
+      res.json({ ok: true, message: "Connected to Exotel successfully." });
+    } else if (exotelRes.status === 401 || exotelRes.status === 403) {
+      res.status(200).json({ ok: false, error: "Authentication failed — check your API Key and API Token." });
+    } else if (exotelRes.status === 404) {
+      res.status(200).json({ ok: false, error: "Account SID not found. Verify your Account SID." });
+    } else {
+      res.status(200).json({ ok: false, error: `Exotel returned status ${exotelRes.status}. Check credentials.` });
+    }
+  } catch (e: any) {
+    const isTimeout = e?.name === "TimeoutError" || e?.name === "AbortError";
+    res.status(200).json({ ok: false, error: isTimeout ? "Request timed out — check network or credentials." : "Failed to reach Exotel API." });
+  }
+});
+
 // ── Call-center settings (Exotel credentials + toggles) ───────────────────────
 router.get("/call-center/settings", requirePermission("callcenter.manage"), async (req, res) => {
   try {

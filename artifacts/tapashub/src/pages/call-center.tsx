@@ -800,6 +800,16 @@ function NumbersTab({ companyId, numbers }: { companyId: number; numbers: Busine
     refresh()
   }
 
+  const deleteNumber = async (id: number) => {
+    if (!confirm("Delete this business number?")) return
+    const res = await fetch(`/api/business-numbers/${id}?companyId=${companyId}`, {
+      method: "DELETE",
+      credentials: "include",
+    })
+    if (!res.ok) toast({ title: "Delete failed", variant: "destructive" })
+    else { toast({ title: "Number deleted" }); refresh() }
+  }
+
   return (
     <Card>
       <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
@@ -821,6 +831,7 @@ function NumbersTab({ companyId, numbers }: { companyId: number; numbers: Busine
                 <TableHead>Exotel SID</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Default</TableHead>
+                <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -838,6 +849,11 @@ function NumbersTab({ companyId, numbers }: { companyId: number; numbers: Busine
                   </TableCell>
                   <TableCell>
                     <Switch checked={n.isDefault} disabled={n.isDefault} onCheckedChange={() => patchNumber(n.id, { isDefault: true })} />
+                  </TableCell>
+                  <TableCell>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => deleteNumber(n.id)}>
+                      <Delete className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -873,6 +889,7 @@ function SettingsTab({ companyId }: { companyId: number | undefined }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [saving, setSaving] = React.useState(false)
+  const [testing, setTesting] = React.useState(false)
   const [form, setForm] = React.useState({
     accountSid: "", apiKey: "", apiToken: "", webhookUrl: "", callerId: "",
     callRecording: false, callQueue: false,
@@ -899,6 +916,29 @@ function SettingsTab({ companyId }: { companyId: number | undefined }) {
       })
       .catch(() => setLoaded(true))
   }, [companyId])
+
+  async function testConnection() {
+    if (!companyId) return
+    setTesting(true)
+    try {
+      const res = await fetch("/api/call-center/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ companyId, accountSid: form.accountSid, apiKey: form.apiKey, apiToken: form.apiToken }),
+      })
+      const data = await res.json()
+      if (res.ok && data.ok) {
+        toast({ title: "✓ Exotel connected", description: data.message ?? "Credentials are valid." })
+      } else {
+        toast({ title: "Connection failed", description: data.error ?? "Check your credentials and try again.", variant: "destructive" })
+      }
+    } catch {
+      toast({ title: "Connection failed", description: "Network error. Try again.", variant: "destructive" })
+    } finally {
+      setTesting(false)
+    }
+  }
 
   async function save() {
     if (!companyId) return
@@ -958,9 +998,14 @@ function SettingsTab({ companyId }: { companyId: number | undefined }) {
           <span>Call queue</span>
           <Switch checked={form.callQueue} onCheckedChange={(v) => setForm({ ...form, callQueue: v })} />
         </div>
-        <Button className="w-full" onClick={save} disabled={saving}>
-          {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : "Save Settings"}
-        </Button>
+        <div className="flex gap-2">
+          <Button className="flex-1" onClick={save} disabled={saving || testing}>
+            {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : "Save Settings"}
+          </Button>
+          <Button variant="outline" onClick={testConnection} disabled={saving || testing || !form.accountSid || !form.apiKey || !form.apiToken}>
+            {testing ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Testing…</> : "Test Connection"}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )

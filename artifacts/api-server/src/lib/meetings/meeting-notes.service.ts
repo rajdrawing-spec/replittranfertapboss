@@ -269,6 +269,14 @@ export async function processMeetingAudio(noteId: number, meeting: Meeting, audi
       .set({ status: "failed", error: err instanceof Error ? err.message.slice(0, 500) : "Unknown error", updatedAt: new Date() })
       .where(eq(aiMeetingNotesTable.id, noteId))
       .catch(() => {});
+    void emitNotification({
+      type: "system",
+      title: "Meeting notes failed",
+      message: `AI notes for "${meeting.title}" could not be generated. Open Team → Meeting Notes to retry.`,
+      severity: "error",
+      companyId: meeting.companyId,
+      actionUrl: "/chat",
+    });
   }
 }
 

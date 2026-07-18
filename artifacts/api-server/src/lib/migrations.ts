@@ -663,6 +663,20 @@ export async function applyMigrations(): Promise<void> {
       )
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS call_number_permissions_company_id_idx ON call_number_permissions(company_id)`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS call_center_settings (
+        id               SERIAL PRIMARY KEY,
+        company_id       INTEGER NOT NULL UNIQUE,
+        account_sid      TEXT,
+        api_key          TEXT,
+        api_token        TEXT,
+        webhook_url      TEXT,
+        caller_id        TEXT,
+        call_recording   BOOLEAN NOT NULL DEFAULT FALSE,
+        call_queue       BOOLEAN NOT NULL DEFAULT FALSE,
+        updated_at       TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
 
     logger.info("Startup migrations applied (schema)");
   } catch (e) {

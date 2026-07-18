@@ -6,6 +6,7 @@ import {
   businessNumbersTable,
   callContactsTable,
   callLogsTable,
+  callCenterSettingsTable,
   insertBusinessNumberSchema,
   insertCallContactSchema,
 } from "@workspace/db";
@@ -473,6 +474,58 @@ router.patch("/call/logs/:id/notes", requirePermission("callcenter.view"), async
     req.log.error(e);
     res.status(500).json({ error: "Failed to save notes" });
   }
+});
+
+// ── Call-center settings (Exotel credentials + toggles) ───────────────────────
+router.get("/call-center/settings", requirePermission("callcenter.manage"), async (req, res) => {
+  try {
+    const companyId = companyIdFrom(req);
+    if (!companyId || !canAccessCompany(req, companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    const [row] = await db
+      .select()
+      .from(callCenterSettingsTable)
+      .where(eq(callCenterSettingsTable.companyId, companyId))
+      .limit(1);
+    // Return empty defaults if not yet configured
+    res.json(row ?? { companyId, accountSid: null, apiKey: null, apiToken: null, webhookUrl: null, callerId: null, callRecording: false, callQueue: false });
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to load settings" }); }
+});
+
+router.patch("/call-center/settings", requirePermission("callcenter.manage"), async (req, res) => {
+  try {
+    const companyId = companyIdFrom(req);
+    if (!companyId || !canAccessCompany(req, companyId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    const { accountSid, apiKey, apiToken, webhookUrl, callerId, callRecording, callQueue } = req.body ?? {};
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (typeof accountSid === "string") patch.accountSid = accountSid.trim() || null;
+    if (typeof apiKey     === "string") patch.apiKey     = apiKey.trim()     || null;
+    if (typeof apiToken   === "string") patch.apiToken   = apiToken.trim()   || null;
+    if (typeof webhookUrl === "string") patch.webhookUrl = webhookUrl.trim()  || null;
+    if (typeof callerId   === "string") patch.callerId   = callerId.trim()   || null;
+    if (typeof callRecording === "boolean") patch.callRecording = callRecording;
+    if (typeof callQueue     === "boolean") patch.callQueue     = callQueue;
+
+    const existing = await db
+      .select({ id: callCenterSettingsTable.id })
+      .from(callCenterSettingsTable)
+      .where(eq(callCenterSettingsTable.companyId, companyId))
+      .limit(1);
+
+    let row;
+    if (existing.length > 0) {
+      [row] = await db
+        .update(callCenterSettingsTable)
+        .set(patch)
+        .where(eq(callCenterSettingsTable.companyId, companyId))
+        .returning();
+    } else {
+      [row] = await db
+        .insert(callCenterSettingsTable)
+        .values({ companyId, ...patch })
+        .returning();
+    }
+    res.json(row);
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to save settings" }); }
 });
 
 export default router;

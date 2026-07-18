@@ -78,11 +78,26 @@ export const callNumberPermissionsTable = pgTable(
   (t) => [index("call_number_permissions_company_id_idx").on(t.companyId)],
 );
 
+// ── Per-company call-center settings (Exotel credentials + toggles) ──────────
+export const callCenterSettingsTable = pgTable("call_center_settings", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().unique(),
+  accountSid: text("account_sid"),
+  apiKey: text("api_key"),
+  apiToken: text("api_token"),
+  webhookUrl: text("webhook_url"),
+  callerId: text("caller_id"),
+  callRecording: boolean("call_recording").notNull().default(false),
+  callQueue: boolean("call_queue").notNull().default(false),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const insertBusinessNumberSchema = createInsertSchema(businessNumbersTable).omit({ id: true, createdAt: true });
 export const insertCallContactSchema = createInsertSchema(callContactsTable).omit({ id: true, createdAt: true });
 
 export type BusinessNumber = typeof businessNumbersTable.$inferSelect;
 export type CallContact = typeof callContactsTable.$inferSelect;
 export type CallLog = typeof callLogsTable.$inferSelect;
+export type CallCenterSettings = typeof callCenterSettingsTable.$inferSelect;
 export type InsertBusinessNumber = z.infer<typeof insertBusinessNumberSchema>;
 export type InsertCallContact = z.infer<typeof insertCallContactSchema>;

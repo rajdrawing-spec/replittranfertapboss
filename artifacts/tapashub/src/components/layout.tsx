@@ -290,7 +290,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const adminNav: NavItem[] = isSuperAdmin
     ? [
         ...(!isParentView ? [{ name: "Team & Roles", href: "/admin/access", icon: ShieldCheck }] : []),
-        { name: "Team", href: "/chat", icon: MessageSquare },
+        ...(isParentView ? [{ name: "Team", href: "/chat", icon: MessageSquare }] : []),
         { name: "Audit Logs", href: "/admin/audit", icon: ScrollText },
         { name: "Admin Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
       ]

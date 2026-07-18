@@ -223,7 +223,7 @@ export default function CallCenterPage() {
         )}
         {canManage && (
           <TabsContent value="settings">
-            <SettingsTab />
+            <SettingsTab companyId={companyId} />
           </TabsContent>
         )}
       </Tabs>
@@ -869,31 +869,98 @@ function NumbersTab({ companyId, numbers }: { companyId: number; numbers: Busine
 }
 
 // ── Settings (placeholder until Exotel is connected) ─────────────────────────
-function SettingsTab() {
+function SettingsTab({ companyId }: { companyId: number | undefined }) {
+  const { toast } = useToast()
+  const queryClient = useQueryClient()
+  const [saving, setSaving] = React.useState(false)
+  const [form, setForm] = React.useState({
+    accountSid: "", apiKey: "", apiToken: "", webhookUrl: "", callerId: "",
+    callRecording: false, callQueue: false,
+  })
+  const [loaded, setLoaded] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!companyId) return
+    fetch(`/api/call-center/settings?companyId=${companyId}`, { credentials: "include" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => {
+        if (d) {
+          setForm({
+            accountSid: d.accountSid ?? "",
+            apiKey: d.apiKey ?? "",
+            apiToken: d.apiToken ?? "",
+            webhookUrl: d.webhookUrl ?? "",
+            callerId: d.callerId ?? "",
+            callRecording: !!d.callRecording,
+            callQueue: !!d.callQueue,
+          })
+        }
+        setLoaded(true)
+      })
+      .catch(() => setLoaded(true))
+  }, [companyId])
+
+  async function save() {
+    if (!companyId) return
+    setSaving(true)
+    try {
+      const res = await fetch("/api/call-center/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ companyId, ...form }),
+      })
+      if (!res.ok) throw new Error("Failed")
+      toast({ title: "Settings saved" })
+      queryClient.invalidateQueries({ queryKey: ["/api/call-center/settings", companyId] })
+    } catch {
+      toast({ title: "Failed to save settings", variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!loaded) return <div className="flex items-center gap-2 text-sm text-muted-foreground p-4"><Loader2 className="h-4 w-4 animate-spin" /> Loading settings…</div>
+
+  const fields: { key: keyof typeof form; label: string; placeholder: string; type?: string }[] = [
+    { key: "accountSid", label: "Account SID", placeholder: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+    { key: "apiKey",     label: "API Key",      placeholder: "Your Exotel API key" },
+    { key: "apiToken",   label: "API Token",    placeholder: "Your Exotel API token", type: "password" },
+    { key: "webhookUrl", label: "Webhook URL",  placeholder: "https://your-server.com/api/call/incoming" },
+    { key: "callerId",   label: "Caller ID",    placeholder: "+91xxxxxxxxxx" },
+  ]
+
   return (
     <Card className="max-w-xl">
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2"><Settings2 className="h-4 w-4" /> Exotel Settings</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Exotel is not connected yet. When your credentials are ready, they will be stored securely as
-          environment secrets — not in this form. The fields below show what will be needed.
+          Enter your Exotel credentials to connect the call center. These are saved securely in the database.
         </p>
-        {["Account SID", "API Key", "API Token", "Webhook URL", "Caller ID"].map((f) => (
-          <div key={f}>
-            <div className="text-xs font-medium mb-1">{f}</div>
-            <Input disabled placeholder="Pending Exotel connection" />
+        {fields.map(({ key, label, placeholder, type }) => (
+          <div key={key}>
+            <div className="text-xs font-medium mb-1">{label}</div>
+            <Input
+              type={type ?? "text"}
+              placeholder={placeholder}
+              value={form[key] as string}
+              onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+            />
           </div>
         ))}
         <div className="flex items-center justify-between text-sm border rounded-md p-3">
           <span>Call recording</span>
-          <Switch disabled />
+          <Switch checked={form.callRecording} onCheckedChange={(v) => setForm({ ...form, callRecording: v })} />
         </div>
         <div className="flex items-center justify-between text-sm border rounded-md p-3">
           <span>Call queue</span>
-          <Switch disabled />
+          <Switch checked={form.callQueue} onCheckedChange={(v) => setForm({ ...form, callQueue: v })} />
         </div>
+        <Button className="w-full" onClick={save} disabled={saving}>
+          {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving…</> : "Save Settings"}
+        </Button>
       </CardContent>
     </Card>
   )

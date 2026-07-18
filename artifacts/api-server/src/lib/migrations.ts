@@ -240,7 +240,17 @@ export async function applyMigrations(): Promise<void> {
     await db.execute(sql`ALTER TABLE chat_channel_members ADD COLUMN IF NOT EXISTS channel_id INTEGER NOT NULL`);
     await db.execute(sql`ALTER TABLE chat_channel_members ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL`);
     await db.execute(sql`ALTER TABLE chat_channel_members ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMP`);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS chat_channel_members_channel_user_idx ON chat_channel_members(channel_id, user_id)`);
+    // Deduplicate rows (keep most-recently-read per channel+user), then ensure unique index
+    await db.execute(sql`
+      DELETE FROM chat_channel_members
+      WHERE id NOT IN (
+        SELECT DISTINCT ON (channel_id, user_id) id
+        FROM chat_channel_members
+        ORDER BY channel_id, user_id, last_read_at DESC NULLS LAST, id DESC
+      )
+    `);
+    await db.execute(sql`DROP INDEX IF EXISTS chat_channel_members_channel_user_idx`);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS chat_channel_members_channel_user_idx ON chat_channel_members(channel_id, user_id)`);
 
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS chat_messages (

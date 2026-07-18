@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, jsonb, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, jsonb, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -36,7 +36,7 @@ export const chatChannelMembersTable = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => ({
-    channelUserIdx: index("chat_channel_members_channel_user_idx").on(table.channelId, table.userId),
+    channelUserIdx: uniqueIndex("chat_channel_members_channel_user_idx").on(table.channelId, table.userId),
   }),
 );
 

@@ -78,13 +78,13 @@ interface MeetingNoteSummary {
   summary: string | null
   actionItems: MeetingActionItem[]
   status: "processing" | "done" | "failed"
+  error: string | null
   createdAt: string
 }
 
 interface MeetingNoteDetail extends MeetingNoteSummary {
   transcript: string | null
   notes: string | null
-  error: string | null
 }
 
 const EMOJIS = ["👍", "❤️", "😂", "🎉", "🤔", "👀"]
@@ -179,6 +179,10 @@ export default function ChatPage() {
       return res.json()
     },
     enabled: !!companyId && notesOpen,
+    // Auto-refresh while any note is still processing so the list updates
+    // when the AI finishes (or fails) without the user reopening the dialog.
+    refetchInterval: (query) =>
+      query.state.data?.some((n) => n.status === "processing") ? 5_000 : false,
   })
 
   // Employees list for manually assigning unmatched action items
@@ -224,6 +228,8 @@ export default function ChatPage() {
       return res.json()
     },
     enabled: !!companyId && !!openNoteId,
+    // Auto-refresh an open note while the AI is still working on it.
+    refetchInterval: (query) => (query.state.data?.status === "processing" ? 5_000 : false),
   })
 
   // Keep the currently-selected channel in a ref so socket event handlers can
@@ -891,7 +897,17 @@ export default function ChatPage() {
                           <span className="text-xs text-muted-foreground">{new Date(note.createdAt).toLocaleDateString()}</span>
                         </span>
                       </div>
-                      {note.summary && <div className="text-xs text-muted-foreground line-clamp-2">{note.summary}</div>}
+                      {note.status === "failed" ? (
+                        <div className="text-xs text-destructive line-clamp-2">
+                          AI notes couldn't be generated for this meeting. Open for details and how to retry.
+                        </div>
+                      ) : note.status === "processing" ? (
+                        <div className="text-xs text-muted-foreground">
+                          The AI assistant is transcribing this meeting — this list refreshes automatically.
+                        </div>
+                      ) : (
+                        note.summary && <div className="text-xs text-muted-foreground line-clamp-2">{note.summary}</div>
+                      )}
                     </button>
                   ))
                 )}
@@ -902,9 +918,29 @@ export default function ChatPage() {
               {!openNote ? (
                 <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
               ) : openNote.status === "processing" ? (
-                <div className="text-center text-muted-foreground py-8">The AI assistant is still processing this meeting…</div>
+                <div className="text-center text-muted-foreground py-8 space-y-2">
+                  <Loader2 className="h-5 w-5 animate-spin mx-auto" />
+                  <p>The AI assistant is still processing this meeting…</p>
+                  <p className="text-xs">This page refreshes automatically — the notes will appear here when they're ready.</p>
+                </div>
               ) : openNote.status === "failed" ? (
-                <div className="text-center text-destructive py-8">Processing failed{openNote.error ? `: ${openNote.error}` : "."}</div>
+                <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 space-y-2">
+                  <div className="font-medium text-destructive">AI notes couldn't be generated</div>
+                  <p className="text-muted-foreground">
+                    Something went wrong while the AI assistant was processing this meeting's recording, so no
+                    transcript or notes were saved.
+                  </p>
+                  {openNote.error && (
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium">Technical detail:</span> {openNote.error}
+                    </p>
+                  )}
+                  <p className="text-muted-foreground">
+                    <span className="font-medium text-foreground">To retry:</span> rejoin the meeting room and leave
+                    again so the recording re-uploads, or ask an administrator to check the AI provider configuration.
+                    A new upload automatically retries a failed note.
+                  </p>
+                </div>
               ) : (
                 <>
                   {openNote.summary && (

@@ -234,6 +234,7 @@ export async function listMeetingNotes(companyId: number, opts: { channelId?: nu
       summary: aiMeetingNotesTable.summary,
       actionItems: aiMeetingNotesTable.actionItems,
       status: aiMeetingNotesTable.status,
+      error: aiMeetingNotesTable.error,
       createdAt: aiMeetingNotesTable.createdAt,
     })
     .from(aiMeetingNotesTable)

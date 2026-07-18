@@ -123,6 +123,10 @@ export const aiMeetingNotesTable = pgTable(
     actionItems: jsonb("action_items").$type<MeetingActionItem[]>().default([]),
     status: text("status").notNull().default("processing"), // processing | done | failed
     error: text("error"),
+    // Original uploaded recording persisted to object storage (/objects/... path)
+    // so a failed note can be retried server-side without re-uploading.
+    audioObjectPath: text("audio_object_path"),
+    audioMimeType: text("audio_mime_type"),
     uploadedBy: integer("uploaded_by").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

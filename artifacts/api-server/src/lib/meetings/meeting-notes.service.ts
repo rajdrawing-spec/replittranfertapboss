@@ -3,6 +3,9 @@ import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { ai as geminiAi } from "@workspace/integrations-gemini-ai";
 import { emitNotification } from "../notify";
 import { logger } from "../logger";
+import { ObjectStorageService } from "../objectStorage";
+
+const objectStorage = new ObjectStorageService();
 
 // ── AI Meeting Assistant ──────────────────────────────────────────────────────
 // Pipeline: meeting audio (webm/opus captured client-side) → Gemini 2.5 Flash
@@ -117,6 +120,65 @@ export async function claimMeetingNote(meeting: Meeting, uploadedBy: number) {
     .where(and(eq(aiMeetingNotesTable.meetingDbId, meeting.id), eq(aiMeetingNotesTable.status, "failed")))
     .returning();
   return reclaimed[0] ?? null;
+}
+
+/**
+ * Persist the uploaded recording to object storage and stamp its path on the
+ * note row so a failed note can be retried server-side later. Best-effort:
+ * a storage failure must not block the AI pipeline (retry just won't be
+ * available for this note).
+ */
+export async function storeMeetingAudio(noteId: number, audioBase64: string, mimeType: string): Promise<void> {
+  try {
+    const buffer = Buffer.from(audioBase64, "base64");
+    const objectPath = await objectStorage.uploadPrivateObject(buffer, mimeType, "meeting-audio");
+    await db
+      .update(aiMeetingNotesTable)
+      .set({ audioObjectPath: objectPath, audioMimeType: mimeType, updatedAt: new Date() })
+      .where(eq(aiMeetingNotesTable.id, noteId));
+  } catch (err) {
+    logger.error({ err, noteId }, "Failed to persist meeting audio to object storage");
+  }
+}
+
+/**
+ * Retry a failed note directly from its stored recording. Atomically reclaims
+ * the row (status failed → processing) so concurrent retries and re-uploads
+ * can't double-run the pipeline. Throws with a user-facing message on
+ * invalid states.
+ */
+export async function retryMeetingNote(noteId: number, companyId: number): Promise<void> {
+  const note = await getMeetingNote(noteId, companyId);
+  if (!note) throw new Error("Note not found");
+  if (note.status === "processing") throw new Error("This note is already being processed");
+  if (note.status !== "failed") throw new Error("Only failed notes can be retried");
+  if (!note.audioObjectPath || !note.audioMimeType) {
+    throw new Error("The original recording is not stored for this note — rejoin the meeting to re-upload it");
+  }
+
+  const [meeting] = await db
+    .select()
+    .from(meetingsTable)
+    .where(and(eq(meetingsTable.id, note.meetingDbId), eq(meetingsTable.companyId, companyId)))
+    .limit(1);
+  if (!meeting) throw new Error("Meeting not found");
+
+  // Download the stored recording BEFORE reclaiming, so a missing/corrupt
+  // object doesn't leave the note stuck in "processing".
+  const file = await objectStorage.getObjectEntityFile(note.audioObjectPath).catch(() => {
+    throw new Error("The stored recording could not be found — rejoin the meeting to re-upload it");
+  });
+  const [buffer] = await file.download();
+
+  // Atomic reclaim: only one concurrent retry/re-upload wins.
+  const reclaimed = await db
+    .update(aiMeetingNotesTable)
+    .set({ status: "processing", error: null, updatedAt: new Date() })
+    .where(and(eq(aiMeetingNotesTable.id, noteId), eq(aiMeetingNotesTable.status, "failed")))
+    .returning();
+  if (!reclaimed[0]) throw new Error("This note is already being processed");
+
+  void processMeetingAudio(noteId, meeting, buffer.toString("base64"), note.audioMimeType);
 }
 
 /**

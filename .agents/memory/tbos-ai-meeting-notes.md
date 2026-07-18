@@ -10,3 +10,5 @@ description: Architecture and pitfalls of the post-call AI notes pipeline (recor
 - Audio upload authz needs participant/organizer membership, not just company scope; channel auto-invite must validate the channel belongs to the meeting's company.
 - Gemini flash accepts audio via inlineData parts; use responseMimeType application/json + thinkingBudget 0; ~30MB decoded cap fits 50mb express body limit with base64 overhead. Use the `gemini-flash-latest` alias (pinned 2.5 names 404 for new keys).
 - Pipeline verified end-to-end 2026-07-18 with a real speech recording (transcript, summary, action items, assigned task with resolved relative due date, notifications, dedup claim); replayable via the verify script in api-server/scripts.
+
+**Retry from stored audio:** the upload route persists the recording to private object storage (best-effort, alongside the pipeline) and stamps `/objects/meeting-audio/...` + mime on the note row; retry endpoint reclaims via `UPDATE ... WHERE status='failed'` (atomic, single winner) and downloads the object BEFORE reclaiming so a missing object never strands the note in "processing".

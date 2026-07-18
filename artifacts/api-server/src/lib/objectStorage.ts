@@ -133,6 +133,27 @@ export class ObjectStorageService {
     });
   }
 
+  /**
+   * Upload a buffer directly to the private object dir and return the
+   * normalized `/objects/<prefix>/<uuid>` path for storing in the DB.
+   */
+  async uploadPrivateObject(
+    buffer: Buffer,
+    contentType: string,
+    prefix: string = 'uploads',
+  ): Promise<string> {
+    let privateObjectDir = this.getPrivateObjectDir();
+    if (!privateObjectDir.endsWith('/')) {
+      privateObjectDir = `${privateObjectDir}/`;
+    }
+    const entityId = `${prefix}/${randomUUID()}`;
+    const fullPath = `${privateObjectDir}${entityId}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const file = objectStorageClient.bucket(bucketName).file(objectName);
+    await file.save(buffer, { contentType, resumable: false });
+    return `/objects/${entityId}`;
+  }
+
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith('/objects/')) {
       throw new ObjectNotFoundError();

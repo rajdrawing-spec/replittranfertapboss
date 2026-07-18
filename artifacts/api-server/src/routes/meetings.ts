@@ -19,7 +19,7 @@ import {
   isLiveKitConfigured,
 } from "../lib/meetings/meeting.service";
 import { broadcastMeetingRinging } from "../lib/chat/socket-server";
-import { claimMeetingNote, processMeetingAudio, listMeetingNotes, getMeetingNote, assignActionItem } from "../lib/meetings/meeting-notes.service";
+import { claimMeetingNote, processMeetingAudio, listMeetingNotes, getMeetingNote, assignActionItem, storeMeetingAudio, retryMeetingNote } from "../lib/meetings/meeting-notes.service";
 import { db, chatChannelMembersTable, chatChannelsTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 
@@ -216,6 +216,29 @@ router.get("/meetings/notes/:id", requirePermission("meetings.read"), async (req
   }
 });
 
+// Retry a failed note from its stored recording (no re-upload needed).
+router.post("/meetings/notes/:id/retry", requirePermission("meetings.read"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.body?.companyId);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const noteId = parseInt(String(req.params.id), 10);
+    if (isNaN(noteId)) { res.status(400).json({ error: "Invalid note id" }); return; }
+    await retryMeetingNote(noteId, companyId);
+    res.status(202).json({ status: "processing" });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Failed to retry note";
+    if (/not found|already being processed|only failed|not stored|could not be found/i.test(msg)) {
+      res.status(409).json({ error: msg });
+      return;
+    }
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to retry note" });
+  }
+});
+
 // Manually assign an unmatched action item to an employee (creates the task).
 router.post("/meetings/notes/:id/action-items/:index/assign", requirePermission("meetings.manage"), async (req, res) => {
   try {
@@ -294,6 +317,9 @@ router.post("/meetings/audio/:meetingId", requirePermission("meetings.read"), as
       res.status(200).json({ status: "already_processing" });
       return;
     }
+    // Persist the recording so a failed note can be retried server-side
+    // without re-uploading. Best-effort; runs alongside the AI pipeline.
+    void storeMeetingAudio(note.id, base64, mimeType);
     void processMeetingAudio(note.id, meeting, base64, mimeType);
     res.status(202).json({ status: "processing", noteId: note.id });
   } catch (e) {

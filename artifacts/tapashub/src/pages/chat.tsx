@@ -196,6 +196,30 @@ export default function ChatPage() {
     enabled: !!companyId && !!openNoteId,
   })
 
+  const [retryingNote, setRetryingNote] = React.useState(false)
+  const retryNote = async () => {
+    if (!openNoteId || retryingNote) return
+    setRetryingNote(true)
+    try {
+      const res = await fetch(`/api/meetings/notes/${openNoteId}/retry`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        toast({ title: "Could not retry", description: err.error || "Retry failed", variant: "destructive" })
+        return
+      }
+      toast({ title: "Retrying AI notes", description: "The recording is being re-processed — this page refreshes automatically." })
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings/notes", companyId] })
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings/notes", companyId, "detail", openNoteId] })
+    } finally {
+      setRetryingNote(false)
+    }
+  }
+
   const [assigningIndex, setAssigningIndex] = React.useState<number | null>(null)
   const assignActionItem = async (itemIndex: number, employeeId: string) => {
     if (!openNoteId || assigningIndex !== null) return
@@ -935,10 +959,13 @@ export default function ChatPage() {
                       <span className="font-medium">Technical detail:</span> {openNote.error}
                     </p>
                   )}
-                  <p className="text-muted-foreground">
-                    <span className="font-medium text-foreground">To retry:</span> rejoin the meeting room and leave
+                  <Button size="sm" onClick={retryNote} disabled={retryingNote} className="gap-1.5">
+                    {retryingNote ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Repeat className="h-3.5 w-3.5" />}
+                    Retry AI notes
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    If retrying keeps failing (or the recording wasn't stored), rejoin the meeting room and leave
                     again so the recording re-uploads, or ask an administrator to check the AI provider configuration.
-                    A new upload automatically retries a failed note.
                   </p>
                 </div>
               ) : (

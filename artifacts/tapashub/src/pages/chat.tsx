@@ -824,7 +824,7 @@ export default function ChatPage() {
                 return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
               })?.length ?? 0) === 0 ? (
                 <div className="text-center text-sm text-muted-foreground py-6">
-                  No team members found. Invite members from <strong>Team &amp; Roles</strong> to chat with them.
+                  No team members found in this workspace.
                 </div>
               ) : (
                 channelUsers

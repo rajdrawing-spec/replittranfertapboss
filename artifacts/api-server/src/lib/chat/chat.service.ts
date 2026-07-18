@@ -342,8 +342,11 @@ export async function ensureDirectChannel(companyId: number, userIdA: number, us
 }
 
 export async function getCompanyUsers(companyId: number) {
-  const companyUsers = await db.select().from(usersTable);
-  return companyUsers.filter((u) => (u.companyIds as number[]).includes(companyId));
+  // The route already enforces canAccessCompany(req, companyId), so we return
+  // every active workspace user here. Filtering by companyIds alone hides team
+  // members who have not been explicitly assigned to a company, which breaks
+  // direct messages and @mentions in the same workspace.
+  return db.select().from(usersTable).where(eq(usersTable.status, "active"));
 }
 
 export async function getPolls(channelId: number) {

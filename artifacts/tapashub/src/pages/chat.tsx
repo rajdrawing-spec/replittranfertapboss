@@ -284,12 +284,17 @@ export default function ChatPage() {
     })
     s.on("connect", () => {
       s.emit("join", { companyId }, (res: any) => {
-        if (!res.ok) toast({ title: "Chat join failed", description: res.error, variant: "destructive" })
+        if (!res.ok) {
+          toast({ title: "Chat join failed", description: res.error, variant: "destructive" })
+          return
+        }
+        const ch = selectedChannelRef.current
+        if (ch) {
+          s.emit("join:channel", { channelId: ch.id }, (joinRes: any) => {
+            if (!joinRes.ok) toast({ title: "Join channel failed", description: joinRes.error, variant: "destructive" })
+          })
+        }
       })
-      const ch = selectedChannelRef.current
-      if (ch) {
-        s.emit("join:channel", { channelId: ch.id }, () => {})
-      }
     })
     s.on("message:new", (msg: ChatMessage) => {
       setMessages((prev) => {

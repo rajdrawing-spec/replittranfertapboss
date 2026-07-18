@@ -6,6 +6,7 @@ import { logger } from "../logger";
 import {
   createMessage,
   getChannel,
+  getChannelById,
   isChannelMember,
   addChannelMember,
   markChannelRead,
@@ -126,7 +127,17 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
     socket.on("join:channel", async ({ channelId }: { channelId: number }, callback: (res: any) => void) => {
       try {
         const companyId = socket.data.companyId as number;
-        const channel = await getChannel(channelId, companyId);
+        let channel = await getChannel(channelId, companyId);
+        // Direct channels may have been created under a different company than the
+        // socket currently claims (e.g., parent vs subsidiary switch). Fall back to
+        // a membership check so legitimate participants can still open the DM.
+        if (!channel) {
+          const byId = await getChannelById(channelId);
+          if (byId && byId.type === "direct" && (await isChannelMember(channelId, userId))) {
+            channel = byId;
+            socket.data.companyId = channel.companyId;
+          }
+        }
         if (!channel) return callback?.({ ok: false, error: "Channel not found" });
         if (channel.type === "direct" && !(await isChannelMember(channelId, userId))) {
           return callback?.({ ok: false, error: "Not a member" });
@@ -151,7 +162,14 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
           return callback?.({ ok: false, error: "Invalid message" });
         }
         const companyId = socket.data.companyId as number;
-        const channel = await getChannel(payload.channelId, companyId);
+        let channel = await getChannel(payload.channelId, companyId);
+        if (!channel) {
+          const byId = await getChannelById(payload.channelId);
+          if (byId && byId.type === "direct" && (await isChannelMember(payload.channelId, userId))) {
+            channel = byId;
+            socket.data.companyId = channel.companyId;
+          }
+        }
         if (!channel) return callback?.({ ok: false, error: "Channel not found" });
         if (channel.type === "direct" && !(await isChannelMember(payload.channelId, userId))) {
           return callback?.({ ok: false, error: "Not a member" });

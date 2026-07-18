@@ -84,6 +84,15 @@ export async function getChannel(channelId: number, companyId: number) {
   return channel;
 }
 
+export async function getChannelById(channelId: number) {
+  const [channel] = await db
+    .select()
+    .from(chatChannelsTable)
+    .where(eq(chatChannelsTable.id, channelId))
+    .limit(1);
+  return channel;
+}
+
 export async function listChannels(companyId: number, userId: number) {
   await ensureCompanyChannels(companyId);
 

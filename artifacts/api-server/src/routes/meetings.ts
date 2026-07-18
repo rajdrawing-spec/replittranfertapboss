@@ -59,12 +59,12 @@ router.get("/meetings/token", requirePermission("meetings.read"), async (req, re
       res.status(410).json({ error: "Meeting has ended or been cancelled" });
       return;
     }
-    // Enforce that the caller is an organizer or invited/accepted participant
-    const isOrganizer = meeting.organizerId === userId;
-    const isParticipant = meeting.participants.some(
-      (p) => p.userId === userId && p.status !== "rejected",
+    // Group calls: any company member may join a meeting in their workspace.
+    // Only users who have explicitly rejected an invitation are blocked.
+    const isRejected = meeting.participants.some(
+      (p) => p.userId === userId && p.status === "rejected",
     );
-    if (!isOrganizer && !isParticipant) {
+    if (isRejected) {
       res.status(403).json({ error: "You are not a participant of this meeting" });
       return;
     }
@@ -284,9 +284,19 @@ router.post("/meetings/join/:meetingId", requirePermission("meetings.read"), asy
   try {
     const userId = getLocalUserId(req);
     if (!userId) { res.status(401).json({ error: "Authentication required" }); return; }
-    const meeting = await joinMeeting(String(req.params.meetingId), userId);
+    const meeting = await getMeetingByMeetingId(String(req.params.meetingId));
     if (!meeting) { res.status(404).json({ error: "Meeting not found" }); return; }
-    res.json(meeting);
+    if (!canAccessCompany(req, meeting.companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    if (meeting.status === "cancelled" || meeting.status === "ended") {
+      res.status(410).json({ error: "Meeting has ended or been cancelled" });
+      return;
+    }
+    const result = await joinMeeting(String(req.params.meetingId), userId);
+    if (!result) { res.status(404).json({ error: "Meeting not found" }); return; }
+    res.json(result);
   } catch (e) {
     req.log.error(e);
     res.status(500).json({ error: "Failed to join meeting" });

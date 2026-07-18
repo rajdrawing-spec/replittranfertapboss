@@ -15,8 +15,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useMeeting } from "@/contexts/meeting-context"
 import {
   MessageSquare, Pin, Search, Send, Paperclip, Megaphone, User, Video, Phone, Briefcase, X, Building2,
-  Sparkles, Loader2, ChevronLeft, ClipboardList,
+  Sparkles, Loader2, ChevronLeft, ClipboardList, CalendarClock, Repeat,
 } from "lucide-react"
+
+interface UpcomingMeeting {
+  id: number
+  meetingId: string
+  title: string
+  scheduledAt: string | null
+  duration: number
+  status: string
+  isRecurring: boolean
+  recurrence: string | null
+  organizerId: number
+}
 
 interface ChatChannel {
   id: number
@@ -113,6 +125,15 @@ export default function ChatPage() {
   const [notesQuery, setNotesQuery] = React.useState("")
   const [openNoteId, setOpenNoteId] = React.useState<number | null>(null)
   const [startingCall, setStartingCall] = React.useState<"voice" | "video" | null>(null)
+  const [scheduleOpen, setScheduleOpen] = React.useState(false)
+  const [showScheduleForm, setShowScheduleForm] = React.useState(false)
+  const [schedTitle, setSchedTitle] = React.useState("")
+  const [schedWhen, setSchedWhen] = React.useState("")
+  const [schedDuration, setSchedDuration] = React.useState("30")
+  const [schedRecurrence, setSchedRecurrence] = React.useState("none")
+  const [schedParticipants, setSchedParticipants] = React.useState<number[]>([])
+  const [schedSaving, setSchedSaving] = React.useState(false)
+  const [joiningId, setJoiningId] = React.useState<string | null>(null)
   const [replyTo, setReplyTo] = React.useState<ChatMessage | null>(null)
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
 
@@ -133,7 +154,18 @@ export default function ChatPage() {
       if (!res.ok) throw new Error(await res.text())
       return res.json()
     },
-    enabled: !!companyId && usersOpen,
+    enabled: !!companyId && (usersOpen || scheduleOpen),
+  })
+
+  // ── Scheduled / upcoming meetings ──────────────────────────────────────────
+  const { data: upcomingMeetings, isLoading: isLoadingUpcoming } = useQuery<UpcomingMeeting[]>({
+    queryKey: ["/api/meetings/upcoming", companyId],
+    queryFn: async () => {
+      const res = await fetch(`/api/meetings/upcoming?companyId=${companyId}`, { credentials: "include" })
+      if (!res.ok) throw new Error(await res.text())
+      return res.json()
+    },
+    enabled: !!companyId && scheduleOpen,
   })
 
   // ── AI Meeting Notes ────────────────────────────────────────────────────────
@@ -344,6 +376,67 @@ export default function ChatPage() {
     }
   }
 
+  // ── Scheduled meetings: join + create ──────────────────────────────────────
+  const joinScheduledMeeting = async (meetingId: string, title: string) => {
+    if (activeCall || joiningId) return
+    setJoiningId(meetingId)
+    try {
+      const tokenRes = await fetch(
+        `/api/meetings/token?roomName=${encodeURIComponent(meetingId)}&companyId=${companyId}`,
+        { credentials: "include" },
+      )
+      if (!tokenRes.ok) {
+        const err = await tokenRes.json().catch(() => ({}))
+        toast({ title: "Could not join", description: err.error || "Failed to get call token", variant: "destructive" })
+        return
+      }
+      const { token, serverUrl } = await tokenRes.json()
+      await fetch(`/api/meetings/join/${meetingId}`, { method: "POST", credentials: "include" })
+      startCall({ meetingId, title, companyId: companyId! }, token, serverUrl)
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
+      setScheduleOpen(false)
+    } finally {
+      setJoiningId(null)
+    }
+  }
+
+  const submitSchedule = async () => {
+    if (!schedTitle.trim() || !schedWhen || schedSaving) return
+    const when = new Date(schedWhen)
+    if (isNaN(when.getTime()) || when.getTime() < Date.now()) {
+      toast({ title: "Pick a future date and time", variant: "destructive" })
+      return
+    }
+    setSchedSaving(true)
+    try {
+      const res = await fetch(`/api/meetings`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          title: schedTitle.trim(),
+          scheduledAt: when.toISOString(),
+          duration: Number(schedDuration) || 30,
+          participantIds: schedParticipants,
+          isRecurring: schedRecurrence !== "none",
+          recurrence: schedRecurrence !== "none" ? schedRecurrence : undefined,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        toast({ title: "Failed to schedule meeting", description: err.error || (await res.text().catch(() => "")), variant: "destructive" })
+        return
+      }
+      toast({ title: "Meeting scheduled", description: `"${schedTitle.trim()}" — invitees have been notified.` })
+      setShowScheduleForm(false)
+      setSchedTitle(""); setSchedWhen(""); setSchedDuration("30"); setSchedRecurrence("none"); setSchedParticipants([])
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings/upcoming", companyId] })
+    } finally {
+      setSchedSaving(false)
+    }
+  }
+
   // ── One-click calls from chat ───────────────────────────────────────────────
   // Creates a meeting linked to this channel; the server invites every channel
   // member (ringing popup) and this user joins immediately.
@@ -471,6 +564,9 @@ export default function ChatPage() {
           </Button>
           <Button variant="outline" size="sm" className="w-full" onClick={() => setSearchOpen(true)}>
             <Search className="mr-2 h-4 w-4" /> Search Messages
+          </Button>
+          <Button variant="outline" size="sm" className="w-full" onClick={() => { setScheduleOpen(true); setShowScheduleForm(false) }}>
+            <CalendarClock className="mr-2 h-4 w-4" /> Scheduled Meetings
           </Button>
           <Button variant="outline" size="sm" className="w-full" onClick={() => { setNotesOpen(true); setOpenNoteId(null) }}>
             <Sparkles className="mr-2 h-4 w-4" /> Meeting Notes
@@ -635,6 +731,117 @@ export default function ChatPage() {
               </button>
             ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Scheduled Meetings ── */}
+      <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarClock className="h-4 w-4" /> Scheduled Meetings
+            </DialogTitle>
+          </DialogHeader>
+
+          {!showScheduleForm ? (
+            <>
+              <div className="max-h-[360px] overflow-y-auto space-y-2">
+                {isLoadingUpcoming ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                ) : !upcomingMeetings?.length ? (
+                  <div className="text-center text-sm text-muted-foreground py-8">
+                    No upcoming meetings. Schedule one below.
+                  </div>
+                ) : (
+                  upcomingMeetings.map((m) => (
+                    <div key={m.id} className="rounded-md border p-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm truncate flex items-center gap-1.5">
+                          {m.title}
+                          {m.isRecurring && <Repeat className="h-3 w-3 shrink-0 text-muted-foreground" />}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {m.scheduledAt ? new Date(m.scheduledAt).toLocaleString() : "Now"} · {m.duration} min
+                          {m.recurrence ? ` · ${m.recurrence}` : ""}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="shrink-0"
+                        disabled={!!activeCall || !!joiningId}
+                        onClick={() => joinScheduledMeeting(m.meetingId, m.title)}
+                      >
+                        {joiningId === m.meetingId ? <Loader2 className="h-4 w-4 animate-spin" /> : "Join"}
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+              <Button onClick={() => setShowScheduleForm(true)}>
+                <CalendarClock className="mr-2 h-4 w-4" /> Schedule a Meeting
+              </Button>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <Input value={schedTitle} onChange={(e) => setSchedTitle(e.target.value)} placeholder="Meeting title" />
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  type="datetime-local"
+                  value={schedWhen}
+                  onChange={(e) => setSchedWhen(e.target.value)}
+                />
+                <Select value={schedDuration} onValueChange={setSchedDuration}>
+                  <SelectTrigger><SelectValue placeholder="Duration" /></SelectTrigger>
+                  <SelectContent>
+                    {["15", "30", "45", "60", "90", "120"].map((d) => (
+                      <SelectItem key={d} value={d}>{d} minutes</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Select value={schedRecurrence} onValueChange={setSchedRecurrence}>
+                <SelectTrigger><SelectValue placeholder="Repeats" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Does not repeat</SelectItem>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+              <div>
+                <div className="text-xs font-medium mb-1">Invite participants</div>
+                <div className="max-h-[160px] overflow-y-auto rounded-md border p-2 space-y-1">
+                  {!channelUsers?.length ? (
+                    <div className="text-xs text-muted-foreground p-1">No other members in this workspace.</div>
+                  ) : (
+                    channelUsers.filter((u) => u.id !== userId).map((u) => (
+                      <label key={u.id} className="flex items-center gap-2 text-sm rounded px-1 py-0.5 hover:bg-muted cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={schedParticipants.includes(u.id)}
+                          onChange={(e) =>
+                            setSchedParticipants((prev) =>
+                              e.target.checked ? [...prev, u.id] : prev.filter((id) => id !== u.id),
+                            )
+                          }
+                        />
+                        <span className="truncate">{u.name}</span>
+                        <span className="text-xs text-muted-foreground truncate">{u.email}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setShowScheduleForm(false)} disabled={schedSaving}>Back</Button>
+                <Button onClick={submitSchedule} disabled={schedSaving || !schedTitle.trim() || !schedWhen}>
+                  {schedSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CalendarClock className="mr-2 h-4 w-4" />}
+                  Schedule
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

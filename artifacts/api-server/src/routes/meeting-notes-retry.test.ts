@@ -52,6 +52,8 @@ const H = vi.hoisted(() => {
         return row[field(cond.col)] === cond.val;
       case "lt":
         return row[field(cond.col)] < cond.val;
+      case "isNotNull":
+        return row[field(cond.col)] != null;
       default:
         return true;
     }
@@ -145,6 +147,9 @@ vi.mock("drizzle-orm", () => ({
     if (strings.length === 3 && strings[1]?.trim() === "<") {
       return { op: "lt", col: vals[0], val: vals[1] };
     }
+    if (strings[1]?.includes("IS NOT NULL")) {
+      return { op: "isNotNull", col: vals[0] };
+    }
     return { op: "sql" };
   }) as any,
 }));
@@ -181,11 +186,13 @@ vi.mock("../lib/meetings/meeting.service", () => ({
 const storageMocks = vi.hoisted(() => ({
   getObjectEntityFile: vi.fn(async () => ({ download: async () => [Buffer.from("fake-audio")] })),
   uploadPrivateObject: vi.fn(async () => "/objects/meeting-audio/fake"),
+  deletePrivateObject: vi.fn(async () => {}),
 }));
 vi.mock("../lib/objectStorage", () => ({
   ObjectStorageService: class {
     getObjectEntityFile = storageMocks.getObjectEntityFile;
     uploadPrivateObject = storageMocks.uploadPrivateObject;
+    deletePrivateObject = storageMocks.deletePrivateObject;
   },
 }));
 
@@ -210,7 +217,7 @@ vi.mock("../lib/auth-user", async (importActual) => {
 });
 
 import meetingsRouter from "./meetings";
-import { sweepStuckMeetingNotes, STUCK_NOTE_ERROR } from "../lib/meetings/meeting-notes.service";
+import { sweepStuckMeetingNotes, cleanupMeetingAudio, STUCK_NOTE_ERROR } from "../lib/meetings/meeting-notes.service";
 
 const ALPHA = 1;
 const BETA = 2;
@@ -385,5 +392,53 @@ describe("sweepStuckMeetingNotes", () => {
     const res = await retry(stuckId);
     expect(res.status).toBe(202);
     expect(H.store.ai_meeting_notes.find((r) => r.id === stuckId)!.status).toBe("processing");
+  });
+});
+
+describe("cleanupMeetingAudio", () => {
+  const DAYS_8 = 8 * 24 * 60 * 60 * 1000;
+
+  it("deletes stored audio for done notes past retention and clears the columns", async () => {
+    const oldDone = seedNote({ status: "done", updatedAt: new Date(Date.now() - DAYS_8) });
+    const freshDone = seedNote({ status: "done", updatedAt: new Date() });
+    const oldFailed = seedNote({ status: "failed", updatedAt: new Date(Date.now() - DAYS_8) });
+
+    const cleaned = await cleanupMeetingAudio();
+    expect(cleaned).toBe(1);
+    expect(storageMocks.deletePrivateObject).toHaveBeenCalledTimes(1);
+    expect(storageMocks.deletePrivateObject).toHaveBeenCalledWith("/objects/meeting-audio/abc");
+
+    const byId = (id: number) => H.store.ai_meeting_notes.find((r) => r.id === id)!;
+    expect(byId(oldDone).audioObjectPath).toBeNull();
+    expect(byId(oldDone).audioMimeType).toBeNull();
+    // Recent done notes and failed notes (Retry must keep working) are untouched.
+    expect(byId(freshDone).audioObjectPath).toBe("/objects/meeting-audio/abc");
+    expect(byId(oldFailed).audioObjectPath).toBe("/objects/meeting-audio/abc");
+  });
+
+  it("skips notes whose audio is already cleared", async () => {
+    seedNote({ status: "done", updatedAt: new Date(Date.now() - DAYS_8), audioObjectPath: null, audioMimeType: null });
+    const cleaned = await cleanupMeetingAudio();
+    expect(cleaned).toBe(0);
+    expect(storageMocks.deletePrivateObject).not.toHaveBeenCalled();
+  });
+
+  it("leaves the row untouched when storage deletion fails, so a later run retries", async () => {
+    storageMocks.deletePrivateObject.mockRejectedValueOnce(new Error("storage down"));
+    const id = seedNote({ status: "done", updatedAt: new Date(Date.now() - DAYS_8) });
+    const cleaned = await cleanupMeetingAudio();
+    expect(cleaned).toBe(0);
+    const row = H.store.ai_meeting_notes.find((r) => r.id === id)!;
+    expect(row.audioObjectPath).toBe("/objects/meeting-audio/abc");
+
+    // Next run succeeds and clears it.
+    expect(await cleanupMeetingAudio()).toBe(1);
+    expect(row.audioObjectPath).toBeNull();
+  });
+
+  it("a retried note that succeeds again gets a fresh retention window (updatedAt-based)", async () => {
+    const id = seedNote({ status: "done", updatedAt: new Date() });
+    expect(await cleanupMeetingAudio()).toBe(0);
+    expect(H.store.ai_meeting_notes.find((r) => r.id === id)!.audioObjectPath).toBe("/objects/meeting-audio/abc");
   });
 });

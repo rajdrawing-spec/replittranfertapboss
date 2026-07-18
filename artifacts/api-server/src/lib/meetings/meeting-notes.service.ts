@@ -425,10 +425,65 @@ export async function sweepStuckMeetingNotes(olderThanMs: number = STUCK_PROCESS
   return swept.length;
 }
 
-/** Run the stuck-note sweep now and then periodically. Call once at startup. */
+// ── Stored-audio retention cleanup ────────────────────────────────────────────
+// Every upload persists the raw recording (up to 30MB) so failed notes can be
+// retried. Once a note has been "done" for the retention window, the audio has
+// served its purpose (retry + short-term playback) and is deleted so storage
+// doesn't grow forever. FAILED notes keep their audio indefinitely — Retry
+// must keep working.
+
+const AUDIO_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const AUDIO_CLEANUP_BATCH = 50;
+
+/**
+ * Delete stored recordings for notes that have been "done" longer than the
+ * retention window, clearing audio_object_path/audio_mime_type on each row.
+ * Best-effort per note: a storage failure is logged and the row is left
+ * untouched so a later run retries the deletion. Returns notes cleaned.
+ */
+export async function cleanupMeetingAudio(retentionMs: number = AUDIO_RETENTION_MS): Promise<number> {
+  const cutoff = new Date(Date.now() - retentionMs);
+  const candidates = await db
+    .select({ id: aiMeetingNotesTable.id, audioObjectPath: aiMeetingNotesTable.audioObjectPath })
+    .from(aiMeetingNotesTable)
+    .where(
+      and(
+        eq(aiMeetingNotesTable.status, "done"),
+        sql`${aiMeetingNotesTable.audioObjectPath} IS NOT NULL`,
+        sql`${aiMeetingNotesTable.updatedAt} < ${cutoff}`,
+      ),
+    )
+    .limit(AUDIO_CLEANUP_BATCH);
+
+  let cleaned = 0;
+  for (const note of candidates) {
+    try {
+      await objectStorage.deletePrivateObject(note.audioObjectPath!);
+      await db
+        .update(aiMeetingNotesTable)
+        .set({ audioObjectPath: null, audioMimeType: null, updatedAt: new Date() })
+        .where(eq(aiMeetingNotesTable.id, note.id));
+      cleaned++;
+    } catch (err) {
+      // Leave the row untouched so the next run retries the deletion —
+      // clearing the path without deleting would orphan the object forever.
+      logger.error({ err, noteId: note.id }, "Failed to delete stored meeting audio");
+    }
+  }
+  if (cleaned > 0) logger.info({ cleaned }, "Deleted stored meeting recordings past retention");
+  return cleaned;
+}
+
+/**
+ * Run the stuck-note sweep + audio retention cleanup now and then
+ * periodically. Call once at startup.
+ */
 export function startStuckNoteSweeper(): void {
-  const run = () => sweepStuckMeetingNotes().catch((err) => logger.error({ err }, "Stuck meeting-note sweep failed"));
-  void run();
+  const run = () => {
+    void sweepStuckMeetingNotes().catch((err) => logger.error({ err }, "Stuck meeting-note sweep failed"));
+    void cleanupMeetingAudio().catch((err) => logger.error({ err }, "Meeting-audio retention cleanup failed"));
+  };
+  run();
   const timer = setInterval(run, SWEEP_INTERVAL_MS);
   timer.unref?.();
 }

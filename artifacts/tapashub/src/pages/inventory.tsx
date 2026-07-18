@@ -119,6 +119,65 @@ export default function Inventory() {
     query: { enabled: true, queryKey: getListProductsQueryKey(params) }
   })
 
+  // ── Quick Add with AI — employee-friendly image-only flow ──────────────────
+  const [quickOpen, setQuickOpen] = React.useState(false)
+  const [quickImages, setQuickImages] = React.useState<string[]>([])
+  const [quickCompanyId, setQuickCompanyId] = React.useState("")
+  const [quickCreating, setQuickCreating] = React.useState(false)
+
+  function openQuickAdd() {
+    setQuickImages([])
+    setQuickCompanyId(activeCompany ? String(activeCompany.id) : "")
+    setQuickOpen(true)
+  }
+
+  async function handleQuickImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []).slice(0, 10)
+    if (!files.length) return
+    for (const file of files) {
+      if (file.size > 8 * 1024 * 1024) {
+        toast({ title: "Photo too large", description: `${file.name} is over 8 MB`, variant: "destructive" })
+        continue
+      }
+      // Quick-create sends inline image data — read the file directly as a
+      // data URL (the backend only accepts data:image/* for security).
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result))
+        reader.onerror = () => reject(new Error("Could not read file"))
+        reader.readAsDataURL(file)
+      }).catch(() => null)
+      if (dataUrl?.startsWith("data:image/")) {
+        setQuickImages(prev => prev.length < 10 ? [...prev, dataUrl] : prev)
+      }
+    }
+    e.target.value = ""
+  }
+
+  async function handleQuickCreate() {
+    const companyId = parseInt(quickCompanyId)
+    if (!companyId) { toast({ title: "Select a company", variant: "destructive" }); return }
+    if (!quickImages.length) { toast({ title: "Upload at least one photo", variant: "destructive" }); return }
+    setQuickCreating(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/ai-products/quick-create`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, images: quickImages }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || "AI could not create the product")
+      }
+      const { product, healthScore } = await res.json()
+      toast({ title: "Product created by AI", description: `${product.name} · ${product.category} · health ${healthScore}/100` })
+      setQuickOpen(false)
+      setQuickImages([])
+      refetch()
+    } catch (e: any) {
+      toast({ title: "Could not create product", description: e?.message, variant: "destructive" })
+    } finally { setQuickCreating(false) }
+  }
+
   function openAdd() {
     setEditing(null)
     setForm({ ...emptyForm(), companyId: activeCompany ? String(activeCompany.id) : "" })
@@ -433,9 +492,63 @@ export default function Inventory() {
           <Button variant="outline" onClick={() => setImporting(true)} className="gap-2"><Upload className="w-4 h-4" />Import CSV</Button>
           <Button variant="outline" onClick={exportCsv} className="gap-2"><Download className="w-4 h-4" />Export CSV</Button>
           <Button variant="outline" onClick={exportXlsx} className="gap-2"><FileSpreadsheet className="w-4 h-4" />Export Excel</Button>
+          <Button onClick={openQuickAdd} className="gap-2 bg-purple-600 hover:bg-purple-700 text-white"><Sparkles className="w-4 h-4" />Quick Add with AI</Button>
           <Button onClick={openAdd} className="gap-2"><Plus className="w-4 h-4" />Add Product</Button>
         </div>
       </div>
+
+      {/* Quick Add with AI — upload photos only, AI builds the catalog entry */}
+      <Dialog open={quickOpen} onOpenChange={setQuickOpen}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-purple-500" />Quick Add with AI</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Just upload product photos — AI will detect the name, category, brand, colors, materials and create the full catalog entry automatically.
+          </p>
+          {!activeCompany && (
+            <div className="space-y-1.5">
+              <Label>Company</Label>
+              <Select value={quickCompanyId} onValueChange={setQuickCompanyId}>
+                <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
+                <SelectContent>
+                  {(Array.isArray(companies) ? companies : []).map((c: any) => (
+                    <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1.5"><ImagePlus className="w-4 h-4" />Product Photos (1–10)</Label>
+            <Input type="file" accept="image/*" multiple onChange={handleQuickImageUpload} disabled={uploadingImage || quickCreating} />
+            {quickImages.length > 0 && (
+              <div className="flex gap-2 flex-wrap">
+                {quickImages.map((img, i) => (
+                  <div key={i} className="relative">
+                    <img src={img} alt={`Photo ${i + 1}`} className="w-14 h-14 rounded-md object-cover border" />
+                    <button
+                      type="button"
+                      className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px]"
+                      onClick={() => setQuickImages(prev => prev.filter((_, j) => j !== i))}
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQuickOpen(false)} disabled={quickCreating}>Cancel</Button>
+            <Button
+              onClick={handleQuickCreate}
+              disabled={quickCreating || uploadingImage || !quickImages.length}
+              className="gap-2 bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              {quickCreating ? <><Loader2 className="w-4 h-4 animate-spin" />AI is creating…</> : <><Wand2 className="w-4 h-4" />Create Product</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardContent className="pt-5">

@@ -511,6 +511,96 @@ router.post("/ai-products/:productId/generate-marketplace-images", requirePermis
   } catch (e) { req.log.error(e); res.status(500).json({ error: (e as Error).message }); }
 });
 
+// ── Quick create from images ────────────────────────────────────────────────
+// Employee-friendly flow: upload 1-10 product images, AI analyzes them and
+// creates the full catalog entry (name, category, description, SKU, barcode,
+// attributes, SEO metadata) automatically. Only companyId + images required.
+const MAX_QUICK_IMAGE_BYTES = 8 * 1024 * 1024;   // per image (decoded)
+const MAX_QUICK_TOTAL_BYTES = 40 * 1024 * 1024;  // whole request (decoded)
+
+router.post("/ai-products/quick-create", requirePermission("inventory.write"), async (req: any, res: any) => {
+  if (!gate(req, res)) return;
+  try {
+    const parsed = z.object({
+      companyId: z.number(),
+      // Only inline data URLs are accepted — arbitrary object paths would let
+      // a caller point the analyzer at objects they don't own.
+      images: z.array(z.string().regex(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, "Each image must be an uploaded photo")).min(1).max(10),
+      price: z.number().optional(),
+      stockQuantity: z.number().int().optional(),
+    }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid request" });
+      return;
+    }
+    const { companyId, images, price, stockQuantity } = parsed.data;
+    let total = 0;
+    for (const img of images) {
+      const bytes = Math.floor((img.length - img.indexOf(",") - 1) * 3 / 4);
+      total += bytes;
+      if (bytes > MAX_QUICK_IMAGE_BYTES) { res.status(413).json({ error: "Each photo must be under 8 MB" }); return; }
+    }
+    if (total > MAX_QUICK_TOTAL_BYTES) { res.status(413).json({ error: "Photos are too large altogether — please upload fewer or smaller images" }); return; }
+    if (!ensureCompany(req, res, companyId)) return;
+
+    // 1. AI vision analysis of the uploaded images
+    const result = await analyzeProductImages(images);
+    const name = result.suggestedName || "New Product";
+    const category = result.category || "Uncategorized";
+    const brand = result.attributes?.Brand || "";
+    const color = result.attributes?.Color || "";
+    const description = [
+      result.attributes?.Material, result.attributes?.["Sleeve Type"], result.attributes?.["Neck Type"],
+      result.attributes?.Pattern, result.attributes?.Occasion, result.attributes?.Fit,
+    ].filter(Boolean).join(". ");
+
+    // 2. Create the product with AI-detected fields
+    const sku = await ensureUniqueSku(companyId, name, category, brand || undefined);
+    const [product] = await db.insert(productsTable).values({
+      companyId,
+      name,
+      sku,
+      barcode: generateBarcode(),
+      category,
+      subcategory: result.subcategory || null,
+      description: description || null,
+      brand: brand || null,
+      price: price ?? 0,
+      stockQuantity: stockQuantity ?? 0,
+      imageUrl: images[0],
+      status: "active",
+    }).returning();
+
+    // 3. Store images with AI tags + alt text
+    await Promise.all(images.map((objectPath, i) => {
+      const angle = i === 0 ? "front" : i === 1 ? "back" : i === 2 ? "side" : `angle-${i}`;
+      return db.insert(productImagesTable).values({
+        productId: product.id,
+        companyId,
+        objectPath,
+        aiTags: result.tags,
+        altText: generateImageName(name, brand, category, color, angle, i),
+        isPrimary: i === 0,
+      });
+    }));
+
+    // 4. Persist AI metadata + health score
+    await saveAiMetadata(product.id, {
+      keywords: result.keywords,
+      seoTags: result.seoTags,
+      attributes: result.attributes,
+      aiAnalysis: result as any,
+    });
+    const score = await computeHealthScore(product.id);
+    await saveAiMetadata(product.id, { healthScore: score });
+
+    res.status(201).json({ product, analysis: result, healthScore: score });
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "AI could not create the product. Please try again or add it manually." });
+  }
+});
+
 // ── Excel import/export ─────────────────────────────────────────────────────
 router.post("/ai-products/import-xlsx", requirePermission("inventory.write"), async (req: any, res: any) => {
   if (!gate(req, res)) return;

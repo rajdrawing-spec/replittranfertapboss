@@ -378,11 +378,17 @@ router.post("/ai-products/import-jobs/:jobId/process", requirePermission("invent
     if (!ensureCompany(req, res, job.companyId)) return;
 
     await db.update(productImportJobsTable).set({ status: "running", updatedAt: new Date() }).where(eq(productImportJobsTable.id, jobId));
-    const file = await storage.getObjectEntityFile(job.filePath);
-    const stream = file.createReadStream();
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    const csv = Buffer.concat(chunks).toString("utf-8").replace(/^\uFEFF/, "");
+    let csv: string;
+    if (job.filePath.startsWith("data:")) {
+      const base64 = job.filePath.split(",")[1] || "";
+      csv = Buffer.from(base64, "base64").toString("utf-8").replace(/^\uFEFF/, "");
+    } else {
+      const file = await storage.getObjectEntityFile(job.filePath);
+      const stream = file.createReadStream();
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      csv = Buffer.concat(chunks).toString("utf-8").replace(/^\uFEFF/, "");
+    }
     const records = parse(csv, { columns: true, skip_empty_lines: true, trim: true }) as Record<string, string>[];
     if (records.length === 0) {
       await db.update(productImportJobsTable).set({ status: "completed", stats: { total: 0, success: 0, failed: 0, errors: [] }, updatedAt: new Date() }).where(eq(productImportJobsTable.id, jobId));

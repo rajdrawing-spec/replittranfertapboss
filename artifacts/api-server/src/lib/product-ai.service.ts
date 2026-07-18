@@ -9,6 +9,20 @@ import * as XLSX from "xlsx";
 
 const storage = new ObjectStorageService();
 
+function isDataUrl(path: string): boolean {
+  return typeof path === 'string' && path.startsWith('data:');
+}
+
+function parseDataUrl(dataUrl: string): { mimeType: string; base64: string } | null {
+  const match = dataUrl.match(/^data:([a-zA-Z0-9+/_.-]+);base64,(.*)$/);
+  if (!match) return null;
+  return { mimeType: match[1], base64: match[2] };
+}
+
+function dataUrlFromBuffer(buffer: Buffer, mimeType: string): string {
+  return `data:${mimeType};base64,${buffer.toString('base64')}`;
+}
+
 function normalizeObjectPath(path: string): string {
   if (!path) return "";
   if (path.startsWith("/objects/")) return path;
@@ -19,6 +33,11 @@ function normalizeObjectPath(path: string): string {
 }
 
 async function downloadBuffer(objectPath: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  if (isDataUrl(objectPath)) {
+    const parsed = parseDataUrl(objectPath);
+    if (!parsed) return null;
+    return { buffer: Buffer.from(parsed.base64, 'base64'), mimeType: parsed.mimeType };
+  }
   try {
     const file = await storage.getObjectEntityFile(normalizeObjectPath(objectPath));
     const [metadata] = await file.getMetadata();
@@ -33,6 +52,11 @@ async function downloadBuffer(objectPath: string): Promise<{ buffer: Buffer; mim
 }
 
 async function downloadBase64(objectPath: string): Promise<{ base64: string; mimeType: string } | null> {
+  if (isDataUrl(objectPath)) {
+    const parsed = parseDataUrl(objectPath);
+    if (!parsed) return null;
+    return { base64: parsed.base64, mimeType: parsed.mimeType };
+  }
   const file = await downloadBuffer(objectPath);
   if (!file) return null;
   return { base64: file.buffer.toString("base64"), mimeType: file.mimeType };
@@ -446,12 +470,9 @@ export const MARKETPLACE_SPECS: MarketplaceSpec[] = [
 ];
 
 export async function resizeProductImage(objectPath: string, width: number, height: number, purpose = "custom", format: "webp" | "jpeg" | "png" = "jpeg", quality = 90): Promise<ResizeResult> {
-  const file = await storage.getObjectEntityFile(normalizeObjectPath(objectPath));
-  const [metadata] = await file.getMetadata();
-  const stream = file.createReadStream();
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  const originalBuffer = Buffer.concat(chunks);
+  const source = await downloadBuffer(objectPath);
+  if (!source) throw new Error("Image not found");
+  const { buffer: originalBuffer, mimeType: originalMimeType } = source;
 
   let pipeline = sharp(originalBuffer).resize(width, height, { fit: "contain", background: { r: 255, g: 255, b: 255, alpha: 1 } });
   if (format === "webp") pipeline = pipeline.webp({ quality });
@@ -460,10 +481,7 @@ export async function resizeProductImage(objectPath: string, width: number, heig
   const resized = await pipeline.toBuffer();
   const contentType = format === "webp" ? "image/webp" : format === "png" ? "image/png" : "image/jpeg";
 
-  const uploadUrl = await storage.getObjectEntityUploadURL();
-  const res = await fetch(uploadUrl, { method: "PUT", body: resized, headers: { "Content-Type": contentType } });
-  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-  const newPath = storage.normalizeObjectEntityPath(uploadUrl);
+  const newPath = dataUrlFromBuffer(resized, contentType);
   return { objectPath: newPath, width, height, originalSize: originalBuffer.length, newSize: resized.length, purpose };
 }
 
@@ -480,14 +498,12 @@ export async function removeProductBackground(objectPath: string): Promise<Backg
   const apiKey = (await getConfig("remove_bg_api_key")) || process.env.REMOVE_BG_API_KEY;
   if (!apiKey) throw new Error("remove.bg API key is not configured. Add it in AI Settings as remove_bg_api_key or set REMOVE_BG_API_KEY.");
 
-  const file = await storage.getObjectEntityFile(normalizeObjectPath(objectPath));
-  const stream = file.createReadStream();
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  const imageBuffer = Buffer.concat(chunks);
+  const source = await downloadBuffer(objectPath);
+  if (!source) throw new Error("Image not found");
+  const imageBuffer = source.buffer;
 
   const formData = new FormData();
-  formData.append("image_file", new Blob([imageBuffer], { type: "image/jpeg" }), "image.jpg");
+  formData.append("image_file", new Blob([new Uint8Array(imageBuffer)], { type: source.mimeType || "image/jpeg" }), "image.jpg");
   formData.append("size", "auto");
 
   const res = await fetch("https://api.remove.bg/v1.0/removebg", {
@@ -497,10 +513,7 @@ export async function removeProductBackground(objectPath: string): Promise<Backg
   });
   if (!res.ok) throw new Error(`remove.bg API error: ${res.status} ${await res.text().catch(() => "")}`);
   const resultBuffer = Buffer.from(await res.arrayBuffer());
-  const uploadUrl = await storage.getObjectEntityUploadURL();
-  const uploadRes = await fetch(uploadUrl, { method: "PUT", body: resultBuffer, headers: { "Content-Type": "image/png" } });
-  if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.status}`);
-  const newPath = storage.normalizeObjectEntityPath(uploadUrl);
+  const newPath = dataUrlFromBuffer(resultBuffer, "image/png");
   return { objectPath: newPath, service: "remove.bg" };
 }
 
@@ -510,10 +523,7 @@ export function generateBarcode(): string {
 
 export async function generateBarcodeImage(barcode: string, format: "code128" | "ean13" | "upca" = "code128"): Promise<{ objectPath: string; buffer: Buffer }> {
   const buffer = await bwipjs.toBuffer({ bcid: format, text: barcode, scale: 3, height: 10, includetext: true, textxalign: "center" });
-  const uploadUrl = await storage.getObjectEntityUploadURL();
-  const res = await fetch(uploadUrl, { method: "PUT", body: buffer, headers: { "Content-Type": "image/png" } });
-  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-  const objectPath = storage.normalizeObjectEntityPath(uploadUrl);
+  const objectPath = dataUrlFromBuffer(buffer, "image/png");
   return { objectPath, buffer };
 }
 

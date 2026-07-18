@@ -160,7 +160,7 @@ router.post("/gemini/conversations/:id/messages", async (req, res) => {
 
     let fullResponse = "";
     const stream = await ai.models.generateContentStream({
-      model: "gemini-2.5-flash",
+      model: "gemini-flash-latest",
       contents: history.map((m) => ({
         role: m.role === "assistant" ? ("model" as const) : ("user" as const),
         parts: [{ text: m.content }],

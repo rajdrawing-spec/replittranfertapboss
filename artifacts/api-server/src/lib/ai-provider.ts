@@ -138,7 +138,7 @@ export const geminiProvider: AiProvider = {
       parts: [{ text: m.content }],
     }));
     const response = await geminiAi.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-flash-latest",
       contents,
       config: {
         // Disable thinking for structured JSON tasks — thinking tokens consume
@@ -161,7 +161,7 @@ export const geminiProvider: AiProvider = {
       },
     ];
     const response = await geminiAi.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-flash-latest",
       contents,
       config: {
         thinkingConfig: { thinkingBudget: 0 },

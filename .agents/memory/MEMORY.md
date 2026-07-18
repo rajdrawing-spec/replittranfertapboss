@@ -48,3 +48,4 @@
 - [TBOS granular RBAC](tbos-rbac-permissions.md) — treasury/funds use permission keys not requireSuperAdmin; RequestAccessGate flow; fake-DB tests must mock authz middleware.
 - [TBOS AI meeting assistant](tbos-ai-meeting-notes.md) — recorder chunks survive token remounts via module map; finishRecording from every leave path; failed note rows are reclaimable.
 - [TBOS group-call join policy](tbos-group-call-policy.md) — any company member may join a meeting in their workspace; only explicitly rejected invitees are blocked.
+- [Gemini model deprecation](gemini-model-deprecation.md) — "gemini-2.5-flash" 404s for new API keys; use the "gemini-flash-latest" alias; models can appear in models.list yet still be rejected at generateContent.

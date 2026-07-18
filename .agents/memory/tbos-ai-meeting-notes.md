@@ -8,4 +8,5 @@ description: Architecture and pitfalls of the post-call AI notes pipeline (recor
 - **Why:** an unmount-time upload would trigger early processing mid-call; the note claim is one-shot per meeting.
 - Server dedup: unique meeting_db_id + onConflictDoNothing claims the note; a `failed` row is atomically reclaimable (UPDATE ... WHERE status='failed') so a poisoned first upload doesn't permanently block notes.
 - Audio upload authz needs participant/organizer membership, not just company scope; channel auto-invite must validate the channel belongs to the meeting's company.
-- Gemini 2.5 Flash accepts audio via inlineData parts; use responseMimeType application/json + thinkingBudget 0; ~30MB decoded cap fits 50mb express body limit with base64 overhead.
+- Gemini flash accepts audio via inlineData parts; use responseMimeType application/json + thinkingBudget 0; ~30MB decoded cap fits 50mb express body limit with base64 overhead. Use the `gemini-flash-latest` alias (pinned 2.5 names 404 for new keys).
+- Pipeline verified end-to-end 2026-07-18 with a real speech recording (transcript, summary, action items, assigned task with resolved relative due date, notifications, dedup claim); replayable via the verify script in api-server/scripts.

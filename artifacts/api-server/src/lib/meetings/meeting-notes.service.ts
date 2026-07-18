@@ -42,7 +42,7 @@ async function analyzeAudio(audioBase64: string, mimeType: string, meetingTitle:
   ].join("\n");
 
   const response = await geminiAi.models.generateContent({
-    model: "gemini-2.5-flash",
+    model: "gemini-flash-latest",
     contents: [
       {
         role: "user" as const,

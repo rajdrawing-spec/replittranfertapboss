@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "CWdcsiOugJ0Ea3Rg0n7rq"
+uri = "file://attached_assets/generated_audio/meeting_test_audio.mp3"
+type = "audio"
+title = "meeting test audio"

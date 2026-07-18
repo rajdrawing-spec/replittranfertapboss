@@ -94,8 +94,7 @@ const baseSubsidiaryNav: NavItem[] = [
   { name: "Documents", href: "/documents", icon: FileText, perm: "documents.view" },
   { name: "AI Tasks", href: "/ai-tasks", icon: CheckSquare, perm: "ai_tasks.read" },
   { name: "Planner", href: "/planner", icon: CalendarDays },
-  { name: "Chat", href: "/chat", icon: MessageSquare, perm: "chat.read" },
-  { name: "Meetings", href: "/meetings", icon: Video, perm: "meetings.read" },
+  { name: "Team", href: "/chat", icon: MessageSquare, perm: "chat.read" },
   { name: "Account Directory", href: "/accounts", icon: Contact, perm: "directory.view" },
   { name: "Integrations", href: "/integrations", icon: Globe2, perm: "platform.integrations" },
 ]
@@ -289,8 +288,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const adminNav: NavItem[] = isSuperAdmin
     ? [
         ...(!isParentView ? [{ name: "Team & Roles", href: "/admin/access", icon: ShieldCheck }] : []),
-        { name: "Chat", href: "/chat", icon: MessageSquare },
-        { name: "Meetings", href: "/meetings", icon: Video },
+        { name: "Team", href: "/chat", icon: MessageSquare },
         { name: "Audit Logs", href: "/admin/audit", icon: ScrollText },
         { name: "Admin Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
       ]

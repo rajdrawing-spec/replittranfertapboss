@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { MeetingOverlay } from "@/components/meetings/livekit-room"
 import { IncomingCallPopup, type IncomingCallData } from "@/components/meetings/incoming-call-popup"
+import { finishRecording } from "@/components/meetings/meeting-recorder"
 
 // Minimum meeting info the context needs
 export interface ActiveCallMeeting {
@@ -26,13 +27,15 @@ export interface ActiveCall {
   meeting: ActiveCallMeeting
   token: string
   serverUrl: string
+  /** false = voice call (camera starts off). Defaults to video. */
+  video?: boolean
 }
 
 interface MeetingContextValue {
   activeCall: ActiveCall | null
   isMinimized: boolean
   /** Fetch a token externally, then call this to start the shared connection. */
-  startCall: (meeting: ActiveCallMeeting, token: string, serverUrl: string) => void
+  startCall: (meeting: ActiveCallMeeting, token: string, serverUrl: string, opts?: { video?: boolean }) => void
   /** Leave the call, hit the server leave endpoint, and clear state. */
   leaveCall: () => Promise<void>
   setMinimized: (v: boolean) => void
@@ -65,9 +68,9 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
   // ── Call management ────────────────────────────────────────────────────────
 
   const startCall = React.useCallback(
-    (meeting: ActiveCallMeeting, token: string, serverUrl: string) => {
+    (meeting: ActiveCallMeeting, token: string, serverUrl: string, opts?: { video?: boolean }) => {
       leavingRef.current = false
-      setActiveCall({ meeting, token, serverUrl })
+      setActiveCall({ meeting, token, serverUrl, video: opts?.video })
       setIsMinimized(false)
       // Dismiss any pending incoming call popup when user starts/joins a call
       setIncomingCall(null)
@@ -83,6 +86,8 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
     leavingRef.current = true
     const call = activeCallRef.current
     if (call) {
+      // Hand the captured audio to the AI Meeting Assistant (best-effort)
+      void finishRecording(call.meeting.meetingId)
       try {
         await fetch(`/api/meetings/leave/${call.meeting.meetingId}`, {
           method: "POST",
@@ -218,6 +223,7 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
       leavingRef.current = false
       setActiveCall(null)
       setIsMinimized(false)
+      void finishRecording(call.meeting.meetingId)
       fetch(`/api/meetings/leave/${call.meeting.meetingId}`, {
         method: "POST",
         credentials: "include",
@@ -252,6 +258,7 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
             title: "Call ended",
             description: (err as any).error || "The meeting is no longer available.",
           })
+          void finishRecording(call.meeting.meetingId)
           setActiveCall(null)
           setIsMinimized(false)
           queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
@@ -267,9 +274,10 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
     }
     toast({
       title: "Call disconnected",
-      description: "Could not reconnect. Please rejoin from the Meetings page.",
+      description: "Could not reconnect. Please rejoin from the Team page.",
       variant: "destructive",
     })
+    void finishRecording(call.meeting.meetingId)
     setActiveCall(null)
     setIsMinimized(false)
   }, [queryClient, toast])

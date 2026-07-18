@@ -5,11 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Activity, Users, MessageSquare, Video, CheckSquare, Bot, AlertCircle, Server, Phone, MessageCircle, ArrowRight } from "lucide-react"
+import { Activity, Users, MessageSquare, Video, CheckSquare, Bot, AlertCircle, Server, MessageCircle, ArrowRight } from "lucide-react"
 import { useCompany } from "@/contexts/company-context"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useToast } from "@/hooks/use-toast"
-import { useMeeting } from "@/contexts/meeting-context"
 
 interface AdminMetrics {
   activeUsers: number
@@ -42,8 +40,6 @@ function MetricCard({ label, value, icon: Icon, status }: { label: string; value
 export default function AdminDashboard() {
   const [, setLocation] = useLocation()
   const { activeCompany, companies, isParentView, setActiveCompanyId } = useCompany()
-  const { toast } = useToast()
-  const { startCall } = useMeeting()
   const queryClient = useQueryClient()
   const parentCompany = companies.find((c) => c.mode === "parent")
   const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>(
@@ -59,39 +55,6 @@ export default function AdminDashboard() {
   }, [activeCompany?.id, parentCompany?.id])
 
   const selectedCompany = companies.find((c) => c.id === companyId)
-
-  const startInstantMeeting = async () => {
-    if (!companyId) {
-      toast({ title: "Select a company", description: "Choose a workspace from the dropdown above, or switch to a subsidiary first.", variant: "destructive" })
-      return
-    }
-    const res = await fetch("/api/meetings", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ companyId, title: `${selectedCompany?.name ?? "Admin"} Instant Meeting`, duration: 30 }),
-    })
-    if (!res.ok) {
-      toast({ title: "Failed to start meeting", description: await res.text(), variant: "destructive" })
-      return
-    }
-    const meeting = await res.json()
-
-    // Fetch token and join through the shared meeting context instead of opening the
-    // wss:// roomUrl directly (browsers do not allow navigating to a WebSocket URL).
-    const tokenRes = await fetch(
-      `/api/meetings/token?roomName=${encodeURIComponent(meeting.meetingId)}&companyId=${companyId}`,
-      { credentials: "include" },
-    )
-    if (!tokenRes.ok) {
-      toast({ title: "Meeting created, but failed to join", description: await tokenRes.text(), variant: "destructive" })
-      return
-    }
-    const { token, serverUrl } = await tokenRes.json()
-    await fetch(`/api/meetings/join/${meeting.meetingId}`, { method: "POST", credentials: "include" })
-    startCall({ id: meeting.id, meetingId: meeting.meetingId, title: meeting.title, companyId }, token, serverUrl)
-    queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
-  }
 
   const openChat = () => {
     if (selectedCompanyId) {
@@ -157,14 +120,6 @@ export default function AdminDashboard() {
               <div className="font-medium">Open Chat</div>
               <p className="text-xs text-muted-foreground">{selectedCompany ? `Open ${selectedCompany.name} chat.` : "Choose a workspace above, or switch to a subsidiary first."}</p>
               <Button size="sm" onClick={openChat} className="w-full">Open Chat <ArrowRight className="ml-2 h-4 w-4" /></Button>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 flex flex-col gap-3">
-              <div className="p-2 rounded-lg bg-primary/10 w-fit"><Phone className="h-5 w-5 text-primary" /></div>
-              <div className="font-medium">Instant Meeting</div>
-              <p className="text-xs text-muted-foreground">Start a LiveKit video call for the selected company.</p>
-              <Button size="sm" onClick={startInstantMeeting} className="w-full">Start Instant <ArrowRight className="ml-2 h-4 w-4" /></Button>
             </CardContent>
           </Card>
         </div>

@@ -19,6 +19,9 @@ import {
   isLiveKitConfigured,
 } from "../lib/meetings/meeting.service";
 import { broadcastMeetingRinging } from "../lib/chat/socket-server";
+import { claimMeetingNote, processMeetingAudio, listMeetingNotes, getMeetingNote } from "../lib/meetings/meeting-notes.service";
+import { db, chatChannelMembersTable, chatChannelsTable } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -178,6 +181,99 @@ router.get("/meetings/my", requirePermission("meetings.read"), async (req, res) 
   }
 });
 
+// ── AI Meeting Assistant: notes ───────────────────────────────────────────────
+// NOTE: these must be registered before /meetings/:id so "notes" is not
+// captured as an :id parameter.
+router.get("/meetings/notes", requirePermission("meetings.read"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.query.companyId as string);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const channelId = req.query.channelId ? parseInt(String(req.query.channelId), 10) : undefined;
+    const q = typeof req.query.q === "string" ? req.query.q : undefined;
+    res.json(await listMeetingNotes(companyId, { channelId, q }));
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to list meeting notes" });
+  }
+});
+
+router.get("/meetings/notes/:id", requirePermission("meetings.read"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.query.companyId as string);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const note = await getMeetingNote(parseInt(String(req.params.id), 10), companyId);
+    if (!note) { res.status(404).json({ error: "Note not found" }); return; }
+    res.json(note);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to load meeting note" });
+  }
+});
+
+// Upload captured meeting audio → kicks off the async AI notes pipeline.
+const MAX_AUDIO_BYTES = 30 * 1024 * 1024; // 30MB decoded (~2h at 32kbps opus)
+router.post("/meetings/audio/:meetingId", requirePermission("meetings.read"), async (req, res) => {
+  try {
+    const userId = getLocalUserId(req);
+    if (!userId) { res.status(401).json({ error: "Authentication required" }); return; }
+    const meeting = await getMeetingByMeetingId(String(req.params.meetingId));
+    if (!meeting) { res.status(404).json({ error: "Meeting not found" }); return; }
+    if (!canAccessCompany(req, meeting.companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    // Only actual meeting participants (or the organizer) may submit the
+    // recording — company read access alone is not enough.
+    const isOrganizer = meeting.organizerId === userId;
+    const participant = meeting.participants.find((p) => p.userId === userId);
+    if (!isOrganizer && (!participant || participant.status === "rejected")) {
+      res.status(403).json({ error: "Only meeting participants can upload the recording" });
+      return;
+    }
+
+    const audio = req.body?.audio;
+    if (typeof audio !== "string" || !audio.startsWith("data:audio/")) {
+      res.status(400).json({ error: "Body must include `audio` as a data:audio/* base64 data URL" });
+      return;
+    }
+    const commaIdx = audio.indexOf(",");
+    const header = audio.slice(0, commaIdx);
+    const base64 = audio.slice(commaIdx + 1);
+    if (commaIdx === -1 || !header.includes(";base64")) {
+      res.status(400).json({ error: "Audio must be base64-encoded" });
+      return;
+    }
+    const mimeType = header.slice(5, header.indexOf(";"));
+    const approxBytes = Math.floor(base64.length * 0.75);
+    if (approxBytes > MAX_AUDIO_BYTES) {
+      res.status(413).json({ error: "Audio exceeds the 30MB limit" });
+      return;
+    }
+    if (approxBytes < 1024) {
+      res.status(400).json({ error: "Audio recording is empty" });
+      return;
+    }
+
+    const note = await claimMeetingNote(meeting, userId);
+    if (!note) {
+      // Another participant already uploaded this meeting's recording.
+      res.status(200).json({ status: "already_processing" });
+      return;
+    }
+    void processMeetingAudio(note.id, meeting, base64, mimeType);
+    res.status(202).json({ status: "processing", noteId: note.id });
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to process meeting audio" });
+  }
+});
+
 // ── Create meeting ────────────────────────────────────────────────────────────
 router.post("/meetings", requirePermission("meetings.manage"), async (req, res) => {
   try {
@@ -187,6 +283,29 @@ router.post("/meetings", requirePermission("meetings.manage"), async (req, res) 
       res.status(403).json({ error: "Forbidden" });
       return;
     }
+    // When a meeting is started from a chat channel without an explicit invite
+    // list, invite every channel member so they get the ringing popup.
+    let participantIds: number[] | undefined = req.body.participantIds;
+    const channelId = req.body.channelId ? parseInt(String(req.body.channelId), 10) : undefined;
+    if (channelId && (!participantIds || participantIds.length === 0)) {
+      // The channel must belong to the same company the meeting is created in
+      // — otherwise a crafted channelId could ring users of another tenant.
+      const [channel] = await db
+        .select({ id: chatChannelsTable.id })
+        .from(chatChannelsTable)
+        .where(and(eq(chatChannelsTable.id, channelId), eq(chatChannelsTable.companyId, companyId)))
+        .limit(1);
+      if (!channel) {
+        res.status(403).json({ error: "Channel does not belong to this company" });
+        return;
+      }
+      const members = await db
+        .select({ userId: chatChannelMembersTable.userId })
+        .from(chatChannelMembersTable)
+        .where(eq(chatChannelMembersTable.channelId, channelId));
+      participantIds = members.map((m) => m.userId).filter((id) => id !== userId);
+    }
+
     const meeting = await createMeeting({
       companyId,
       channelId: req.body.channelId,
@@ -197,7 +316,7 @@ router.post("/meetings", requirePermission("meetings.manage"), async (req, res) 
       scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : null,
       duration: req.body.duration,
       organizerId: userId,
-      participantIds: req.body.participantIds,
+      participantIds,
       waitingRoom: req.body.waitingRoom,
       password: req.body.password,
       maxParticipants: req.body.maxParticipants,
@@ -206,7 +325,7 @@ router.post("/meetings", requirePermission("meetings.manage"), async (req, res) 
     });
 
     // Notify invited participants via Socket.IO
-    const invitedIds = (req.body.participantIds as number[] | undefined || []).filter((id) => id !== userId);
+    const invitedIds = (participantIds || []).filter((id) => id !== userId);
     if (invitedIds.length > 0) {
       const organizerName = (req as any).localUser?.name || "Someone";
       broadcastMeetingRinging(invitedIds, {

@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { X, Maximize2, Minimize2, Clock, Users, MonitorSpeaker } from "lucide-react"
 import type { ActiveCall } from "@/contexts/meeting-context"
 import type { DisconnectReason } from "livekit-client"
+import { MeetingRecorder } from "@/components/meetings/meeting-recorder"
 
 // ── Timer ─────────────────────────────────────────────────────────────────────
 
@@ -200,7 +201,9 @@ export function MeetingOverlay({
         token={activeCall.token}
         serverUrl={activeCall.serverUrl}
         audio={true}
-        video={true}
+        // Voice calls start with the camera off; users can turn it on from the
+        // control bar at any time (it's still a full LiveKit room).
+        video={activeCall.video !== false}
         data-lk-theme="default"
         style={
           isMinimized
@@ -226,6 +229,8 @@ export function MeetingOverlay({
         }
         onDisconnected={onDisconnected}
       >
+        {/* AI Meeting Assistant — records mixed audio for post-call notes */}
+        <MeetingRecorder meetingId={activeCall.meeting.meetingId} />
         {isMinimized ? (
           // Keep audio alive. Video publication is paused by ControlBar state;
           // no video UI is rendered here.

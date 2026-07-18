@@ -575,6 +575,29 @@ export async function applyMigrations(): Promise<void> {
     await db.execute(sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS dimensions TEXT`);
     await db.execute(sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS hsn TEXT`);
 
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ai_meeting_notes (
+        id              SERIAL PRIMARY KEY,
+        company_id      INTEGER   NOT NULL,
+        meeting_db_id   INTEGER   NOT NULL UNIQUE,
+        meeting_room_id TEXT      NOT NULL,
+        channel_id      INTEGER,
+        task_id         INTEGER,
+        title           TEXT      NOT NULL,
+        transcript      TEXT,
+        summary         TEXT,
+        notes           TEXT,
+        action_items    JSONB     DEFAULT '[]',
+        status          TEXT      NOT NULL DEFAULT 'processing',
+        error           TEXT,
+        uploaded_by     INTEGER   NOT NULL,
+        created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS ai_meeting_notes_company_id_idx ON ai_meeting_notes(company_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS ai_meeting_notes_channel_id_idx ON ai_meeting_notes(channel_id)`);
+
     logger.info("Startup migrations applied (schema)");
   } catch (e) {
     // Log but never crash the server — missing tables are better discovered

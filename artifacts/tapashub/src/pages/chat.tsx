@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { io, type Socket } from "socket.io-client"
 import { useCompany } from "@/contexts/company-context"
 import { useAuth } from "@/contexts/auth-context"
@@ -8,18 +8,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Label } from "@/components/ui/label"
 import { EmptyState } from "@/components/empty-state"
 import { ChatSkeleton } from "@/components/skeletons"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Switch } from "@/components/ui/switch"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useMeeting } from "@/contexts/meeting-context"
 import {
-  MessageSquare, Pin, Search, Send, Paperclip, Megaphone, User, Video, BarChart, Briefcase, Smile, X, Building2,
+  MessageSquare, Pin, Search, Send, Paperclip, Megaphone, User, Video, Phone, Briefcase, X, Building2,
+  Sparkles, Loader2, ChevronLeft, ClipboardList,
 } from "lucide-react"
-
-const basePath = import.meta.env.BASE_URL.replace(/\/$/, "")
 
 interface ChatChannel {
   id: number
@@ -52,32 +49,40 @@ interface ChatUser {
   email: string
 }
 
-interface ChatPoll {
+interface MeetingActionItem {
+  title: string
+  description?: string
+  assigneeName?: string
+  priority?: string
+  dueDate?: string
+  taskId?: number
+}
+
+interface MeetingNoteSummary {
   id: number
-  channelId: number
-  userId: number
-  question: string
-  options: string[]
-  votes: Record<string, number>
-  closed: boolean
+  meetingId: string
+  channelId: number | null
+  title: string
+  summary: string | null
+  actionItems: MeetingActionItem[]
+  status: "processing" | "done" | "failed"
   createdAt: string
 }
 
-interface UserStatus {
-  userId: number
-  presence: "online" | "away" | "offline"
-  statusMessage?: string
-  doNotDisturb: boolean
+interface MeetingNoteDetail extends MeetingNoteSummary {
+  transcript: string | null
+  notes: string | null
+  error: string | null
 }
 
 const EMOJIS = ["👍", "❤️", "😂", "🎉", "🤔", "👀"]
 
 export default function ChatPage() {
   const { activeCompany, companies, isParentView } = useCompany()
-  const { user, hasPermission } = useAuth()
+  const { user } = useAuth()
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const { startCall } = useMeeting()
+  const { startCall, activeCall } = useMeeting()
   const parentCompany = companies.find((c) => c.mode === "parent")
 
   // In the parent view, let the user pick which workspace to chat in.
@@ -85,7 +90,6 @@ export default function ChatPage() {
     activeCompany?.id?.toString() ?? parentCompany?.id?.toString() ?? "",
   )
   const companyId = selectedCompanyId ? Number(selectedCompanyId) : activeCompany?.id ?? parentCompany?.id
-  const selectedCompany = companies.find((c) => c.id === companyId)
 
   React.useEffect(() => {
     if (!selectedCompanyId) {
@@ -95,7 +99,6 @@ export default function ChatPage() {
   }, [activeCompany?.id, parentCompany?.id])
 
   const userId = user?.id
-  const canManage = hasPermission("chat.manage")
 
   const [socket, setSocket] = React.useState<Socket | null>(null)
   const [selectedChannel, setSelectedChannel] = React.useState<ChatChannel | null>(null)
@@ -106,15 +109,11 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = React.useState("")
   const [searchResults, setSearchResults] = React.useState<ChatMessage[]>([])
   const [usersOpen, setUsersOpen] = React.useState(false)
-  const [pollsOpen, setPollsOpen] = React.useState(false)
-  const [pollQuestion, setPollQuestion] = React.useState("")
-  const [pollOptions, setPollOptions] = React.useState(["", ""])
-  const [statusOpen, setStatusOpen] = React.useState(false)
-  const [statusPresence, setStatusPresence] = React.useState<"online" | "away" | "offline">("online")
-  const [statusMessage, setStatusMessage] = React.useState("")
-  const [dnd, setDnd] = React.useState(false)
+  const [notesOpen, setNotesOpen] = React.useState(false)
+  const [notesQuery, setNotesQuery] = React.useState("")
+  const [openNoteId, setOpenNoteId] = React.useState<number | null>(null)
+  const [startingCall, setStartingCall] = React.useState<"voice" | "video" | null>(null)
   const [replyTo, setReplyTo] = React.useState<ChatMessage | null>(null)
-  const [draggedFiles, setDraggedFiles] = React.useState<File[]>([])
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
 
   const { data: channels, isLoading: isLoadingChannels } = useQuery<ChatChannel[]>({
@@ -137,74 +136,27 @@ export default function ChatPage() {
     enabled: !!companyId && usersOpen,
   })
 
-  const { data: polls, refetch: refetchPolls } = useQuery<ChatPoll[]>({
-    queryKey: ["/api/chat/channels", selectedChannel?.id, "polls"],
+  // ── AI Meeting Notes ────────────────────────────────────────────────────────
+  const { data: meetingNotes, isLoading: isLoadingNotes } = useQuery<MeetingNoteSummary[]>({
+    queryKey: ["/api/meetings/notes", companyId, notesQuery],
     queryFn: async () => {
-      const res = await fetch(`/api/chat/channels/${selectedChannel?.id}/polls`, { credentials: "include" })
+      const params = new URLSearchParams({ companyId: String(companyId) })
+      if (notesQuery.trim()) params.set("q", notesQuery.trim())
+      const res = await fetch(`/api/meetings/notes?${params}`, { credentials: "include" })
       if (!res.ok) throw new Error(await res.text())
       return res.json()
     },
-    enabled: !!selectedChannel,
+    enabled: !!companyId && notesOpen,
   })
 
-  const { data: userStatuses } = useQuery<UserStatus[]>({
-    queryKey: ["/api/users/status", companyId],
+  const { data: openNote } = useQuery<MeetingNoteDetail>({
+    queryKey: ["/api/meetings/notes", companyId, "detail", openNoteId],
     queryFn: async () => {
-      const res = await fetch(`/api/users/status?companyId=${companyId}`, { credentials: "include" })
+      const res = await fetch(`/api/meetings/notes/${openNoteId}?companyId=${companyId}`, { credentials: "include" })
       if (!res.ok) throw new Error(await res.text())
       return res.json()
     },
-    enabled: !!companyId,
-  })
-
-  const statusMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/users/status`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ presence: statusPresence, statusMessage, doNotDisturb: dnd }),
-      })
-      if (!res.ok) throw new Error(await res.text())
-      return res.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users/status", companyId] })
-      setStatusOpen(false)
-    },
-  })
-
-  const createPollMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/chat/channels/${selectedChannel?.id}/polls`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: pollQuestion, options: pollOptions.filter(o => o.trim()), isMultiple: false }),
-      })
-      if (!res.ok) throw new Error(await res.text())
-      return res.json()
-    },
-    onSuccess: () => {
-      setPollQuestion("")
-      setPollOptions(["", ""])
-      setPollsOpen(false)
-      refetchPolls()
-    },
-  })
-
-  const voteMutation = useMutation({
-    mutationFn: async ({ pollId, optionIndex }: { pollId: number; optionIndex: number }) => {
-      const res = await fetch(`/api/chat/polls/${pollId}/vote`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ optionIndex }),
-      })
-      if (!res.ok) throw new Error(await res.text())
-      return res.json()
-    },
-    onSuccess: () => refetchPolls(),
+    enabled: !!companyId && !!openNoteId,
   })
 
   // Keep the currently-selected channel in a ref so socket event handlers can
@@ -216,12 +168,9 @@ export default function ChatPage() {
     if (!companyId || !userId) return
     // Socket tokens are single-use on the server: `auth` must be a *function*
     // so every connection AND automatic reconnection fetches a fresh token.
-    // A static token works once, then every reconnect fails forever with
-    // "Invalid or expired token".
     const s: Socket = io({
       // /api/socket.io so the connection follows the same routing as all API
-      // calls (works in dev AND in the deployed app, where only /api/* is
-      // forwarded to the backend).
+      // calls (works in dev AND in the deployed app).
       path: "/api/socket.io",
       auth: (cb: (data: object) => void) => {
         fetch(`/api/chat/token`, { credentials: "include" })
@@ -229,16 +178,10 @@ export default function ChatPage() {
           .then(({ token }) => cb({ token }))
           .catch(() => cb({}))
       },
-      // Default transports: start with HTTP long-polling (works through any
-      // proxy), then upgrade to WebSocket when the proxy allows it. A dropped
-      // WS upgrade no longer kills chat entirely.
       reconnection: true,
       reconnectionDelay: 1_000,
       reconnectionDelayMax: 15_000,
     })
-    // Fires on the initial connect AND on every successful reconnect —
-    // re-join the company room and the channel the user is currently viewing
-    // so messages and typing indicators keep flowing after a drop.
     s.on("connect", () => {
       s.emit("join", { companyId }, (res: any) => {
         if (!res.ok) toast({ title: "Chat join failed", description: res.error, variant: "destructive" })
@@ -293,6 +236,33 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
+  // ── Auto-join when navigated here with ?join=<meetingId> ───────────────────
+  // (Deep links to /meetings redirect here and preserve the param.)
+  const autoJoinAttempted = React.useRef(false)
+  React.useEffect(() => {
+    if (autoJoinAttempted.current || !companyId || activeCall) return
+    const params = new URLSearchParams(window.location.search)
+    const joinId = params.get("join")
+    if (!joinId) return
+    autoJoinAttempted.current = true
+    const url = new URL(window.location.href)
+    url.searchParams.delete("join")
+    window.history.replaceState(null, "", url.toString())
+    fetch(`/api/meetings/token?roomName=${encodeURIComponent(joinId)}&companyId=${companyId}`, {
+      credentials: "include",
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Failed to get token")
+        return r.json()
+      })
+      .then(async ({ token, serverUrl }: { token: string; serverUrl: string }) => {
+        await fetch(`/api/meetings/join/${joinId}`, { method: "POST", credentials: "include" })
+        startCall({ meetingId: joinId, title: "Meeting", companyId }, token, serverUrl)
+        queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
+      })
+      .catch((e) => toast({ title: "Could not join the meeting", description: String(e), variant: "destructive" }))
+  }, [companyId, activeCall, startCall, queryClient, toast])
+
   const sendMessage = () => {
     if (!socket || !selectedChannel || !input.trim()) return
     const mentionIds: number[] = []
@@ -339,37 +309,48 @@ export default function ChatPage() {
     }
   }
 
-  const startChannelMeeting = async () => {
-    if (!selectedChannel) return
-    const res = await fetch(`/api/meetings`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        companyId,
-        channelId: selectedChannel.id,
-        title: `${selectedChannel.name} Meeting`,
-      }),
-    })
-    if (!res.ok) {
-      toast({ title: "Failed to start meeting", description: await res.text(), variant: "destructive" })
-      return
+  // ── One-click calls from chat ───────────────────────────────────────────────
+  // Creates a meeting linked to this channel; the server invites every channel
+  // member (ringing popup) and this user joins immediately.
+  const startChannelCall = async (video: boolean) => {
+    if (!selectedChannel || startingCall) return
+    setStartingCall(video ? "video" : "voice")
+    try {
+      const res = await fetch(`/api/meetings`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          channelId: selectedChannel.id,
+          title: `${selectedChannel.name} ${video ? "Call" : "Voice Call"}`,
+        }),
+      })
+      if (!res.ok) {
+        toast({ title: "Failed to start call", description: await res.text(), variant: "destructive" })
+        return
+      }
+      const meeting = await res.json()
+      const tokenRes = await fetch(
+        `/api/meetings/token?roomName=${encodeURIComponent(meeting.meetingId)}&companyId=${companyId}`,
+        { credentials: "include" },
+      )
+      if (!tokenRes.ok) {
+        toast({ title: "Call created, but failed to join", description: await tokenRes.text(), variant: "destructive" })
+        return
+      }
+      const { token, serverUrl } = await tokenRes.json()
+      await fetch(`/api/meetings/join/${meeting.meetingId}`, { method: "POST", credentials: "include" })
+      startCall(
+        { id: meeting.id, meetingId: meeting.meetingId, title: meeting.title, companyId: companyId! },
+        token,
+        serverUrl,
+        { video },
+      )
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
+    } finally {
+      setStartingCall(null)
     }
-    const meeting = await res.json()
-
-    // Join through the shared meeting context instead of opening the raw wss:// roomUrl.
-    const tokenRes = await fetch(
-      `/api/meetings/token?roomName=${encodeURIComponent(meeting.meetingId)}&companyId=${companyId}`,
-      { credentials: "include" },
-    )
-    if (!tokenRes.ok) {
-      toast({ title: "Meeting created, but failed to join", description: await tokenRes.text(), variant: "destructive" })
-      return
-    }
-    const { token, serverUrl } = await tokenRes.json()
-    await fetch(`/api/meetings/join/${meeting.meetingId}`, { method: "POST", credentials: "include" })
-    startCall({ id: meeting.id, meetingId: meeting.meetingId, title: meeting.title, companyId: companyId! }, token, serverUrl)
-    queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
   }
 
   if (!companyId) {
@@ -377,7 +358,7 @@ export default function ChatPage() {
       <div className="p-4 md:p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <MessageSquare className="h-6 w-6" /> Chat
+            <MessageSquare className="h-6 w-6" /> Team
           </h1>
         </div>
         <Card>
@@ -417,7 +398,7 @@ export default function ChatPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center justify-between">
             <span className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" /> Channels
+              <MessageSquare className="h-4 w-4" /> Team
             </span>
             {isParentView && companies.length > 0 && (
               <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
@@ -450,11 +431,14 @@ export default function ChatPage() {
           ))}
         </CardContent>
         <div className="p-3 border-t space-y-2">
-          <Button variant="outline" size="sm" className="w-full" onClick={() => setSearchOpen(true)}>
-            <Search className="mr-2 h-4 w-4" /> Search
-          </Button>
           <Button variant="outline" size="sm" className="w-full" onClick={() => setUsersOpen(true)}>
             <User className="mr-2 h-4 w-4" /> Direct Message
+          </Button>
+          <Button variant="outline" size="sm" className="w-full" onClick={() => setSearchOpen(true)}>
+            <Search className="mr-2 h-4 w-4" /> Search Messages
+          </Button>
+          <Button variant="outline" size="sm" className="w-full" onClick={() => { setNotesOpen(true); setOpenNoteId(null) }}>
+            <Sparkles className="mr-2 h-4 w-4" /> Meeting Notes
           </Button>
         </div>
       </Card>
@@ -468,26 +452,27 @@ export default function ChatPage() {
               {selectedChannel?.type === "team" && <Megaphone className="h-4 w-4" />}
               {selectedChannel?.type === "project" && <Briefcase className="h-4 w-4" />}
               {selectedChannel?.name || "Select a channel"}
-              {selectedChannel && userId && userStatuses?.find(s => s.userId === userId)?.doNotDisturb && (
-                <Badge variant="outline" className="ml-2 text-xs">DND</Badge>
-              )}
             </span>
             {selectedChannel && (
               <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" onClick={() => setPollsOpen(true)}>
-                  <BarChart className="h-4 w-4" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Start voice call"
+                  disabled={!!startingCall || !!activeCall}
+                  onClick={() => startChannelCall(false)}
+                >
+                  {startingCall === "voice" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setStatusOpen(true)}>
-                  <Smile className="h-4 w-4" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Start video call"
+                  disabled={!!startingCall || !!activeCall}
+                  onClick={() => startChannelCall(true)}
+                >
+                  {startingCall === "video" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => startChannelMeeting()}>
-                  <Video className="h-4 w-4" />
-                </Button>
-                {canManage && (
-                  <Button variant="ghost" size="sm" onClick={() => setSearchOpen(true)}>
-                    <Search className="h-4 w-4" />
-                  </Button>
-                )}
               </div>
             )}
           </CardTitle>
@@ -495,7 +480,7 @@ export default function ChatPage() {
 
         <CardContent className="flex-1 overflow-y-auto space-y-3 p-4">
           {!selectedChannel ? (
-            <EmptyState icon={MessageSquare} message="Select a channel" hint="Choose a channel to start chatting." />
+            <EmptyState icon={MessageSquare} message="Select a channel" hint="Choose a channel to start chatting, or start a call with the phone and camera buttons." />
           ) : messages.length === 0 ? (
             <div className="text-center text-sm text-muted-foreground py-8">No messages yet. Say hello!</div>
           ) : (
@@ -548,18 +533,7 @@ export default function ChatPage() {
                 <button onClick={() => setReplyTo(null)}><X className="h-3 w-3" /></button>
               </div>
             )}
-            <div
-              className="flex items-center gap-2"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={async (e) => {
-                e.preventDefault()
-                const files = Array.from(e.dataTransfer.files)
-                if (files.length > 0) {
-                  setDraggedFiles(files)
-                  toast({ title: "Files dropped", description: `${files.length} file(s) ready for upload` })
-                }
-              }}
-            >
+            <div className="flex items-center gap-2">
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -572,7 +546,6 @@ export default function ChatPage() {
                 multiple
                 className="hidden"
                 id="chat-file-input"
-                onChange={(e) => setDraggedFiles(Array.from(e.target.files || []))}
               />
               <label htmlFor="chat-file-input">
                 <Button variant="ghost" size="icon" asChild>
@@ -583,9 +556,6 @@ export default function ChatPage() {
                 <Send className="h-4 w-4" />
               </Button>
             </div>
-            {draggedFiles.length > 0 && (
-              <div className="text-xs text-muted-foreground mt-1">{draggedFiles.length} file(s) selected (upload via storage)</div>
-            )}
             {typingUsers.length > 0 && (
               <div className="text-xs text-muted-foreground mt-1">Someone is typing...</div>
             )}
@@ -599,7 +569,7 @@ export default function ChatPage() {
             <DialogTitle>Search Messages</DialogTitle>
           </DialogHeader>
           <div className="flex gap-2">
-            <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search..." />
+            <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()} placeholder="Search..." />
             <Button onClick={handleSearch}>Search</Button>
           </div>
           <div className="max-h-[300px] overflow-y-auto space-y-2">
@@ -633,79 +603,113 @@ export default function ChatPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={pollsOpen} onOpenChange={setPollsOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader><DialogTitle>Polls</DialogTitle></DialogHeader>
-          <div className="max-h-[300px] overflow-y-auto space-y-3">
-            {polls?.map(poll => (
-              <div key={poll.id} className="border rounded-md p-3 space-y-2">
-                <div className="font-medium text-sm">{poll.question}</div>
-                {poll.options.map((opt, idx) => {
-                  const votes = Object.values(poll.votes || {}).filter(v => v === idx).length
-                  const hasVoted = poll.votes ? Object.keys(poll.votes).includes(String(userId)) : false
-                  return (
-                    <div key={idx} className="flex items-center justify-between text-sm">
-                      <span>{opt}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{votes} votes</span>
-                        {!poll.closed && !hasVoted && (
-                          <Button size="sm" variant="outline" onClick={() => voteMutation.mutate({ pollId: poll.id, optionIndex: idx })}>Vote</Button>
-                        )}
+      {/* ── AI Meeting Notes ── */}
+      <Dialog open={notesOpen} onOpenChange={(o) => { setNotesOpen(o); if (!o) setOpenNoteId(null) }}>
+        <DialogContent className="sm:max-w-[640px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {openNoteId && (
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setOpenNoteId(null)}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              )}
+              <Sparkles className="h-4 w-4" /> {openNoteId ? openNote?.title ?? "Meeting Notes" : "Meeting Notes"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {!openNoteId ? (
+            <>
+              <Input
+                value={notesQuery}
+                onChange={(e) => setNotesQuery(e.target.value)}
+                placeholder="Search notes, summaries, and transcripts..."
+              />
+              <div className="max-h-[400px] overflow-y-auto space-y-2">
+                {isLoadingNotes ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                ) : !meetingNotes?.length ? (
+                  <div className="text-center text-sm text-muted-foreground py-8">
+                    No meeting notes yet. After a call ends, the AI assistant transcribes it and posts notes here.
+                  </div>
+                ) : (
+                  meetingNotes.map((note) => (
+                    <button
+                      key={note.id}
+                      onClick={() => setOpenNoteId(note.id)}
+                      className="w-full text-left rounded-md border p-3 hover:bg-muted space-y-1"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-sm truncate">{note.title}</span>
+                        <span className="flex items-center gap-2 shrink-0">
+                          {note.status === "processing" && <Badge variant="outline" className="text-xs gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Processing</Badge>}
+                          {note.status === "failed" && <Badge variant="destructive" className="text-xs">Failed</Badge>}
+                          {note.status === "done" && !!note.actionItems?.length && (
+                            <Badge variant="secondary" className="text-xs gap-1"><ClipboardList className="h-3 w-3" /> {note.actionItems.length}</Badge>
+                          )}
+                          <span className="text-xs text-muted-foreground">{new Date(note.createdAt).toLocaleDateString()}</span>
+                        </span>
+                      </div>
+                      {note.summary && <div className="text-xs text-muted-foreground line-clamp-2">{note.summary}</div>}
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="max-h-[440px] overflow-y-auto space-y-4 text-sm">
+              {!openNote ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+              ) : openNote.status === "processing" ? (
+                <div className="text-center text-muted-foreground py-8">The AI assistant is still processing this meeting…</div>
+              ) : openNote.status === "failed" ? (
+                <div className="text-center text-destructive py-8">Processing failed{openNote.error ? `: ${openNote.error}` : "."}</div>
+              ) : (
+                <>
+                  {openNote.summary && (
+                    <div>
+                      <div className="font-medium mb-1">Summary</div>
+                      <p className="text-muted-foreground whitespace-pre-wrap">{openNote.summary}</p>
+                    </div>
+                  )}
+                  {!!openNote.actionItems?.length && (
+                    <div>
+                      <div className="font-medium mb-1">Action Items</div>
+                      <div className="space-y-2">
+                        {openNote.actionItems.map((item, i) => (
+                          <div key={i} className="rounded-md border p-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium">{item.title}</span>
+                              <span className="flex items-center gap-1 shrink-0">
+                                {item.priority && <Badge variant="outline" className="text-xs">{item.priority}</Badge>}
+                                {item.taskId && <Badge variant="secondary" className="text-xs">Task created</Badge>}
+                              </span>
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {item.assigneeName ? `Assigned to ${item.assigneeName}` : "Unassigned"}
+                              {item.dueDate ? ` · Due ${item.dueDate}` : ""}
+                            </div>
+                            {item.description && <div className="text-xs text-muted-foreground mt-1">{item.description}</div>}
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  )
-                })}
-              </div>
-            ))}
-            <div className="space-y-2 pt-2 border-t">
-              <Input value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} placeholder="Poll question" />
-              {pollOptions.map((opt, i) => (
-                <Input key={i} value={opt} onChange={e => {
-                  const arr = [...pollOptions]
-                  arr[i] = e.target.value
-                  setPollOptions(arr)
-                }} placeholder={`Option ${i + 1}`} />
-              ))}
-              <Button variant="outline" size="sm" onClick={() => setPollOptions([...pollOptions, ""])}>Add option</Button>
-              <Button size="sm" onClick={() => createPollMutation.mutate()} disabled={!pollQuestion || pollOptions.filter(o => o.trim()).length < 2}>Create Poll</Button>
+                  )}
+                  {openNote.notes && (
+                    <div>
+                      <div className="font-medium mb-1">Notes</div>
+                      <p className="text-muted-foreground whitespace-pre-wrap">{openNote.notes}</p>
+                    </div>
+                  )}
+                  {openNote.transcript && (
+                    <div>
+                      <div className="font-medium mb-1">Transcript</div>
+                      <p className="text-muted-foreground whitespace-pre-wrap text-xs">{openNote.transcript}</p>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={statusOpen} onOpenChange={setStatusOpen}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader><DialogTitle>My Status</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Presence</Label>
-              <div className="flex gap-2">
-                {(["online", "away", "offline"] as const).map(p => (
-                  <Button key={p} variant={statusPresence === p ? "default" : "outline"} size="sm" onClick={() => setStatusPresence(p)}>{p}</Button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Status message</Label>
-              <Input value={statusMessage} onChange={e => setStatusMessage(e.target.value)} placeholder="In a meeting..." />
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={dnd} onCheckedChange={setDnd} />
-              <Label>Do not disturb</Label>
-            </div>
-            <Button onClick={() => statusMutation.mutate()} disabled={statusMutation.isPending}>Save Status</Button>
-          </div>
-          <div className="max-h-[200px] overflow-y-auto space-y-1 pt-2 border-t">
-            {userStatuses?.map(s => (
-              <div key={s.userId} className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${s.presence === "online" ? "bg-green-500" : s.presence === "away" ? "bg-yellow-500" : "bg-gray-400"}`} />
-                  <span>{s.statusMessage || s.presence}</span>
-                </div>
-                {s.doNotDisturb && <Badge variant="outline">DND</Badge>}
-              </div>
-            ))}
-          </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

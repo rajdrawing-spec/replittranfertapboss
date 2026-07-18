@@ -93,6 +93,49 @@ export const meetingParticipantsTable = pgTable(
 export type MeetingParticipant = typeof meetingParticipantsTable.$inferSelect;
 export type NewMeetingParticipant = typeof meetingParticipantsTable.$inferInsert;
 
+// ── ai_meeting_notes: AI Meeting Assistant output ─────────────────────────────
+// One row per meeting. Created when the first participant uploads meeting
+// audio; the Gemini pipeline fills in transcript/summary/action items and
+// links auto-created tasks.
+export interface MeetingActionItem {
+  title: string;
+  description?: string;
+  assigneeName?: string;
+  assigneeUserId?: number;
+  priority?: "low" | "medium" | "high";
+  dueDate?: string; // YYYY-MM-DD
+  taskId?: number; // generated_tasks row created from this item
+}
+
+export const aiMeetingNotesTable = pgTable(
+  "ai_meeting_notes",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("company_id").notNull(),
+    meetingDbId: integer("meeting_db_id").notNull().unique(), // meetings.id
+    meetingId: text("meeting_room_id").notNull(), // meetings.meeting_id (room name)
+    channelId: integer("channel_id"), // chat channel the meeting was started from
+    taskId: integer("task_id"), // AI task the meeting was linked to
+    title: text("title").notNull(),
+    transcript: text("transcript"),
+    summary: text("summary"),
+    notes: text("notes"),
+    actionItems: jsonb("action_items").$type<MeetingActionItem[]>().default([]),
+    status: text("status").notNull().default("processing"), // processing | done | failed
+    error: text("error"),
+    uploadedBy: integer("uploaded_by").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    companyIdx: index("ai_meeting_notes_company_id_idx").on(table.companyId),
+    channelIdx: index("ai_meeting_notes_channel_id_idx").on(table.channelId),
+  }),
+);
+
+export type AiMeetingNote = typeof aiMeetingNotesTable.$inferSelect;
+export type NewAiMeetingNote = typeof aiMeetingNotesTable.$inferInsert;
+
 // ── Zod schemas for validation ─────────────────────────────────────────────────
 export const insertMeetingSettingsSchema = createInsertSchema(meetingSettingsTable)
   .omit({ id: true, createdAt: true, updatedAt: true })

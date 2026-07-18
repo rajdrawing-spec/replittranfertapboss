@@ -5,6 +5,7 @@ import { companiesTable, transactionsTable } from "@workspace/db";
 import type { User } from "@workspace/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { isSuperAdmin } from "../lib/auth-user";
+import { requirePermission } from "../middleware/authz";
 
 const router = Router();
 
@@ -20,7 +21,7 @@ function companyScope(req: Request): number[] | null {
 // companies the caller is authorized to see. Valuations that require inputs we
 // do not have (portfolio market value, gross profit / COGS) are omitted rather
 // than fabricated.
-router.get("/director/portfolio", async (req, res) => {
+router.get("/director/portfolio", requirePermission("director.view"), async (req, res) => {
   try {
     const scope = companyScope(req);
     if (scope && scope.length === 0) {

@@ -1,5 +1,6 @@
 import * as React from "react"
 import { useAuth } from "@/contexts/auth-context"
+import { RequestAccessGate } from "@/components/access-gate"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -145,7 +146,10 @@ function ProfitLine({ data }: { data: { month: string; profit: number }[] }) {
 }
 
 export default function DirectorPortal() {
-  const { user } = useAuth()
+  const { user, hasPermission } = useAuth()
+  if (!hasPermission("director.view")) {
+    return <RequestAccessGate module="Director Portal" />
+  }
   const [data, setData] = React.useState<PortfolioData | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState("")

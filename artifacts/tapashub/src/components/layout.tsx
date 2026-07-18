@@ -79,7 +79,7 @@ const parentNav: NavItem[] = [
   { name: "Documents", href: "/documents", icon: FileText, perm: "documents.view" },
   { name: "Account Directory", href: "/accounts", icon: Contact, perm: "directory.view" },
   { name: "Approvals", href: "/approvals", icon: CheckSquare, perm: "approvals.view" },
-  { name: "Director Portal", href: "/director", icon: PieChart },
+  { name: "Director Portal", href: "/director", icon: PieChart, perm: "director.view" },
   { name: "AI Reports", href: "/ai-reports", icon: Bot, perm: "ai.reports" },
   { name: "AI Insights", href: "/ai-assistant", icon: Bot, perm: "ai.read" },
 ]

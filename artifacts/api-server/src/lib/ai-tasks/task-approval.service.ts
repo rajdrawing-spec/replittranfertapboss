@@ -1,5 +1,6 @@
 import { db, generatedTasksTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
+import { broadcastTaskEvent } from "../chat/socket-server";
 import { generateDailyTasks } from "./ai-task.service";
 
 export async function approveTask(
@@ -12,6 +13,9 @@ export async function approveTask(
     .set({ status: "approved", approvedBy: managerId, approvedAt: new Date(), updatedAt: new Date() })
     .where(and(eq(generatedTasksTable.id, taskId), eq(generatedTasksTable.companyId, companyId)))
     .returning();
+  if (task) {
+    void broadcastTaskEvent(companyId, "ai_task:updated", { taskId: task.id, employeeId: task.employeeId, status: "approved" });
+  }
   return { ok: !!task };
 }
 
@@ -24,6 +28,9 @@ export async function rejectTask(
     .set({ status: "rejected", updatedAt: new Date() })
     .where(and(eq(generatedTasksTable.id, taskId), eq(generatedTasksTable.companyId, companyId)))
     .returning();
+  if (task) {
+    void broadcastTaskEvent(companyId, "ai_task:updated", { taskId: task.id, employeeId: task.employeeId, status: "rejected" });
+  }
   return { ok: !!task };
 }
 
@@ -43,6 +50,9 @@ export async function completeTask(
       ),
     )
     .returning();
+  if (task) {
+    void broadcastTaskEvent(companyId, "ai_task:updated", { taskId: task.id, employeeId: task.employeeId, status: "completed" });
+  }
   return { ok: !!task };
 }
 
@@ -60,8 +70,12 @@ export async function approveAll(
         eq(generatedTasksTable.generatedDate, runDate),
         eq(generatedTasksTable.status, "draft"),
       ),
-    );
-  return { count: Number(result.rowCount ?? 0) };
+    )
+    .returning({ id: generatedTasksTable.id, employeeId: generatedTasksTable.employeeId });
+  for (const task of result) {
+    void broadcastTaskEvent(companyId, "ai_task:updated", { taskId: task.id, employeeId: task.employeeId, status: "approved" });
+  }
+  return { count: result.length };
 }
 
 export async function rejectAll(
@@ -77,8 +91,12 @@ export async function rejectAll(
         eq(generatedTasksTable.generatedDate, runDate),
         eq(generatedTasksTable.status, "draft"),
       ),
-    );
-  return { count: Number(result.rowCount ?? 0) };
+    )
+    .returning({ id: generatedTasksTable.id, employeeId: generatedTasksTable.employeeId });
+  for (const task of result) {
+    void broadcastTaskEvent(companyId, "ai_task:updated", { taskId: task.id, employeeId: task.employeeId, status: "rejected" });
+  }
+  return { count: result.length };
 }
 
 export async function regenerateTasks(

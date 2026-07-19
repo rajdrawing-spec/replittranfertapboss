@@ -36,6 +36,23 @@ interface DashboardResponse {
   stats: TaskStats
 }
 
+function statusLabel(status: GeneratedTask["status"], dueDate: string | null): string {
+  if (status === "completed") return "Completed"
+  if (dueDate && dueDate < new Date().toISOString().slice(0, 10)) return "Overdue"
+  if (status === "draft") return "Pending"
+  if (status === "assigned" || status === "approved") return "In Progress"
+  if (status === "rejected") return "Rejected"
+  return status
+}
+
+function statusBadgeVariant(status: GeneratedTask["status"], dueDate: string | null): "default" | "secondary" | "destructive" | "outline" {
+  if (status === "completed") return "default"
+  if (dueDate && dueDate < new Date().toISOString().slice(0, 10)) return "destructive"
+  if (status === "draft") return "secondary"
+  if (status === "rejected") return "destructive"
+  return "outline"
+}
+
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <Card>
@@ -126,7 +143,7 @@ export function EmployeeDashboard({ companyId, employeeId }: { companyId: number
                     <Badge variant={task.priority === "high" ? "destructive" : task.priority === "medium" ? "default" : "secondary"}>
                       {task.priority}
                     </Badge>
-                    <Badge variant="outline">{task.status}</Badge>
+                    <Badge variant={statusBadgeVariant(task.status, task.dueDate)}>{statusLabel(task.status, task.dueDate)}</Badge>
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">{task.description}</p>
                   {task.estimatedMinutes && <p className="text-xs text-muted-foreground">Est. {task.estimatedMinutes} min</p>}

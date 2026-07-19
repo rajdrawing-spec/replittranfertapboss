@@ -4,6 +4,7 @@ import { ai as geminiAi } from "@workspace/integrations-gemini-ai";
 import { emitNotification } from "../notify";
 import { logger } from "../logger";
 import { ObjectStorageService } from "../objectStorage";
+import { broadcastTaskEvent } from "../chat/socket-server";
 
 const objectStorage = new ObjectStorageService();
 
@@ -20,6 +21,8 @@ interface AiMeetingAnalysis {
     title: string;
     description?: string;
     assigneeName?: string;
+    assigneeRole?: string;
+    department?: string;
     priority?: "low" | "medium" | "high";
     dueDate?: string;
   }>;
@@ -41,7 +44,7 @@ async function analyzeAudio(audioBase64: string, mimeType: string, meetingTitle:
     "3. Write structured meeting notes as markdown bullet points grouped by topic.",
     "4. Extract action items. For each: a short title, optional description, the assignee's name exactly as spoken (if any), priority (low|medium|high based on urgency expressed), and a due date in YYYY-MM-DD format if a deadline was mentioned (resolve relative dates like 'next Friday' using today's date).",
     "If the audio is silent or contains no meaningful speech, return an empty transcript and empty actionItems.",
-    'Respond with ONLY a JSON object: {"transcript": string, "summary": string, "notes": string, "actionItems": [{"title": string, "description": string, "assigneeName": string, "priority": "low"|"medium"|"high", "dueDate": "YYYY-MM-DD"}]}',
+    'Respond with ONLY a JSON object: {"transcript": string, "summary": string, "notes": string, "actionItems": [{"title": string, "description": string, "assigneeName": string, "assigneeRole": string, "department": string, "priority": "low"|"medium"|"high", "dueDate": "YYYY-MM-DD"}]}',
   ].join("\n");
 
   const response = await geminiAi.models.generateContent({
@@ -67,27 +70,78 @@ async function analyzeAudio(audioBase64: string, mimeType: string, meetingTitle:
   };
 }
 
-/** Fuzzy-match a spoken assignee name to a company employee. */
-function matchEmployee(
-  name: string | undefined,
-  employees: Array<{ id: number; firstName: string; lastName: string; email: string }>,
-): { id: number; fullName: string } | undefined {
-  if (!name) return undefined;
-  const needle = name.trim().toLowerCase();
-  if (!needle) return undefined;
-  for (const e of employees) {
-    const full = `${e.firstName} ${e.lastName}`.trim().toLowerCase();
-    if (
-      full === needle ||
-      e.firstName.toLowerCase() === needle ||
-      e.lastName.toLowerCase() === needle ||
-      full.includes(needle) ||
-      needle.includes(e.firstName.toLowerCase())
-    ) {
-      return { id: e.id, fullName: `${e.firstName} ${e.lastName}`.trim() };
+interface AssignableEmployee {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  department: string;
+  designation: string;
+}
+
+/**
+ * Pick the best employee for an action item, with confidence:
+ * - high: spoken name matches an employee.
+ * - medium: role or department in the item matches an employee.
+ * - low: no clear signal; default to the most senior employee (or the first one).
+ */
+function findBestAssignee(
+  item: {
+    title: string;
+    description?: string;
+    assigneeName?: string;
+    assigneeRole?: string;
+    department?: string;
+  },
+  employees: AssignableEmployee[],
+): { employee: AssignableEmployee; confidence: "high" | "medium" | "low" } | undefined {
+  if (employees.length === 0) return undefined;
+  const text = `${item.title} ${item.description || ""}`.toLowerCase();
+
+  if (item.assigneeName) {
+    const name = item.assigneeName.trim().toLowerCase();
+    if (name) {
+      for (const e of employees) {
+        const full = `${e.firstName} ${e.lastName}`.trim().toLowerCase();
+        if (
+          full === name ||
+          e.firstName.toLowerCase() === name ||
+          e.lastName.toLowerCase() === name ||
+          full.includes(name) ||
+          name.includes(e.firstName.toLowerCase())
+        ) {
+          return { employee: e, confidence: "high" };
+        }
+      }
     }
   }
-  return undefined;
+
+  if (item.assigneeRole) {
+    const role = item.assigneeRole.trim().toLowerCase();
+    const roleMatch = employees.find(
+      (e) => e.designation.toLowerCase().includes(role) || role.includes(e.designation.toLowerCase()),
+    );
+    if (roleMatch) return { employee: roleMatch, confidence: "medium" };
+  }
+
+  if (item.department) {
+    const dept = item.department.trim().toLowerCase();
+    const deptMatch = employees.find(
+      (e) => e.department.toLowerCase().includes(dept) || dept.includes(e.department.toLowerCase()),
+    );
+    if (deptMatch) return { employee: deptMatch, confidence: "medium" };
+  }
+
+  const deptTextMatch = employees.find((e) => e.department && text.includes(e.department.toLowerCase()));
+  if (deptTextMatch) return { employee: deptTextMatch, confidence: "medium" };
+
+  const roleTextMatch = employees.find((e) => e.designation && text.includes(e.designation.toLowerCase()));
+  if (roleTextMatch) return { employee: roleTextMatch, confidence: "medium" };
+
+  const senior = employees.find((e) => /manager|lead|head|director|senior|supervisor|owner|principal/i.test(e.designation));
+  if (senior) return { employee: senior, confidence: "low" };
+
+  return { employee: employees[0], confidence: "low" };
 }
 
 /**
@@ -191,7 +245,7 @@ export async function processMeetingAudio(noteId: number, meeting: Meeting, audi
     const analysis = await analyzeAudio(audioBase64, mimeType, meeting.title, todayIso);
 
     const employees = await db
-      .select({ id: employeesTable.id, firstName: employeesTable.firstName, lastName: employeesTable.lastName, email: employeesTable.email })
+      .select({ id: employeesTable.id, firstName: employeesTable.firstName, lastName: employeesTable.lastName, email: employeesTable.email, department: employeesTable.department, designation: employeesTable.designation })
       .from(employeesTable)
       .where(eq(employeesTable.companyId, meeting.companyId));
 
@@ -204,34 +258,63 @@ export async function processMeetingAudio(noteId: number, meeting: Meeting, audi
         priority: item.priority === "low" || item.priority === "high" ? item.priority : "medium",
         dueDate: /^\d{4}-\d{2}-\d{2}$/.test(item.dueDate ?? "") ? item.dueDate : undefined,
       };
-      const matched = matchEmployee(entry.assigneeName, employees);
-      if (matched) {
-        entry.assigneeName = matched.fullName;
+
+      const assignment = employees.length > 0
+        ? findBestAssignee({
+            title: entry.title,
+            description: entry.description,
+            assigneeName: entry.assigneeName,
+            assigneeRole: item.assigneeRole,
+            department: item.department,
+          }, employees)
+        : undefined;
+      if (assignment) {
+        const fullName = `${assignment.employee.firstName} ${assignment.employee.lastName}`.trim();
+        entry.assigneeName = fullName;
+        const taskStatus = assignment.confidence === "high" ? "assigned" : "draft";
         try {
           const [task] = await db
             .insert(generatedTasksTable)
             .values({
               companyId: meeting.companyId,
-              employeeId: matched.id,
+              employeeId: assignment.employee.id,
               generatedDate: todayIso,
               title: entry.title,
               description: entry.description || `Action item from meeting "${meeting.title}".`,
               priority: entry.priority ?? "medium",
-              status: "assigned",
+              status: taskStatus,
               source: "ai_customized",
-              aiCustomizations: { origin: "meeting_assistant", meetingId: meeting.meetingId },
+              aiCustomizations: {
+                origin: "meeting_assistant",
+                meetingId: meeting.meetingId,
+                meetingDbId: meeting.id,
+                noteId,
+                confidence: assignment.confidence,
+                originalAssigneeName: item.assigneeName,
+                suggested: assignment.confidence !== "high",
+                meetingTitle: meeting.title,
+                assignedAt: taskStatus === "assigned" ? new Date().toISOString() : undefined,
+              },
               dueDate: entry.dueDate ?? null,
             })
             .returning({ id: generatedTasksTable.id });
           if (task) {
             entry.taskId = task.id;
             void emitNotification({
-              type: "hr",
-              title: `New action item for ${matched.fullName}`,
-              message: `"${entry.title}" from meeting "${meeting.title}"${entry.dueDate ? ` — due ${entry.dueDate}` : ""}.`,
-              severity: "info",
+              type: "ai_tasks",
+              title: `New AI task for ${fullName}`,
+              message: `"${entry.title}" from meeting "${meeting.title}"${assignment.confidence !== "high" ? " (suggested, awaiting approval)" : ""}${entry.dueDate ? ` — due ${entry.dueDate}` : ""}.`,
+              severity: assignment.confidence === "high" ? "info" : "warning",
               companyId: meeting.companyId,
-              actionUrl: "/admin/ai-tasks",
+              actionUrl: "/ai-tasks",
+            });
+            void broadcastTaskEvent(meeting.companyId, "ai_task:new", {
+              taskId: task.id,
+              employeeId: assignment.employee.id,
+              title: entry.title,
+              status: taskStatus,
+              confidence: assignment.confidence,
+              meetingId: meeting.meetingId,
             });
           }
         } catch (err) {
@@ -373,12 +456,20 @@ export async function assignActionItem(noteId: number, companyId: number, itemIn
 
   const note = updated;
   void emitNotification({
-    type: "hr",
-    title: `New action item for ${fullName}`,
+    type: "ai_tasks",
+    title: `New AI task for ${fullName}`,
     message: `"${item.title}" from meeting "${note.title}"${item.dueDate ? ` — due ${item.dueDate}` : ""}.`,
     severity: "info",
     companyId,
-    actionUrl: "/admin/ai-tasks",
+    actionUrl: "/ai-tasks",
+  });
+  void broadcastTaskEvent(companyId, "ai_task:new", {
+    taskId: item.taskId,
+    employeeId,
+    title: item.title,
+    status: "assigned",
+    confidence: "manual",
+    meetingId: note.meetingId,
   });
 
   return updated;

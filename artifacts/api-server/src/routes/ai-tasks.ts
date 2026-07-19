@@ -20,7 +20,7 @@ import {
   regenerateTasks,
   getTaskStats,
 } from "../lib/ai-tasks/task-approval.service";
-import { listEmployeesForGeneration, updateEmployeeProfile } from "../lib/ai-tasks/employee-profile.service";
+import { listEmployeesForGeneration, updateEmployeeProfile, syncEmployeesFromUsers } from "../lib/ai-tasks/employee-profile.service";
 import { listJobs } from "../lib/ai-tasks/task-generation-job.service";
 import { getAiTasksConfig, setAiTasksConfig } from "../lib/ai-tasks/config.service";
 import {
@@ -43,7 +43,7 @@ import {
 } from "../lib/ai-tasks/prompts.service";
 import { getUnreadAiTasksCount } from "../lib/ai-tasks/notification.service";
 import { eq, and, desc, sql } from "drizzle-orm";
-import { db, generatedTasksTable } from "@workspace/db";
+import { db, generatedTasksTable, employeesTable } from "@workspace/db";
 
 const router = Router();
 
@@ -234,8 +234,30 @@ router.get("/ai-tasks/pending-approval", requirePermission("ai_tasks.manage"), a
       return;
     }
     const tasks = await db
-      .select()
+      .select({
+        id: generatedTasksTable.id,
+        companyId: generatedTasksTable.companyId,
+        employeeId: generatedTasksTable.employeeId,
+        templateId: generatedTasksTable.templateId,
+        generatedDate: generatedTasksTable.generatedDate,
+        title: generatedTasksTable.title,
+        description: generatedTasksTable.description,
+        priority: generatedTasksTable.priority,
+        status: generatedTasksTable.status,
+        source: generatedTasksTable.source,
+        aiCustomizations: generatedTasksTable.aiCustomizations,
+        dueDate: generatedTasksTable.dueDate,
+        completedAt: generatedTasksTable.completedAt,
+        approvedBy: generatedTasksTable.approvedBy,
+        approvedAt: generatedTasksTable.approvedAt,
+        createdAt: generatedTasksTable.createdAt,
+        updatedAt: generatedTasksTable.updatedAt,
+        assigneeName: sql<string>`COALESCE(${employeesTable.firstName} || ' ' || ${employeesTable.lastName}, '')`,
+        department: employeesTable.department,
+        designation: employeesTable.designation,
+      })
       .from(generatedTasksTable)
+      .leftJoin(employeesTable, eq(generatedTasksTable.employeeId, employeesTable.id))
       .where(
         and(
           eq(generatedTasksTable.companyId, companyId),
@@ -392,6 +414,21 @@ router.get("/ai-tasks/employees", requirePermission("ai_tasks.read"), async (req
   } catch (e) {
     req.log.error(e);
     res.status(500).json({ error: "Failed to list employees" });
+  }
+});
+
+router.post("/ai-tasks/employees/sync", requirePermission("ai_tasks.manage"), async (req, res) => {
+  try {
+    const companyId = parseInt(req.body.companyId as string);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const result = await syncEmployeesFromUsers(companyId);
+    res.json(result);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to sync employees" });
   }
 });
 

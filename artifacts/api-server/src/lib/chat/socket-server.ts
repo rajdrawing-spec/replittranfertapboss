@@ -58,6 +58,26 @@ export function broadcastCallEvent(userIds: number[], event: string, data: Recor
   }
 }
 
+/** Broadcast an AI task event to every socket in the company room. */
+export function broadcastTaskEvent(
+  companyId: number,
+  event: "ai_task:new" | "ai_task:updated",
+  task: Record<string, unknown>,
+) {
+  if (!_io) return;
+  _io.to(`company:${companyId}`).emit(event, task);
+}
+
+/** Emit a notification:new event to a specific user's socket connections. */
+export function broadcastNotificationToUser(userId: number, notification: Record<string, unknown>) {
+  if (!_io) return;
+  const sockets = presenceMap.get(userId);
+  if (!sockets) return;
+  for (const sid of sockets) {
+    _io.to(sid).emit("notification:new", notification);
+  }
+}
+
 /** Emit a meeting:declined event to the organizer's socket connections. */
 export function broadcastMeetingDeclined(
   organizerUserId: number,

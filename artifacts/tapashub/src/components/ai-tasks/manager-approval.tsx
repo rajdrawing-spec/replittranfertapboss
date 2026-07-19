@@ -18,6 +18,21 @@ interface GeneratedTask {
   employeeId: number
   generatedDate: string
   source: string
+  assigneeName?: string
+  department?: string
+  aiCustomizations?: {
+    confidence?: "high" | "medium" | "low" | "manual"
+    originalAssigneeName?: string
+    meetingTitle?: string
+  } | null
+}
+
+function statusLabel(status: string): string {
+  if (status === "draft") return "Pending"
+  if (status === "approved" || status === "assigned") return "In Progress"
+  if (status === "completed") return "Completed"
+  if (status === "rejected") return "Rejected"
+  return status
 }
 
 export function ManagerApproval({ companyId }: { companyId: number }) {
@@ -165,7 +180,17 @@ export function ManagerApproval({ companyId }: { companyId: number }) {
                         {task.priority}
                       </Badge>
                       <Badge variant="outline">{task.source}</Badge>
+                      {task.aiCustomizations?.confidence && (
+                        <Badge variant="outline" className="capitalize">{task.aiCustomizations.confidence} match</Badge>
+                      )}
                     </div>
+                    {task.assigneeName && (
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Suggested: {task.assigneeName}
+                        {task.department ? ` · ${task.department}` : ""}
+                        {task.aiCustomizations?.meetingTitle ? ` · from "${task.aiCustomizations.meetingTitle}"` : ""}
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-1">
                     <Button size="icon" variant="ghost" onClick={() => taskActionMutation.mutate({ id: task.id, action: "approve" })}>

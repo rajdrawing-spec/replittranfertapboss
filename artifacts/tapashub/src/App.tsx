@@ -15,6 +15,7 @@ import { CompanyProvider } from '@/contexts/company-context';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { MeetingProvider } from '@/contexts/meeting-context';
 import { DmNotificationProvider } from '@/contexts/dm-notification-context';
+import { AiTaskRealtimeProvider } from '@/contexts/ai-task-realtime-context';
 import { ClerkQueryClientCacheInvalidator } from '@/components/clerk-cache-invalidator';
 import { RouteErrorBoundary } from '@/components/error-boundary';
 
@@ -219,6 +220,7 @@ function AuthedApp() {
     <MeetingProvider>
     <DmNotificationProvider>
     <CompanyProvider>
+    <AiTaskRealtimeProvider>
       <React.Suspense fallback={<PageFallback />}>
         <Switch>
           {/* Integrations has its own minimal layout (no sidebar) */}
@@ -267,6 +269,7 @@ function AuthedApp() {
           </Route>
         </Switch>
       </React.Suspense>
+    </AiTaskRealtimeProvider>
     </CompanyProvider>
     </DmNotificationProvider>
     </MeetingProvider>

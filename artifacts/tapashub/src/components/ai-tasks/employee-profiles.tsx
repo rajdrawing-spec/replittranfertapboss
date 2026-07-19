@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Pencil } from "lucide-react"
+import { Pencil, RefreshCw, Users } from "lucide-react"
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "")
 
@@ -27,7 +27,7 @@ export function EmployeeProfiles({ companyId }: { companyId: number }) {
   const queryClient = useQueryClient()
   const [editing, setEditing] = React.useState<EmployeeProfile | null>(null)
 
-  const { data, isLoading } = useQuery<EmployeeProfile[]>({
+  const { data, isLoading, refetch } = useQuery<EmployeeProfile[]>({
     queryKey: ["/api/ai-tasks/employees", companyId],
     queryFn: async () => {
       const res = await fetch(`${basePath}/api/ai-tasks/employees?companyId=${companyId}`, {
@@ -38,7 +38,31 @@ export function EmployeeProfiles({ companyId }: { companyId: number }) {
     },
   })
 
-  const mutation = useMutation({
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${basePath}/api/ai-tasks/employees/sync`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      return res.json()
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ai-tasks/employees", companyId] })
+      toast({ title: `Team synced`, description: `${result.created} added, ${result.updated} updated, ${result.unchanged} unchanged.` })
+    },
+    onError: (err) => toast({ title: "Failed to sync team", description: String(err), variant: "destructive" }),
+  })
+
+  React.useEffect(() => {
+    if (!isLoading && (data?.length ?? 0) === 0 && !syncMutation.isPending && !syncMutation.isSuccess) {
+      syncMutation.mutate()
+    }
+  }, [isLoading, data, syncMutation.isPending, syncMutation.isSuccess])
+
+  const updateMutation = useMutation({
     mutationFn: async (payload: EmployeeProfile) => {
       const res = await fetch(`${basePath}/api/ai-tasks/employees/${payload.id}`, {
         method: "PATCH",
@@ -67,17 +91,35 @@ export function EmployeeProfiles({ companyId }: { companyId: number }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Employee Profiles</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Employee Profiles</CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending || isLoading}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`} />
+            Sync team
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          {!isLoading && (data?.length ?? 0) === 0 && (
+            <div className="rounded-lg border border-dashed p-6 text-center">
+              <Users className="mx-auto h-8 w-8 text-muted-foreground" />
+              <p className="mt-2 text-sm font-medium">No employee profiles yet</p>
+              <p className="text-xs text-muted-foreground">Sync your workspace members to build the AI task roster.</p>
+            </div>
+          )}
           {data?.map((emp) => (
             <div key={emp.id} className="rounded-lg border p-4">
               {editing?.id === emp.id ? (
                 <form
                   onSubmit={(e) => {
                     e.preventDefault()
-                    mutation.mutate(editing)
+                    updateMutation.mutate(editing)
                   }}
                   className="space-y-3"
                 >
@@ -109,7 +151,7 @@ export function EmployeeProfiles({ companyId }: { companyId: number }) {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button type="submit" size="sm" disabled={mutation.isPending}>Save</Button>
+                    <Button type="submit" size="sm" disabled={updateMutation.isPending}>Save</Button>
                     <Button type="button" variant="outline" size="sm" onClick={() => setEditing(null)}>Cancel</Button>
                   </div>
                 </form>

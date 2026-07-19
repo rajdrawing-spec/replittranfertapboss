@@ -1,0 +1,237 @@
+**UI/UX Redesign Prompt for Replit**
+
+---
+
+Redesign the entire **TapasHub Business OS** UI/UX into a **premium, enterprise-grade SaaS application**. This is **only a UI/UX redesign**—do **not** modify any backend logic, APIs, database structure, routes, permissions, or functionality. Preserve all existing features and workflows while replacing the visual design with a modern, consistent design system.
+
+### Design Direction
+
+Create a clean, premium interface inspired by **Linear, Microsoft Teams, Notion, GitHub, Vercel Dashboard, Slack, Stripe, and Apple's Human Interface Guidelines**. The experience should feel fast, professional, minimal, and suitable for large enterprises.
+
+### Core Principles
+
+* Clean, modern, enterprise-focused design.
+* Excellent visual hierarchy and readability.
+* Consistent spacing using an **8px grid system**.
+* No clutter or unnecessary decorative elements.
+* Smooth micro-interactions (150–200ms).
+* Fully responsive for desktop, tablet, and mobile.
+* WCAG AA accessible contrast and typography.
+
+### Visual Style
+
+* **No soft shadows**
+* **No neumorphism**
+* **No glassmorphism**
+* No excessive gradients or glow effects.
+* Use clean borders, spacing, typography, and color contrast to create depth.
+* Border radius: **14–16px**
+* Thin borders (1px) for cards, inputs, dropdowns, modals, and panels.
+
+### Brand Colors
+
+Primary Blue: `#2F80FF`
+Hover Blue: `#2563EB`
+Background: `#0B1220`
+Sidebar: `#111827`
+Cards: `#182235`
+Borders: `#273449`
+Primary Text: `#FFFFFF`
+Secondary Text: `#9CA3AF`
+Success: `#22C55E`
+Warning: `#F59E0B`
+Danger: `#EF4444`
+
+Use TapasHub blue consistently across active states, buttons, links, notifications, and selected navigation items.
+
+### Typography
+
+Use **Inter** or **Geist** throughout the application.
+
+Hierarchy:
+
+* Page Title: 30px / SemiBold
+* Section Heading: 22px
+* Card Title: 18px
+* Body Text: 15px
+* Caption: 13px
+
+Avoid thin font weights.
+
+### Icons
+
+Use **Lucide Icons** consistently.
+
+* Size: 20–22px
+* Uniform stroke width
+* Modern, minimal appearance
+
+### Navigation
+
+Redesign the left sidebar with:
+
+* Better spacing
+* Clear section grouping
+* Premium active state
+* White active icons
+* Blue active background
+* Smooth hover states
+* Notification badges where applicable
+
+### Top Header
+
+Create a clean enterprise header containing:
+
+* Workspace selector
+* Global search
+* Notifications
+* Meetings shortcut
+* User profile
+* Quick actions
+
+Keep the header fixed and minimal.
+
+### Cards & Panels
+
+Redesign all cards with:
+
+* Clean borders
+* Proper padding
+* Better spacing
+* Consistent corner radius
+* Strong typography
+* Better content hierarchy
+
+Avoid floating or shadow-heavy cards.
+
+### Forms
+
+Improve:
+
+* Inputs
+* Dropdowns
+* Search fields
+* Date pickers
+* Select menus
+* Checkboxes
+* Radio buttons
+* Toggles
+
+Use larger touch targets and clearer focus states.
+
+### Buttons
+
+Redesign every button with:
+
+* Consistent sizing
+* Primary, Secondary, Success, Warning, and Danger variants
+* Better hover and pressed states
+* Clear disabled states
+
+No glowing effects.
+
+### Chat Module
+
+Completely modernize the chat interface:
+
+* Better conversation list
+* Improved message bubbles
+* Better spacing
+* Modern avatars
+* Online status indicators
+* Typing indicators
+* Unread badges
+* Pinned conversations
+* Better search experience
+* Company switcher
+* Responsive mobile layout
+
+### Meetings
+
+Create a premium meeting experience:
+
+* Upcoming meetings
+* Running meetings
+* Completed meetings
+* Calendar view
+* Agenda view
+* Join buttons
+* Meeting details
+* Participants
+* AI meeting summary area
+
+### Dashboard
+
+Redesign dashboards using:
+
+* KPI cards
+* Analytics widgets
+* Recent activity
+* Calendar
+* Tasks
+* Meetings
+* Notifications
+* AI summary panel
+
+Everything should follow one consistent design language.
+
+### Tables
+
+Improve:
+
+* Sorting
+* Filters
+* Search
+* Pagination
+* Row spacing
+* Sticky headers
+* Bulk actions
+
+### Mobile Experience
+
+Design mobile layouts specifically for touch devices instead of simply scaling down the desktop version.
+
+Include:
+
+* Bottom navigation
+* Mobile-friendly cards
+* Responsive chat
+* Responsive meetings
+* Optimized spacing
+* Gesture-friendly interactions
+
+### Animations
+
+Use subtle animations only:
+
+* Hover transitions
+* Sidebar expand/collapse
+* Navigation changes
+* Page transitions
+* Button interactions
+* Loading skeletons
+
+Animation duration:
+**150–200ms**
+
+### Design Consistency
+
+Ensure every module follows the same design language:
+
+* Dashboard
+* Companies
+* Team Chat
+* Meetings
+* Calendar
+* Tasks
+* HR
+* Documents
+* Approvals
+* Analytics
+* AI
+* Settings
+* Admin
+
+### Final Goal
+
+Transform TapasHub into a **world-class Business Operating System** with a premium enterprise UI that is clean, modern, highly readable, visually consistent, and optimized for productivity. Focus entirely on improving the user experience, information hierarchy, spacing, typography, responsiveness, and overall visual quality while preserving all existing functionality and business logic.

@@ -223,7 +223,7 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
 
   const label = activeCompany?.name ?? "TapasHub"
   const initials = label.substring(0, 2).toUpperCase()
-  const color = activeCompany?.color ?? "#3B82F6"
+  const color = activeCompany?.color ?? "#2F80FF"
 
   const sorted = [...companies].sort((a, b) => {
     if (a.mode === "parent" && b.mode !== "parent") return -1
@@ -235,15 +235,16 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
     return (
       <div className="relative" ref={ref}>
         <button
+          data-compact
           onClick={() => setOpen(!open)}
-          className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-md transition-all hover:scale-105 hover:shadow-lg"
+          className="w-9 h-9 rounded-[10px] flex items-center justify-center text-white text-xs font-bold transition-opacity hover:opacity-80"
           style={{ background: color }}
           title={label}
         >
           {initials}
         </button>
         {open && (
-          <div className="absolute left-12 top-0 z-50 w-56 bg-card border rounded-2xl shadow-2xl py-1 overflow-hidden">
+          <div className="absolute left-11 top-0 z-50 w-56 bg-popover border border-popover-border rounded-[14px] py-1.5 overflow-hidden">
             <CompanyList sorted={sorted} activeCompany={activeCompany} setActiveCompanyId={setActiveCompanyId} setOpen={setOpen} />
           </div>
         )}
@@ -252,31 +253,31 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
   }
 
   return (
-    <div className="relative mx-3 mb-3" ref={ref}>
+    <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border bg-muted/40 hover:bg-muted/70 transition-all group"
+        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-[10px] border border-sidebar-border hover:bg-sidebar-accent transition-all duration-150"
       >
         <div
-          className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-md"
+          className="w-6 h-6 rounded-[7px] flex items-center justify-center text-white text-[10px] font-bold shrink-0"
           style={{ background: color }}
         >
           {initials}
         </div>
         <div className="flex-1 text-left min-w-0">
-          <div className="text-sm font-semibold truncate leading-tight">{label}</div>
-          <div className="text-[11px] text-muted-foreground leading-tight">
+          <div className="text-[13px] font-semibold truncate leading-none text-sidebar-foreground">{label}</div>
+          <div className="text-[10px] text-muted-foreground leading-none mt-0.5">
             {activeCompany == null || activeCompany.mode === "parent"
               ? "Portfolio View"
               : activeCompany.industry ?? "Subsidiary"}
           </div>
         </div>
-        <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-200", open && "rotate-180")} />
+        <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200", open && "rotate-180")} />
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 bg-card border rounded-2xl shadow-2xl py-1 overflow-hidden">
-          <div className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
+        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-popover border border-popover-border rounded-[14px] py-1.5 overflow-hidden">
+          <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em]">
             Switch Workspace
           </div>
           <CompanyList sorted={sorted} activeCompany={activeCompany} setActiveCompanyId={setActiveCompanyId} setOpen={setOpen} />
@@ -297,40 +298,42 @@ function CompanyList({
   return (
     <>
       <button
+        data-compact
         className={cn(
-          "w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted/60 transition-colors",
-          activeCompany == null && "bg-primary/10 text-primary"
+          "w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] hover:bg-accent transition-colors",
+          activeCompany == null && "text-primary"
         )}
         onClick={() => { setActiveCompanyId(null); setOpen(false) }}
       >
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: "#3B82F6" }}>
+        <div className="w-6 h-6 rounded-[7px] flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ background: "#2F80FF" }}>
           TH
         </div>
         <div className="text-left flex-1 min-w-0">
-          <div className="font-medium leading-tight truncate">TapasHub</div>
-          <div className="text-[10px] text-muted-foreground">Parent · Portfolio</div>
+          <div className="font-medium leading-none truncate">TapasHub</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">Portfolio View</div>
         </div>
         {activeCompany == null && <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
       </button>
-      <div className="my-1 border-t" />
+      <div className="my-1 border-t border-border/60 mx-2" />
       {sorted.filter((c) => c.mode !== "parent").map((c) => (
         <button
           key={c.id}
+          data-compact
           className={cn(
-            "w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted/60 transition-colors",
-            activeCompany?.id === c.id && "bg-primary/10 text-primary"
+            "w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] hover:bg-accent transition-colors",
+            activeCompany?.id === c.id && "text-primary"
           )}
           onClick={() => { setActiveCompanyId(c.id); setOpen(false) }}
         >
           <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
+            className="w-6 h-6 rounded-[7px] flex items-center justify-center text-white text-[10px] font-bold shrink-0"
             style={{ background: c.color }}
           >
             {c.name.substring(0, 2).toUpperCase()}
           </div>
           <div className="text-left flex-1 min-w-0">
-            <div className="font-medium leading-tight truncate">{c.name}</div>
-            <div className="text-[10px] text-muted-foreground truncate">{c.industry ?? "Subsidiary"}</div>
+            <div className="font-medium leading-none truncate">{c.name}</div>
+            <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{c.industry ?? "Subsidiary"}</div>
           </div>
           {activeCompany?.id === c.id && <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
         </button>
@@ -363,53 +366,52 @@ function NavGroupSection({
   const [open, setOpen] = React.useState(hasActive || group.label === "Workspace" || group.label === "Overview")
 
   return (
-    <div className="mb-1">
+    <div className="mb-3">
       {!collapsed && (
         <button
           onClick={() => setOpen((v) => !v)}
-          className="w-full flex items-center gap-2 px-3 py-1 mb-0.5 group"
+          className="w-full flex items-center gap-1.5 px-2 py-1 mb-0.5 group"
         >
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 flex-1 text-left group-hover:text-muted-foreground transition-colors">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/50 flex-1 text-left group-hover:text-muted-foreground/80 transition-colors">
             {group.label}
           </span>
           <ChevronRight
-            className={cn("w-3 h-3 text-muted-foreground/50 transition-transform duration-200", open && "rotate-90")}
+            className={cn("w-3 h-3 text-muted-foreground/30 transition-transform duration-200", open && "rotate-90")}
           />
         </button>
       )}
 
       {(open || collapsed) && (
-        <div className={cn("space-y-0.5", collapsed && "flex flex-col items-center")}>
+        <div className={cn("space-y-px", collapsed && "flex flex-col items-center")}>
           {group.items.map((item) => {
             const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href))
             return (
               <Link key={item.name} href={item.href} className="block" onClick={onNavigate}>
                 <span
                   className={cn(
-                    "nav-item-active flex items-center rounded-xl text-sm font-medium transition-all duration-150 group relative",
+                    "nav-item-active flex items-center rounded-[10px] text-[13px] font-medium transition-all duration-150 group relative",
                     collapsed
-                      ? "w-10 h-10 justify-center"
-                      : "px-3 py-2 gap-3",
+                      ? "w-9 h-9 justify-center mx-auto"
+                      : "px-2.5 py-2 gap-2.5",
                     isActive
-                      ? "text-white"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "bg-primary text-white"
+                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
                   )}
-                  style={isActive ? { background: workspaceColor, boxShadow: `0 4px 12px ${workspaceColor}40` } : undefined}
                   title={collapsed ? item.name : undefined}
                 >
-                  <item.icon className={cn("shrink-0 transition-transform group-hover:scale-110", collapsed ? "w-5 h-5" : "w-[18px] h-[18px]")} />
+                  <item.icon className={cn("shrink-0", collapsed ? "w-[18px] h-[18px]" : "w-[16px] h-[16px]")} />
                   {!collapsed && (
                     <>
                       <span className="flex-1 truncate">{item.name}</span>
                       {item.href === "/ai-tasks" && aiTasksUnreadCount > 0 && (
-                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-medium text-white">
+                        <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white">
                           {aiTasksUnreadCount > 99 ? "99+" : aiTasksUnreadCount}
                         </span>
                       )}
                     </>
                   )}
                   {collapsed && item.href === "/ai-tasks" && aiTasksUnreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-white">
+                    <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 flex items-center justify-center rounded-full bg-destructive text-[8px] font-bold text-white">
                       {aiTasksUnreadCount > 9 ? "9+" : aiTasksUnreadCount}
                     </span>
                   )}
@@ -474,34 +476,37 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className={cn(
-        "h-16 flex items-center border-b shrink-0",
-        collapsed ? "px-3 justify-center" : "px-4 gap-3"
+        "h-14 flex items-center border-b border-sidebar-border shrink-0",
+        collapsed ? "px-3 justify-center" : "px-4 gap-2.5"
       )}>
-        <div className="bg-white rounded-xl p-1 shrink-0 shadow-sm">
+        <div
+          className="w-7 h-7 rounded-[8px] shrink-0 flex items-center justify-center"
+          style={{ background: "#2F80FF" }}
+        >
           <img
             src="/tapashub-logo.png"
             alt="TapasHub"
-            className="w-7 h-7 object-contain"
+            className="w-5 h-5 object-contain brightness-0 invert"
             loading="eager"
             decoding="sync"
           />
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <div className="font-bold text-[13px] leading-tight tracking-tight">TAPBOSS</div>
-            <div className="text-[10px] text-muted-foreground leading-tight">Business OS</div>
+            <div className="font-bold text-[13px] leading-none tracking-wide text-foreground">TAPBOSS</div>
+            <div className="text-[10px] text-muted-foreground leading-none mt-0.5">Business OS</div>
           </div>
         )}
       </div>
 
       {/* Company Switcher */}
-      <div className={cn("py-3", collapsed ? "flex justify-center px-2" : "")}>
+      <div className={cn("py-2", collapsed ? "flex justify-center px-2" : "px-2")}>
         <CompanySwitcher collapsed={collapsed} />
       </div>
 
       {/* Nav scroll area */}
       <nav
-        className="flex-1 overflow-y-auto py-1 px-2 space-y-0.5"
+        className="flex-1 overflow-y-auto py-1 px-2"
         style={{ scrollbarWidth: "none" }}
       >
         {filteredGroups.map((group) => (
@@ -521,31 +526,34 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {!collapsed && isParentView && <WorkingCapitalWidget />}
 
       {/* Bottom: Settings + Logout */}
-      <div className={cn("p-2 border-t shrink-0 space-y-0.5", collapsed && "flex flex-col items-center")}>
+      <div className={cn(
+        "px-2 py-2 border-t border-sidebar-border shrink-0",
+        collapsed ? "flex flex-col items-center gap-0.5" : "space-y-0.5"
+      )}>
         <Link href="/settings" className="block" onClick={onNavigate}>
           <span className={cn(
-            "flex items-center rounded-xl text-sm font-medium transition-all duration-150",
-            collapsed ? "w-10 h-10 justify-center" : "px-3 py-2 gap-3",
+            "flex items-center rounded-[10px] text-[13px] font-medium transition-all duration-150",
+            collapsed ? "w-9 h-9 justify-center" : "px-2.5 py-2 gap-2.5",
             location.startsWith("/settings")
-              ? "text-white"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              ? "bg-primary text-white"
+              : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
           )}
-            style={location.startsWith("/settings") ? { background: workspaceColor } : undefined}
             title={collapsed ? "Settings" : undefined}
           >
-            <Settings className={cn("shrink-0", collapsed ? "w-5 h-5" : "w-[18px] h-[18px]")} />
+            <Settings className="shrink-0 w-[18px] h-[18px]" />
             {!collapsed && <span className="flex-1">Settings</span>}
           </span>
         </Link>
         <button
+          data-compact
           onClick={() => logout()}
           className={cn(
-            "w-full flex items-center rounded-xl text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all duration-150",
-            collapsed ? "w-10 h-10 justify-center" : "px-3 py-2 gap-3"
+            "w-full flex items-center rounded-[10px] text-[13px] font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all duration-150",
+            collapsed ? "w-9 h-9 justify-center" : "px-2.5 py-2 gap-2.5"
           )}
           title={collapsed ? "Sign Out" : undefined}
         >
-          <LogOut className={cn("shrink-0", collapsed ? "w-5 h-5" : "w-[18px] h-[18px]")} />
+          <LogOut className="shrink-0 w-[18px] h-[18px]" />
           {!collapsed && <span>Sign Out</span>}
         </button>
       </div>
@@ -557,8 +565,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* ── Desktop Sidebar ─────────────────────────────────── */}
       <aside className={cn(
-        "hidden md:flex flex-col bg-card border-r shrink-0 transition-[width] duration-300 ease-in-out overflow-hidden",
-        collapsed ? "w-[68px]" : "w-64"
+        "hidden md:flex flex-col bg-sidebar border-r border-sidebar-border shrink-0 transition-[width] duration-300 ease-in-out overflow-hidden",
+        collapsed ? "w-[68px]" : "w-60"
       )}>
         <SidebarContent />
       </aside>
@@ -566,9 +574,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* ── Mobile Sidebar overlay ───────────────────────────── */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden" onClick={() => setMobileOpen(false)}>
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" />
+          <div className="absolute inset-0 bg-black/70" />
           <aside
-            className="drawer-slide-in absolute left-0 top-0 bottom-0 w-72 flex flex-col bg-card border-r shadow-2xl overflow-hidden"
+            className="drawer-slide-in absolute left-0 top-0 bottom-0 w-72 flex flex-col bg-sidebar border-r border-sidebar-border overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close button */}
@@ -587,36 +595,35 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
 
         {/* Topbar */}
-        <header className="h-16 flex items-center justify-between px-3 sm:px-4 border-b bg-card/80 backdrop-blur-sm z-10 shrink-0 gap-2">
-          <div className="flex items-center gap-2 shrink-0">
+        <header className="h-14 flex items-center justify-between px-3 sm:px-4 border-b border-border bg-card z-10 shrink-0 gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
             {/* Desktop collapse toggle */}
             <Button
               variant="ghost" size="icon"
-              className="hidden md:flex rounded-xl w-9 h-9"
+              className="hidden md:flex w-8 h-8 text-muted-foreground"
               onClick={() => setSidebarOpen(!sidebarOpen)}
               title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-4 h-4" />
             </Button>
             {/* Mobile hamburger */}
             <Button
               variant="ghost" size="icon"
-              className="md:hidden rounded-xl w-9 h-9"
+              className="md:hidden w-8 h-8 text-muted-foreground"
               onClick={() => setMobileOpen(true)}
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-4 h-4" />
             </Button>
 
-            {/* Workspace breadcrumb — hidden on tiny screens */}
-            <div className="hidden sm:flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full" style={{ background: workspaceColor }} />
-              <span className="text-sm text-muted-foreground">
-                {isParentView ? "TapasHub Group" : "TapasHub"}
+            {/* Workspace breadcrumb */}
+            <div className="hidden sm:flex items-center gap-1.5 pl-1">
+              <span className="text-sm text-muted-foreground font-medium">
+                {isParentView ? "TapasHub" : "TapasHub"}
               </span>
               {!isParentView && (
                 <>
-                  <span className="text-muted-foreground/40 text-sm">/</span>
-                  <span className="text-sm font-semibold" style={{ color: workspaceColor }}>
+                  <span className="text-muted-foreground/30 text-sm select-none">/</span>
+                  <span className="text-sm font-semibold text-foreground">
                     {workspaceLabel}
                   </span>
                 </>
@@ -624,16 +631,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* Global Search — centered, collapses on mobile */}
-          <div className="flex-1 hidden md:flex justify-center px-4 max-w-lg mx-auto">
+          {/* Global Search — centered */}
+          <div className="flex-1 hidden md:flex justify-center px-6 max-w-md mx-auto">
             <GlobalSearch />
           </div>
 
           {/* Right actions */}
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-0.5 shrink-0">
             <Button
               variant="ghost" size="icon"
-              className="rounded-xl w-9 h-9"
+              className="w-8 h-8 text-muted-foreground hover:text-foreground"
               onClick={() => setTheme(theme === "light" ? "dark" : "light")}
               title={theme === "light" ? "Dark mode" : "Light mode"}
             >
@@ -642,19 +649,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
             <NotificationBadge />
 
-            <div className="flex items-center gap-2 border-l pl-2 ml-1">
+            <div className="flex items-center gap-2 ml-2 pl-2 border-l border-border">
               <Avatar
-                className="w-8 h-8 ring-2 ring-offset-1 cursor-pointer transition-transform hover:scale-105"
+                className="w-7 h-7 cursor-pointer ring-2 ring-offset-1 ring-offset-card transition-opacity hover:opacity-80"
                 style={{ "--ring-color": workspaceColor } as React.CSSProperties}
               >
-                <AvatarFallback className="text-xs font-bold bg-primary/20 text-primary">
-                  {authUser?.name?.substring(0, 2) || "U"}
+                <AvatarFallback
+                  className="text-[11px] font-bold text-white"
+                  style={{ background: workspaceColor }}
+                >
+                  {authUser?.name?.substring(0, 2).toUpperCase() || "U"}
                 </AvatarFallback>
               </Avatar>
-              <div className="hidden sm:block max-w-[120px]">
-                <div className="text-sm font-semibold leading-tight truncate">{authUser?.name || "User"}</div>
+              <div className="hidden sm:block max-w-[110px]">
+                <div className="text-[13px] font-semibold leading-tight truncate">{authUser?.name || "User"}</div>
                 <div className="text-[11px] text-muted-foreground leading-tight capitalize truncate">
-                  {authUser?.role?.replace(/_/g, " ") || "Loading…"}
+                  {authUser?.role?.replace(/_/g, " ") || ""}
                 </div>
               </div>
             </div>

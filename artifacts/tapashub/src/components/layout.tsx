@@ -17,7 +17,8 @@ import { Button } from "@/components/ui/button"
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "")
 import { useTheme } from "@/components/theme-provider"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { useUser } from "@clerk/react"
 import { useCompany } from "@/contexts/company-context"
 import type { ActiveCompany } from "@/contexts/company-context"
 import { useAuth } from "@/contexts/auth-context"
@@ -149,10 +150,6 @@ const industryExtras: Record<string, { groupLabel: string; items: NavItem[] }> =
       { name: "Collections", href: "/collections", icon: Shirt },
       { name: "Lookbook", href: "/lookbook", icon: Layers },
     ],
-  },
-  pepalworks: {
-    groupLabel: "Catalog",
-    items: [{ name: "Catalog", href: "/catalog", icon: BookOpen }],
   },
   throttledaires: {
     groupLabel: "Services",
@@ -436,6 +433,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [moreOpen, setMoreOpen] = React.useState(false)
   const { activeCompany, isParentView } = useCompany()
   const { logout, user: authUser, isSuperAdmin, hasPermission } = useAuth()
+  const { user: clerkUser } = useUser()
 
   const navGroups = getNavGroups(activeCompany ?? null, isSuperAdmin, isParentView)
 
@@ -654,6 +652,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 className="w-7 h-7 cursor-pointer ring-2 ring-offset-1 ring-offset-card transition-opacity hover:opacity-80"
                 style={{ "--ring-color": workspaceColor } as React.CSSProperties}
               >
+                <AvatarImage
+                  src={clerkUser?.imageUrl || authUser?.avatarUrl || undefined}
+                  alt={authUser?.name || "User"}
+                  className="object-cover"
+                />
                 <AvatarFallback
                   className="text-[11px] font-bold text-white"
                   style={{ background: workspaceColor }}

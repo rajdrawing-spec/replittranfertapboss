@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils"
 import {
   MessageSquare, Pin, Search, Send, Paperclip, Megaphone, User, Video, Phone, Briefcase, X, Building2,
   Sparkles, Loader2, Plus, Smile, Mic,
-  Hash, Users, ArrowLeft, MoreVertical,
+  Hash, Users, ArrowLeft, MoreVertical, ChevronLeft, ChevronRight,
 } from "lucide-react"
 
 /* ─────────────────────────────── Types ─────────────────────────────────── */
@@ -147,6 +147,10 @@ export default function ChatPage() {
   const [showEmojiRow, setShowEmojiRow] = React.useState(false)
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+  const companyPillsRef = React.useRef<HTMLDivElement>(null)
+  const scrollCompanyPills = (dir: number) => {
+    companyPillsRef.current?.scrollBy({ left: dir * 180, behavior: "smooth" })
+  }
 
   // Tell the global DM notification listener which channel is active
   React.useEffect(() => {
@@ -427,44 +431,64 @@ export default function ChatPage() {
         {/* Company switcher — only shown when there is more than one workspace */}
         {companies.length > 1 && (
           <div className="px-3 pt-2.5 pb-1">
-            <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
-              {companies.map((c) => {
-                const isActive = c.id.toString() === selectedCompanyId
-                const abbr = c.name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)
-                return (
-                  <button
-                    key={c.id}
-                    data-compact
-                    title={c.name}
-                    onClick={() => {
-                      setSelectedCompanyId(c.id.toString())
-                      setSelectedChannel(null)
-                      setMobileView("list")
-                    }}
-                    className={cn(
-                      "btn-compact shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap",
-                      isActive
-                        ? "text-white border-transparent shadow-md"
-                        : "text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/60"
-                    )}
-                    style={isActive ? {
-                      background: `linear-gradient(135deg, ${BRAND_BLUE}, ${BRAND_BLUE_DARK})`,
-                      boxShadow: `0 3px 10px ${BRAND_BLUE}40`,
-                    } : {}}
-                  >
-                    <span
-                      className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black shrink-0"
-                      style={{
-                        background: isActive ? "rgba(255,255,255,0.25)" : `${BRAND_BLUE}20`,
-                        color: isActive ? "#fff" : BRAND_BLUE,
+            <div className="flex items-center gap-1">
+              <button
+                data-compact
+                onClick={() => scrollCompanyPills(-1)}
+                className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
+                aria-label="Previous companies"
+                title="Previous companies"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div ref={companyPillsRef} className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5 flex-1">
+                {companies.map((c) => {
+                  const isActive = c.id.toString() === selectedCompanyId
+                  const abbr = c.name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)
+                  return (
+                    <button
+                      key={c.id}
+                      data-compact
+                      title={c.name}
+                      onClick={() => {
+                        setSelectedCompanyId(c.id.toString())
+                        setSelectedChannel(null)
+                        setMobileView("list")
                       }}
+                      className={cn(
+                        "btn-compact shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap",
+                        isActive
+                          ? "text-white border-transparent shadow-md"
+                          : "text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/60"
+                      )}
+                      style={isActive ? {
+                        background: `linear-gradient(135deg, ${BRAND_BLUE}, ${BRAND_BLUE_DARK})`,
+                        boxShadow: `0 3px 10px ${BRAND_BLUE}40`,
+                      } : {}}
                     >
-                      {abbr}
-                    </span>
-                    <span className="truncate max-w-[80px]">{c.name}</span>
-                  </button>
-                )
-              })}
+                      <span
+                        className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black shrink-0"
+                        style={{
+                          background: isActive ? "rgba(255,255,255,0.25)" : `${BRAND_BLUE}20`,
+                          color: isActive ? "#fff" : BRAND_BLUE,
+                        }}
+                      >
+                        {abbr}
+                      </span>
+                      <span className="truncate max-w-[80px]">{c.name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <button
+                data-compact
+                onClick={() => scrollCompanyPills(1)}
+                className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
+                aria-label="Next companies"
+                title="Next companies"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
         )}

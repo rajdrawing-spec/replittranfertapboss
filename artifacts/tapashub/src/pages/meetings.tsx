@@ -9,12 +9,18 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import {
   Video, Mic, CalendarClock, Repeat, ClipboardList, Loader2,
   Sparkles, ChevronRight, Search, X, Clock, CheckCircle2,
   AlertCircle, RotateCcw, UserPlus, Calendar, Trash2, Users,
-  ChevronLeft, Plus,
+  ChevronLeft, Plus, Pencil, MoreVertical,
 } from "lucide-react"
 
 /* ─────────────────────────────── Types ─────────────────────────────────── */
@@ -121,6 +127,9 @@ export default function MeetingsPage() {
   const [openNoteId, setOpenNoteId] = React.useState<number | null>(null)
   const [retryingNote, setRetryingNote] = React.useState(false)
   const [assigningIndex, setAssigningIndex] = React.useState<number | null>(null)
+  const [editOpen, setEditOpen] = React.useState(false)
+  const [editingMeeting, setEditingMeeting] = React.useState<Meeting | null>(null)
+  const [editSaving, setEditSaving] = React.useState(false)
 
   /* ── Queries ── */
   const { data: meetings, isLoading: isLoadingMeetings } = useQuery<Meeting[]>({
@@ -141,7 +150,7 @@ export default function MeetingsPage() {
       if (!res.ok) throw new Error(await res.text())
       return res.json()
     },
-    enabled: !!companyId && scheduleOpen,
+    enabled: !!companyId && (scheduleOpen || editOpen),
   })
 
   const { data: meetingNotes, isLoading: isLoadingNotes } = useQuery<MeetingNoteSummary[]>({
@@ -255,6 +264,47 @@ export default function MeetingsPage() {
       startCall({ id: meeting.id, meetingId: meeting.meetingId, title: meeting.title, companyId: companyId! }, token, serverUrl, { video })
       queryClient.invalidateQueries({ queryKey: ["/api/meetings", companyId] })
     } finally { setStartingInstant(null) }
+  }
+
+  const openEditMeeting = (m: Meeting) => {
+    setEditingMeeting(m)
+    setSchedTitle(m.title)
+    setSchedWhen(m.scheduledAt ? new Date(m.scheduledAt).toISOString().slice(0, 16) : "")
+    setSchedDuration(String(m.duration))
+    setSchedRecurrence(m.isRecurring && m.recurrence ? m.recurrence : "none")
+    setSchedParticipants(m.participants?.map((p) => p.userId) ?? [])
+    setEditOpen(true)
+  }
+
+  const submitEdit = async () => {
+    if (!editingMeeting || !schedTitle.trim() || editSaving) return
+    const when = schedWhen ? new Date(schedWhen) : null
+    if (when && isNaN(when.getTime())) {
+      toast({ title: "Invalid date and time", variant: "destructive" }); return
+    }
+    setEditSaving(true)
+    try {
+      const r = await fetch(`/api/meetings/${editingMeeting.id}`, {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId, title: schedTitle.trim(),
+          scheduledAt: when?.toISOString(),
+          duration: Number(schedDuration) || 30,
+          isRecurring: schedRecurrence !== "none",
+          recurrence: schedRecurrence !== "none" ? schedRecurrence : null,
+          participantIds: schedParticipants,
+        }),
+      })
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        toast({ title: "Failed to update meeting", description: err.error || "", variant: "destructive" }); return
+      }
+      toast({ title: "Meeting updated" })
+      setEditOpen(false)
+      setEditingMeeting(null)
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings", companyId] })
+    } finally { setEditSaving(false) }
   }
 
   const submitSchedule = async () => {
@@ -516,24 +566,46 @@ export default function MeetingsPage() {
                         </div>
                       </div>
 
-                      {/* Action button */}
-                      {isCompleted ? (
-                        <Button size="sm" variant="outline"
-                          className="rounded-xl gap-2 shrink-0 text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
-                          disabled={isDeleting} onClick={() => deleteMeeting(m.id)}>
-                          {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                          Delete
-                        </Button>
-                      ) : (
-                        <Button size="sm" className="rounded-xl gap-2 shrink-0"
-                          style={m.status === "ongoing"
-                            ? { background: "#22c55e", color: "#fff", boxShadow: "0 4px 14px #22c55e40" }
-                            : { background: BLUE, color: "#fff", boxShadow: `0 4px 14px ${BLUE}40` }}
-                          disabled={!!activeCall || !!joiningId} onClick={() => joinMeeting(m.meetingId, m.title)}>
-                          {isJoining ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
-                          {m.status === "ongoing" ? "Join Live" : "Join"}
-                        </Button>
-                      )}
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isCompleted ? (
+                          <Button size="sm" variant="outline"
+                            className="rounded-xl gap-2 shrink-0 text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
+                            disabled={isDeleting} onClick={() => deleteMeeting(m.id)}>
+                            {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                            Delete
+                          </Button>
+                        ) : (
+                          <Button size="sm" className="rounded-xl gap-2 shrink-0"
+                            style={m.status === "ongoing"
+                              ? { background: "#22c55e", color: "#fff", boxShadow: "0 4px 14px #22c55e40" }
+                              : { background: BLUE, color: "#fff", boxShadow: `0 4px 14px ${BLUE}40` }}
+                            disabled={!!activeCall || !!joiningId} onClick={() => joinMeeting(m.meetingId, m.title)}>
+                            {isJoining ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
+                            {m.status === "ongoing" ? "Join Live" : "Join"}
+                          </Button>
+                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="w-8 h-8 rounded-lg text-muted-foreground hover:text-foreground">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="rounded-xl">
+                            <DropdownMenuItem onClick={() => openEditMeeting(m)} className="gap-2 cursor-pointer">
+                              <Pencil className="h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => deleteMeeting(m.id)}
+                              disabled={isDeleting}
+                              className="gap-2 text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
+                            >
+                              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
                   )
                 })}
@@ -608,12 +680,12 @@ export default function MeetingsPage() {
       </div>
 
       {/* ════ SCHEDULE DIALOG ════ */}
-      <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
+      <Dialog open={scheduleOpen || editOpen} onOpenChange={(v) => { if (!v) { setScheduleOpen(false); setEditOpen(false); setEditingMeeting(null) } }}>
         <DialogContent className="sm:max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarClock className="h-5 w-5" style={{ color: BLUE }} />
-              Schedule a Meeting
+              {editOpen ? "Edit Meeting" : "Schedule a Meeting"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
@@ -671,9 +743,9 @@ export default function MeetingsPage() {
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" className="rounded-xl" onClick={() => setScheduleOpen(false)}>Cancel</Button>
               <Button className="rounded-xl gap-2" style={{ background: BLUE, color: "#fff" }}
-                disabled={!schedTitle.trim() || !schedWhen || schedSaving} onClick={submitSchedule}>
-                {schedSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
-                Schedule
+                disabled={!schedTitle.trim() || (editOpen ? false : !schedWhen) || (editOpen ? editSaving : schedSaving)} onClick={editOpen ? submitEdit : submitSchedule}>
+                {(editOpen ? editSaving : schedSaving) ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
+                {editOpen ? "Save Changes" : "Schedule"}
               </Button>
             </div>
           </div>

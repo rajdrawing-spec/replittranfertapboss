@@ -11,6 +11,7 @@ import {
   cancelMeeting,
   endMeeting,
   softDeleteMeeting,
+  updateMeeting,
   joinMeeting,
   leaveMeeting,
   getOrCreateMeetingSettings,
@@ -399,6 +400,32 @@ router.post("/meetings", requirePermission("meetings.manage"), async (req, res) 
 });
 
 // ── Single meeting ────────────────────────────────────────────────────────────
+router.patch("/meetings/:id", requirePermission("meetings.manage"), async (req, res) => {
+  try {
+    const id = parseInt(String(req.params.id), 10);
+    const companyId = parseInt(req.body.companyId as string);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const { title, scheduledAt, duration, isRecurring, recurrence, agenda, participantIds } = req.body;
+    const updated = await updateMeeting(id, companyId, {
+      title,
+      scheduledAt,
+      duration,
+      isRecurring,
+      recurrence,
+      agenda,
+      participantIds,
+    });
+    if (!updated) { res.status(404).json({ error: "Meeting not found" }); return; }
+    res.json(updated);
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to update meeting" });
+  }
+});
+
 router.get("/meetings/:id", requirePermission("meetings.read"), async (req, res) => {
   try {
     const id = parseInt(String(req.params.id), 10);

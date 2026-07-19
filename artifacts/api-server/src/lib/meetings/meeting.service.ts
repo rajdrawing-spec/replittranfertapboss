@@ -126,6 +126,50 @@ export async function softDeleteMeeting(id: number, companyId: number) {
   return updated ?? null;
 }
 
+export async function updateMeeting(
+  id: number,
+  companyId: number,
+  values: Partial<CreateMeetingInput> & { participantIds?: number[] },
+) {
+  const existing = await getMeeting(id, companyId);
+  if (!existing) return null;
+
+  const updates: Partial<typeof meetingsTable.$inferInsert> = { updatedAt: new Date() };
+  if (values.title !== undefined) updates.title = values.title;
+  if (values.agenda !== undefined) updates.agenda = values.agenda || null;
+  if (values.scheduledAt !== undefined) {
+    updates.scheduledAt = values.scheduledAt ? new Date(values.scheduledAt) : null;
+  }
+  if (values.duration !== undefined) updates.duration = values.duration;
+  if (values.isRecurring !== undefined) updates.isRecurring = values.isRecurring;
+  if (values.recurrence !== undefined) updates.recurrence = values.recurrence || null;
+  if (values.maxParticipants !== undefined) updates.maxParticipants = values.maxParticipants;
+  if (values.waitingRoom !== undefined) updates.waitingRoom = values.waitingRoom;
+  if (values.password !== undefined) updates.password = values.password || null;
+
+  const [updated] = await db
+    .update(meetingsTable)
+    .set(updates)
+    .where(and(eq(meetingsTable.id, id), eq(meetingsTable.companyId, companyId)))
+    .returning();
+  if (!updated) return null;
+
+  // Sync invited participants: add any new ids not already tied to this meeting.
+  if (values.participantIds) {
+    const currentIds = new Set(existing.participants.map((p) => p.userId));
+    const newIds = values.participantIds.filter((uid) => uid !== updated.organizerId && !currentIds.has(uid));
+    if (newIds.length > 0) {
+      await db
+        .insert(meetingParticipantsTable)
+        .values(newIds.map((userId) => ({ meetingId: updated.id, userId, status: "invited" })))
+        .onConflictDoNothing();
+      await notifyMeetingCreated(updated, newIds);
+    }
+  }
+
+  return { ...updated, participants: await getMeetingParticipants(updated.id) };
+}
+
 export async function listCompanyMeetings(companyId: number, userId?: number) {
   const meetings = await db.select().from(meetingsTable).where(
     and(eq(meetingsTable.companyId, companyId), isNull(meetingsTable.deletedAt))

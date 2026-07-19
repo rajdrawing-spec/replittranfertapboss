@@ -1,6 +1,6 @@
 import * as React from "react"
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ClerkProvider, Show } from '@clerk/react';
+import { ClerkProvider, ClerkLoaded, ClerkLoading, Show } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { Toaster } from '@/components/ui/toaster';
@@ -296,8 +296,21 @@ function ClerkProviderWithRoutes() {
           <Route path="/sign-up/*?" component={SignInRoute} />
           <Route path="/login">{() => <Redirect to="/sign-in" />}</Route>
           <Route>
-            <Show when="signed-out"><Redirect to="/sign-in" /></Show>
-            <Show when="signed-in"><AuthedApp /></Show>
+            {/* While Clerk fetches auth state from the proxy, render a full-screen
+                spinner so the user never sees a blank white page on cold start. */}
+            <ClerkLoading>
+              <div className="flex h-[100dvh] w-full flex-col items-center justify-center gap-4 bg-background">
+                <div className="mb-1 text-center">
+                  <span className="text-2xl font-black tracking-tight text-foreground">TAPAS</span>
+                  <span className="text-2xl font-black tracking-tight text-[#1d90e8]">HUB</span>
+                </div>
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+              </div>
+            </ClerkLoading>
+            <ClerkLoaded>
+              <Show when="signed-out"><Redirect to="/sign-in" /></Show>
+              <Show when="signed-in"><AuthedApp /></Show>
+            </ClerkLoaded>
           </Route>
         </Switch>
       </AuthProvider>

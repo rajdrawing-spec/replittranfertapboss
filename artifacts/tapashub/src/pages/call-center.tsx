@@ -1,5 +1,6 @@
 import * as React from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { io, type Socket } from "socket.io-client"
 import { useCompany } from "@/contexts/company-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
@@ -135,6 +136,40 @@ export default function CallCenterPage() {
     queryClient.invalidateQueries({ queryKey: ["/api/call-center/stats", companyId] })
     queryClient.invalidateQueries({ queryKey: ["/api/call/history", companyId] })
   }
+
+  // Real-time call events via the same socket path used by chat/meetings.
+  // The server broadcasts events per userId; this page listens and refreshes
+  // so the agent sees ringing/active calls without waiting for the poll interval.
+  React.useEffect(() => {
+    if (!companyId) return
+    const s: Socket = io({
+      path: "/api/socket.io",
+      auth: (cb: (data: object) => void) => {
+        fetch("/api/chat/token", { credentials: "include" })
+          .then((r) => r.json())
+          .then(({ token }) => cb({ token }))
+          .catch(() => cb({}))
+      },
+      reconnection: true,
+      reconnectionDelay: 2_000,
+      reconnectionDelayMax: 30_000,
+    })
+    s.on("incoming_call", (data: { callerName?: string; callerNumber?: string }) => {
+      toast({
+        title: "Incoming call",
+        description: `${data.callerName ?? "Unknown"} — ${data.callerNumber ?? ""}`,
+      })
+      setTab("incoming")
+      invalidateCalls()
+    })
+    s.on("call_started", () => invalidateCalls())
+    s.on("call_answered", () => invalidateCalls())
+    s.on("call_ended", () => invalidateCalls())
+    s.on("call_rejected", () => invalidateCalls())
+    s.on("call_hold", () => invalidateCalls())
+    s.on("call_resume", () => invalidateCalls())
+    return () => { s.disconnect() }
+  }, [companyId, toast])
 
   const callAction = async (path: string, body: Record<string, unknown>, okMsg?: string) => {
     const res = await fetch(`/api/call/${path}`, {

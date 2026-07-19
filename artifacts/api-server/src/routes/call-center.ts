@@ -11,7 +11,7 @@ import {
   insertCallContactSchema,
 } from "@workspace/db";
 import { and, eq, desc, ilike, or, sql, gte, isNull } from "drizzle-orm";
-import { getCallProvider } from "../lib/call-center/call.service";
+import { getCallProvider, getCallProviderForCompany } from "../lib/call-center/call.service";
 import { hasPermission } from "../lib/auth-user";
 import { broadcastCallEvent } from "../lib/chat/socket-server";
 
@@ -287,7 +287,13 @@ router.post("/call/outgoing", requirePermission("callcenter.view"), async (req, 
       .where(and(eq(callContactsTable.companyId, companyId), eq(callContactsTable.phone, toNumber)))
       .limit(1);
 
-    const handle = await getCallProvider().makeCall({ fromNumber: bn.phoneNumber, toNumber, agentUserId: userId });
+    const [settings] = await db
+      .select({ accountSid: callCenterSettingsTable.accountSid, apiKey: callCenterSettingsTable.apiKey, apiToken: callCenterSettingsTable.apiToken, callerId: callCenterSettingsTable.callerId })
+      .from(callCenterSettingsTable)
+      .where(eq(callCenterSettingsTable.companyId, companyId))
+      .limit(1);
+    const provider = getCallProviderForCompany(settings);
+    const handle = await provider.makeCall({ fromNumber: bn.phoneNumber, toNumber, agentUserId: userId });
     const [log] = await db
       .insert(callLogsTable)
       .values({
@@ -408,7 +414,12 @@ async function transitionCall(
 
 router.post("/call/answer", requirePermission("callcenter.view"), async (req, res) => {
   try {
-    await getCallProvider().receiveCall(String(req.body?.callId || ""), getLocalUserId(req) ?? 0);
+    const [settings] = await db
+      .select({ accountSid: callCenterSettingsTable.accountSid, apiKey: callCenterSettingsTable.apiKey, apiToken: callCenterSettingsTable.apiToken, callerId: callCenterSettingsTable.callerId })
+      .from(callCenterSettingsTable)
+      .where(eq(callCenterSettingsTable.companyId, companyIdFrom(req)))
+      .limit(1);
+    await getCallProviderForCompany(settings).receiveCall(String(req.body?.callId || ""), getLocalUserId(req) ?? 0);
     await transitionCall(req, res, { status: "active", event: "call_answered" });
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to answer call" }); }
 });
@@ -421,7 +432,12 @@ router.post("/call/reject", requirePermission("callcenter.view"), async (req, re
 
 router.post("/call/end", requirePermission("callcenter.view"), async (req, res) => {
   try {
-    await getCallProvider().hangup(String(req.body?.callId || ""));
+    const [settings] = await db
+      .select({ accountSid: callCenterSettingsTable.accountSid, apiKey: callCenterSettingsTable.apiKey, apiToken: callCenterSettingsTable.apiToken, callerId: callCenterSettingsTable.callerId })
+      .from(callCenterSettingsTable)
+      .where(eq(callCenterSettingsTable.companyId, companyIdFrom(req)))
+      .limit(1);
+    await getCallProviderForCompany(settings).hangup(String(req.body?.callId || ""));
     await transitionCall(req, res, { status: "completed", end: true, event: "call_ended" });
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to end call" }); }
 });
@@ -429,14 +445,24 @@ router.post("/call/end", requirePermission("callcenter.view"), async (req, res) 
 router.post("/call/hold", requirePermission("callcenter.view"), async (req, res) => {
   try {
     const hold = req.body?.hold !== false;
-    await getCallProvider().holdCall(String(req.body?.callId || ""), hold);
+    const [settings] = await db
+      .select({ accountSid: callCenterSettingsTable.accountSid, apiKey: callCenterSettingsTable.apiKey, apiToken: callCenterSettingsTable.apiToken, callerId: callCenterSettingsTable.callerId })
+      .from(callCenterSettingsTable)
+      .where(eq(callCenterSettingsTable.companyId, companyIdFrom(req)))
+      .limit(1);
+    await getCallProviderForCompany(settings).holdCall(String(req.body?.callId || ""), hold);
     await transitionCall(req, res, { status: hold ? "held" : "active", event: hold ? "call_hold" : "call_resume" });
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to hold call" }); }
 });
 
 router.post("/call/transfer", requirePermission("callcenter.view"), async (req, res) => {
   try {
-    await getCallProvider().transferCall(String(req.body?.callId || ""), parseInt(req.body?.toUserId, 10) || 0);
+    const [settings] = await db
+      .select({ accountSid: callCenterSettingsTable.accountSid, apiKey: callCenterSettingsTable.apiKey, apiToken: callCenterSettingsTable.apiToken, callerId: callCenterSettingsTable.callerId })
+      .from(callCenterSettingsTable)
+      .where(eq(callCenterSettingsTable.companyId, companyIdFrom(req)))
+      .limit(1);
+    await getCallProviderForCompany(settings).transferCall(String(req.body?.callId || ""), parseInt(req.body?.toUserId, 10) || 0);
     await transitionCall(req, res, { event: "call_transfer" });
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to transfer call" }); }
 });

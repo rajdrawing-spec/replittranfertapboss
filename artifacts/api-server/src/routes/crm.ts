@@ -20,10 +20,15 @@ router.get("/customers", async (req, res) => {
     if (search) conditions.push(ilike(customersTable.name, `%${search}%`));
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(customersTable).where(where);
-    const items = await db.select().from(customersTable).where(where).orderBy(desc(customersTable.createdAt)).limit(limitNum).offset(offset);
-    const companies = await db.select({ id: companiesTable.id, name: companiesTable.name }).from(companiesTable);
-    const companyMap = Object.fromEntries(companies.map(c => [c.id, c.name]));
-    res.json({ items: items.map(c => fmtCustomer(c, companyMap)), total: Number(count), page: pageNum, limit: limitNum });
+    const items = await db
+      .select({ customer: customersTable, companyName: companiesTable.name })
+      .from(customersTable)
+      .leftJoin(companiesTable, eq(customersTable.companyId, companiesTable.id))
+      .where(where)
+      .orderBy(desc(customersTable.createdAt))
+      .limit(limitNum)
+      .offset(offset);
+    res.json({ items: items.map(({ customer, companyName }) => fmtCustomer(customer, { [customer.companyId]: companyName ?? "Unknown" })), total: Number(count), page: pageNum, limit: limitNum });
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to list customers" }); }
 });
 
@@ -78,10 +83,15 @@ router.get("/leads", async (req, res) => {
     if (stage) conditions.push(eq(leadsTable.stage, stage));
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(leadsTable).where(where);
-    const items = await db.select().from(leadsTable).where(where).orderBy(desc(leadsTable.createdAt)).limit(limitNum).offset(offset);
-    const companies = await db.select({ id: companiesTable.id, name: companiesTable.name }).from(companiesTable);
-    const companyMap = Object.fromEntries(companies.map(c => [c.id, c.name]));
-    res.json({ items: items.map(l => fmtLead(l, companyMap)), total: Number(count), page: pageNum, limit: limitNum });
+    const items = await db
+      .select({ lead: leadsTable, companyName: companiesTable.name })
+      .from(leadsTable)
+      .leftJoin(companiesTable, eq(leadsTable.companyId, companiesTable.id))
+      .where(where)
+      .orderBy(desc(leadsTable.createdAt))
+      .limit(limitNum)
+      .offset(offset);
+    res.json({ items: items.map(({ lead, companyName }) => fmtLead(lead, { [lead.companyId]: companyName ?? "Unknown" })), total: Number(count), page: pageNum, limit: limitNum });
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to list leads" }); }
 });
 

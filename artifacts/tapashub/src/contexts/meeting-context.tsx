@@ -49,6 +49,8 @@ export function useMeeting(): MeetingContextValue {
   return ctx
 }
 
+const SESSION_CALL_KEY = "tbos:activeCall"
+
 export function MeetingProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   const queryClient = useQueryClient()
@@ -64,6 +66,18 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
 
   // Ref to the shared socket so event handlers and decline can access it
   const socketRef = React.useRef<ReturnType<typeof io> | null>(null)
+
+  // Persist the active call across reloads so a page refresh or background-
+  // wake doesn't strand the user from an ongoing meeting.
+  React.useEffect(() => {
+    if (activeCall) {
+      try {
+        sessionStorage.setItem(SESSION_CALL_KEY, JSON.stringify({ meeting: activeCall.meeting, video: activeCall.video }))
+      } catch { /* storage may be unavailable */ }
+    } else {
+      try { sessionStorage.removeItem(SESSION_CALL_KEY) } catch { }
+    }
+  }, [activeCall])
 
   // ── Call management ────────────────────────────────────────────────────────
 
@@ -101,6 +115,39 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
     setActiveCall(null)
     setIsMinimized(false)
   }, [queryClient])
+
+  // ── Recover an ongoing call after a page reload or background-wake ───────────
+  // The persistence effect above saves the meeting metadata. On mount we fetch a
+  // fresh token and rejoin the room automatically, so the user is not stranded.
+  const restoredRef = React.useRef(false)
+  React.useEffect(() => {
+    if (!user?.id || restoredRef.current) return
+    restoredRef.current = true
+    let stored: { meeting: ActiveCallMeeting; video?: boolean } | null = null
+    try {
+      const raw = sessionStorage.getItem(SESSION_CALL_KEY)
+      if (raw) stored = JSON.parse(raw)
+    } catch { /* ignore corrupt storage */ }
+    if (!stored?.meeting) return
+
+    const { meeting, video } = stored
+    fetch(`/api/meetings/token?roomName=${encodeURIComponent(meeting.meetingId)}&companyId=${meeting.companyId}`, {
+      credentials: "include",
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Failed to get token")
+        return r.json()
+      })
+      .then(async ({ token, serverUrl }: { token: string; serverUrl: string }) => {
+        await fetch(`/api/meetings/join/${meeting.meetingId}`, { method: "POST", credentials: "include" })
+        startCall(meeting, token, serverUrl, { video })
+      })
+      .catch((e) => {
+        // Meeting ended, access revoked, or token service unavailable — clear the stale state
+        try { sessionStorage.removeItem(SESSION_CALL_KEY) } catch {}
+        console.debug("[meeting] could not restore call after reload:", e?.message || e)
+      })
+  }, [user?.id, startCall])
 
   // ── Incoming call socket listener ──────────────────────────────────────────
   // This socket is separate from the one in chat.tsx so that meeting

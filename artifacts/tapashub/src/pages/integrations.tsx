@@ -393,9 +393,15 @@ export default function Integrations() {
   const [collapsedCats, setCollapsedCats] = React.useState<Set<string>>(new Set())
 
   // When company changes, close any open browser workspace
-  // (will reconnect to new company's profile on next open)
+  // (will reconnect to new company's profile on next open).
+  // Use a ref to avoid resetting the selection on the initial render/hydration,
+  // which was causing integrations to appear not to load after a page reload.
+  const prevCompanyIdRef = React.useRef<number | undefined>(undefined)
   React.useEffect(() => {
-    if (selectedPlatform?.browserWorkspace) {
+    const current = activeCompany?.id
+    const previous = prevCompanyIdRef.current
+    prevCompanyIdRef.current = current
+    if (previous !== undefined && previous !== current && selectedPlatform?.browserWorkspace) {
       setSelectedPlatform(null)
     }
   }, [activeCompany?.id])

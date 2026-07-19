@@ -36,7 +36,10 @@ export default defineConfig({
     // installable on mobile home screens. Disabled in dev to avoid caching
     // headaches; never intercepts /api (would risk serving stale tenant data).
     VitePWA({
-      registerType: 'autoUpdate',
+      // Use 'prompt' instead of 'autoUpdate' so a new service worker does not
+      // force a page reload the moment it installs. This prevents the reload
+      // flashes and initialization errors users see after deployments.
+      registerType: 'prompt',
       injectRegister: 'auto',
       devOptions: { enabled: false },
       workbox: {
@@ -45,8 +48,10 @@ export default defineConfig({
         // Never serve API or auth traffic from the cache.
         navigateFallbackDenylist: [/^\/api/, /\/__clerk/],
         cleanupOutdatedCaches: true,
-        clientsClaim: true,
-        skipWaiting: true,
+        // Let the old service worker keep serving until the user refreshes,
+        // avoiding the forced reload caused by skipWaiting/clientsClaim.
+        clientsClaim: false,
+        skipWaiting: false,
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
       includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png'],

@@ -22,18 +22,16 @@ router.get("/orders", async (req, res) => {
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(ordersTable).where(where);
     const items = await db
-      .select()
+      .select({ order: ordersTable, companyName: companiesTable.name })
       .from(ordersTable)
+      .leftJoin(companiesTable, eq(ordersTable.companyId, companiesTable.id))
       .where(where)
       .orderBy(desc(ordersTable.createdAt))
       .limit(limitNum)
       .offset(offset);
 
-    const companies = await db.select({ id: companiesTable.id, name: companiesTable.name }).from(companiesTable);
-    const companyMap = Object.fromEntries(companies.map(c => [c.id, c.name]));
-
     res.json({
-      items: items.map(o => formatOrder(o, companyMap)),
+      items: items.map(({ order, companyName }) => formatOrder(order, { [order.companyId]: companyName ?? "Unknown" })),
       total: Number(count),
       page: pageNum,
       limit: limitNum,

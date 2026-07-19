@@ -8,6 +8,8 @@
  * exotel-provider.ts) and swap it in `getCallProvider()`.
  */
 
+import { ExotelProvider } from "./exotel-provider";
+
 export interface CallHandle {
   /** Provider call SID (mock-generated until Exotel is connected). */
   callId: string;
@@ -74,4 +76,21 @@ let provider: CallService | null = null;
 export function getCallProvider(): CallService {
   if (!provider) provider = new MockCallProvider();
   return provider;
+}
+
+/**
+ * Create a provider scoped to a company's configured credentials.
+ * Falls back to the mock provider when Exotel credentials are not present.
+ */
+export function getCallProviderForCompany(credentials?: { accountSid?: string | null; apiKey?: string | null; apiToken?: string | null; subdomain?: string | null; callerId?: string | null }): CallService {
+  if (credentials?.accountSid && credentials?.apiKey && credentials?.apiToken) {
+    return new ExotelProvider({
+      accountSid: credentials.accountSid,
+      apiKey: credentials.apiKey,
+      apiToken: credentials.apiToken,
+      subdomain: credentials.subdomain || undefined,
+      callerId: credentials.callerId,
+    });
+  }
+  return new MockCallProvider();
 }

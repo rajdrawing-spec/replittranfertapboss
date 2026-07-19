@@ -42,7 +42,8 @@ export function WorkingCapitalWidget() {
     queryKey: ["/api/treasury/working-capital"],
     queryFn: () => adminApi.get("/treasury/working-capital"),
     refetchInterval: 60_000,
-    staleTime: 30_000,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   })
 
   return (

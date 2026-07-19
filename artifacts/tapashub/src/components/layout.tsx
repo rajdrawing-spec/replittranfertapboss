@@ -3,9 +3,8 @@ import { Link, useLocation } from "wouter"
 import {
   Building2, PackageSearch, ShoppingCart, Wallet, Users, UsersRound,
   CheckSquare, Bell, Bot, Globe2, Settings, Menu, Moon, Sun, ChevronDown,
-  TrendingUp, FileText, Megaphone, Heart, PawPrint, Shirt, BookOpen,
-  Wrench, LayoutDashboard, Layers, PieChart, LogOut, Contact, Headset,
-  Truck, ShieldCheck, ScrollText, Landmark, MessageSquare, Video,
+  TrendingUp, FileText, Megaphone, LayoutDashboard, PieChart, LogOut, Contact,
+  Headset, Truck, ShieldCheck, ScrollText, Landmark, MessageSquare, Video,
   CalendarDays, ChevronRight, Home, Phone, MoreHorizontal, X, Plus,
   Sparkles, Briefcase,
 } from "lucide-react"
@@ -136,42 +135,12 @@ const subsidiaryGroups: NavGroup[] = [
   },
 ]
 
-const industryExtras: Record<string, { groupLabel: string; items: NavItem[] }> = {
-  tikkatails: {
-    groupLabel: "Veterinary",
-    items: [
-      { name: "Veterinary", href: "/veterinary", icon: PawPrint },
-      { name: "Pet Community", href: "/community", icon: Heart },
-    ],
-  },
-  hugfab: {
-    groupLabel: "Fashion",
-    items: [
-      { name: "Collections", href: "/collections", icon: Shirt },
-      { name: "Lookbook", href: "/lookbook", icon: Layers },
-    ],
-  },
-  throttledaires: {
-    groupLabel: "Services",
-    items: [{ name: "Services", href: "/services", icon: Wrench }],
-  },
-  sanchikart: {
-    groupLabel: "Analytics",
-    items: [{ name: "Analytics", href: "/analytics", icon: TrendingUp }],
-  },
-}
-
 function getNavGroups(company: ActiveCompany | null, isSuperAdmin: boolean, isParentView: boolean): NavGroup[] {
   const base: NavGroup[] = company?.mode === "parent" || !company
     ? parentGroups
     : subsidiaryGroups
 
-  // Industry-specific group
-  const slug = company?.slug?.toLowerCase() ?? ""
-  const extra = industryExtras[slug]
-  let groups = extra
-    ? [...base, { label: extra.groupLabel, items: extra.items }]
-    : [...base]
+  let groups = [...base]
 
   // Super admin extras
   if (isSuperAdmin) {
@@ -425,6 +394,48 @@ function NavGroupSection({
 /* ─────────────────────────────────────────────────────────────
    Layout
 ───────────────────────────────────────────────────────────── */
+function useMobileScrollBehavior(scroller: HTMLElement | null) {
+  const [scrollDirection, setScrollDirection] = React.useState<"up" | "down" | null>(null)
+  const [typing, setTyping] = React.useState(false)
+
+  const lastScrollY = React.useRef(0)
+  const lastScrollTime = React.useRef(0)
+
+  React.useEffect(() => {
+    if (!scroller) return
+    const onScroll = () => {
+      const now = Date.now()
+      const y = scroller.scrollTop
+      const dy = y - lastScrollY.current
+      if (now - lastScrollTime.current < 80) return
+      lastScrollTime.current = now
+      if (dy > 6) setScrollDirection("down")
+      else if (dy < -6) setScrollDirection("up")
+      lastScrollY.current = y
+    }
+    scroller.addEventListener("scroll", onScroll, { passive: true })
+    return () => scroller.removeEventListener("scroll", onScroll)
+  }, [scroller])
+
+  React.useEffect(() => {
+    const onFocus = (e: FocusEvent) => {
+      const target = e.target as HTMLElement
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+        setTyping(true)
+      }
+    }
+    const onBlur = () => setTyping(false)
+    document.addEventListener("focusin", onFocus)
+    document.addEventListener("focusout", onBlur)
+    return () => {
+      document.removeEventListener("focusin", onFocus)
+      document.removeEventListener("focusout", onBlur)
+    }
+  }, [])
+
+  return { scrollDirection, typing }
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation()
   const { theme, setTheme } = useTheme()
@@ -454,6 +465,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
     staleTime: 30_000,
   })
   const aiTasksUnreadCount = aiTasksUnread?.count ?? 0
+
+  const [mainScroller, setMainScroller] = React.useState<HTMLElement | null>(null)
+  const mainRef = React.useCallback((node: HTMLElement | null) => {
+    setMainScroller(node)
+  }, [])
+  const { scrollDirection, typing } = useMobileScrollBehavior(mainScroller)
+  const hideMobileChrome = typing || scrollDirection === "down"
 
   const workspaceLabel = activeCompany?.name ?? "TapasHub"
   const workspaceColor = activeCompany?.color ?? "#3B82F6"
@@ -593,7 +611,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
 
         {/* Topbar */}
-        <header className="h-14 flex items-center justify-between px-3 sm:px-4 border-b border-border bg-card z-10 shrink-0 gap-2">
+        <header className={cn("h-14 flex items-center justify-between px-3 sm:px-4 border-b border-border bg-card z-10 shrink-0 gap-2 transition-transform duration-300 md:translate-y-0", hideMobileChrome && "-translate-y-full")}>
           <div className="flex items-center gap-1.5 shrink-0">
             {/* Desktop collapse toggle */}
             <Button
@@ -675,7 +693,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto bg-background p-3 sm:p-5 main-content-mobile">
+        <main ref={mainRef} className={cn("flex-1 overflow-auto bg-background p-3 sm:p-5 main-content-mobile", typing && "pb-3 sm:pb-5")}>
           <div className="max-w-7xl mx-auto fade-in">
             {children}
           </div>
@@ -683,7 +701,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* ══════════════ MOBILE BOTTOM NAVIGATION ══════════════ */}
-      <nav className="bottom-nav">
+      <nav className={cn("bottom-nav transition-transform duration-300", hideMobileChrome && "translate-y-full")}>
         <div className="flex items-stretch h-16">
           {bottomNavItems.map(({ href, icon: Icon, label }) => {
             const isActive = location === href || (href !== "/" && location.startsWith(href))
@@ -703,7 +721,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     )}
                   </div>
                   <span className={cn(
-                    "text-[10px] font-medium leading-none transition-all",
+                    "text-[11px] font-medium leading-none transition-all",
                     isActive && "font-semibold"
                   )}>
                     {label}
@@ -725,7 +743,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             onClick={() => setMoreOpen(true)}
           >
             <MoreHorizontal className="w-5 h-5" />
-            <span className="text-[10px] font-medium">More</span>
+            <span className="text-[11px] font-medium">More</span>
           </button>
         </div>
       </nav>
@@ -779,7 +797,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* ── Mobile FAB (context-aware) ───────────────────────── */}
-      <MobileFab location={location} workspaceColor={workspaceColor} />
+      <MobileFab location={location} workspaceColor={workspaceColor} hidden={hideMobileChrome} />
     </div>
   )
 }
@@ -787,7 +805,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 /* ─────────────────────────────────────────────────────────────
    Mobile FAB — shows primary action for current page
 ───────────────────────────────────────────────────────────── */
-function MobileFab({ location, workspaceColor }: { location: string; workspaceColor: string }) {
+function MobileFab({ location, workspaceColor, hidden }: { location: string; workspaceColor: string; hidden?: boolean }) {
   const fab = React.useMemo(() => {
     if (location === "/chat") return null // Chat has its own composer
     if (location.startsWith("/meetings")) return { icon: Video, title: "New Meeting" }
@@ -804,7 +822,7 @@ function MobileFab({ location, workspaceColor }: { location: string; workspaceCo
 
   return (
     <button
-      className="fab"
+      className={cn("fab", hidden && "translate-y-[140%] opacity-0 pointer-events-none")}
       style={{ background: workspaceColor, boxShadow: `0 8px 24px ${workspaceColor}55` }}
       title={fab.title}
       aria-label={fab.title}

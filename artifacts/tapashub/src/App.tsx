@@ -8,7 +8,9 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Route, Switch, Router as WouterRouter, useLocation, Redirect } from 'wouter';
 import { ThemeProvider } from '@/components/theme-provider';
-import { Layout } from '@/components/layout';
+// Lazy-load the sidebar/topbar shell so the entry chunk stays small and the app
+// shell renders faster on mobile/slow networks.
+const Layout = React.lazy(() => import('@/components/layout').then((m) => ({ default: m.Layout })));
 import { CompanyProvider } from '@/contexts/company-context';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { MeetingProvider } from '@/contexts/meeting-context';
@@ -179,7 +181,7 @@ function AccessDenied() {
   const { accessMessage, logout } = useAuth();
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-background px-4 text-center">
-      <img src={`${basePath}/logo.svg`} alt="TAPBOSS" className="h-12 w-12" />
+      <img src={`${basePath}/logo.svg`} alt="TAPBOSS" className="h-12 w-12" loading="lazy" decoding="async" />
       <h1 className="text-2xl font-bold">Access restricted</h1>
       <p className="max-w-md text-muted-foreground">
         {accessMessage || "You have not been invited to this workspace. Contact your administrator."}
@@ -193,7 +195,7 @@ function ProfileError() {
   const { refetch, logout } = useAuth();
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-background px-4 text-center">
-      <img src={`${basePath}/logo.svg`} alt="TAPBOSS" className="h-12 w-12" />
+      <img src={`${basePath}/logo.svg`} alt="TAPBOSS" className="h-12 w-12" loading="lazy" decoding="async" />
       <h1 className="text-2xl font-bold">Couldn't load your profile</h1>
       <p className="max-w-md text-muted-foreground">
         We couldn't reach the server to load your account. Check your connection and try again.
@@ -221,7 +223,6 @@ function AuthedApp() {
         <Switch>
           {/* Integrations has its own minimal layout (no sidebar) */}
           <Route path="/integrations" component={Integrations} />
-          <Route path="/platforms" component={Integrations} />
           {/* All other pages use the full sidebar layout */}
           <Route>
             <Layout>
@@ -251,7 +252,6 @@ function AuthedApp() {
                   <Route path="/admin/access" component={AccessControl} />
                   <Route path="/admin/audit" component={AuditLogs} />
                   <Route path="/admin/dashboard" component={AdminDashboard} />
-                  <Route path="/reports" component={Finance} />
                   <Route path="/ai-reports" component={AiReports} />
                   <Route path="/ai-tasks" component={AiTasks} />
                   <Route path="/chat" component={Chat} />
@@ -259,12 +259,6 @@ function AuthedApp() {
                   <Route path="/call-center" component={CallCenter} />
                   <Route path="/planner" component={Planner} />
                   <Route path="/analytics" component={Analytics} />
-                  <Route path="/veterinary" component={HR} />
-                  <Route path="/community" component={CRM} />
-                  <Route path="/collections" component={Inventory} />
-                  <Route path="/lookbook" component={Inventory} />
-                  <Route path="/catalog" component={Inventory} />
-                  <Route path="/services" component={Orders} />
                   <Route component={NotFound} />
                 </Switch>
               </React.Suspense>

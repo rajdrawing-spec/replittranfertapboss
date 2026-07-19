@@ -141,6 +141,33 @@ export default defineConfig({
             id.includes('node_modules/react/') ||
             id.includes('node_modules/react-dom/')
           ) return 'vendor-react';
+
+          // LiveKit video/audio — only used on meetings/call-center pages.
+          // Split the core client from the React components so each chunk is
+          // smaller and can be cached/loaded independently.
+          if (id.includes('node_modules/livekit-client')) return 'vendor-livekit-client';
+          if (id.includes('node_modules/@livekit')) return 'vendor-livekit';
+
+          // Socket.IO client — only used by chat realtime.
+          if (id.includes('node_modules/socket.io-client')) return 'vendor-socket';
+
+          // FullCalendar — only used by planner.
+          if (id.includes('node_modules/@fullcalendar')) return 'vendor-calendar';
+
+          // Uppy file upload stack — only used on documents/inventory pages.
+          if (id.includes('node_modules/@uppy')) return 'vendor-uppy';
+
+          // Heavy icon/animation libraries that are not needed on every page.
+          if (id.includes('node_modules/react-icons')) return 'vendor-icons';
+          if (id.includes('node_modules/framer-motion')) return 'vendor-motion';
+
+          // Date/calendar utilities and other page-specific libraries.
+          if (id.includes('node_modules/date-fns')) return 'vendor-date';
+          if (id.includes('node_modules/react-day-picker')) return 'vendor-date';
+          if (id.includes('node_modules/vaul') || id.includes('node_modules/embla-carousel')) return 'vendor-ui';
+
+          // Remaining third-party code into a shared common vendor chunk.
+          if (id.includes('node_modules')) return 'vendor-common';
         },
       },
     },

@@ -48,10 +48,12 @@ export default defineConfig({
         // Never serve API or auth traffic from the cache.
         navigateFallbackDenylist: [/^\/api/, /\/__clerk/],
         cleanupOutdatedCaches: true,
-        // Let the old service worker keep serving until the user refreshes,
-        // avoiding the forced reload caused by skipWaiting/clientsClaim.
-        clientsClaim: false,
-        skipWaiting: false,
+        // Take over immediately on every new deployment so users never see
+        // stale cached assets after an update. Without this, old service workers
+        // keep serving the old index.html (with old JS/CSS hashes that no longer
+        // exist on the server) until every tab is closed, causing blank screens.
+        clientsClaim: true,
+        skipWaiting: true,
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
       includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png'],

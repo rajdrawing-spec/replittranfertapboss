@@ -150,7 +150,7 @@
 }
 
 /* ═══════════════════════ DARK MODE ═══════════════════════ */
-/* TapBoss dark: #0F172A bg, #111827 card, #1F2937 border, #3B82F6 primary */
+/* TapBoss dark — layered contrast: #09111E bg → #111827 sidebar → #182233 cards */
 .dark {
   --button-outline: rgba(255, 255, 255, 0.1);
   --badge-outline: rgba(255, 255, 255, 0.05);
@@ -158,42 +158,43 @@
   --elevate-1: rgba(255, 255, 255, 0.04);
   --elevate-2: rgba(255, 255, 255, 0.09);
 
-  /* #0F172A */
-  --background: 222 47% 11%;
-  --foreground: 210 40% 98%;
-  /* #1F2937 */
-  --border: 220 13% 18%;
+  /* App background #09111E — darkest layer */
+  --background: 220 54% 8%;
+  --foreground: 210 40% 96%;
+  /* Subtle border #1E2A3B */
+  --border: 219 30% 18%;
 
-  /* #111827 */
-  --card: 221 39% 11%;
-  --card-foreground: 210 40% 98%;
-  --card-border: 220 13% 18%;
+  /* Cards #182233 — visually distinct from bg */
+  --card: 218 38% 14%;
+  --card-foreground: 210 40% 96%;
+  --card-border: 219 30% 20%;
 
-  --sidebar: 222 47% 8%;
-  --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 220 13% 15%;
+  /* Sidebar #111827 — between bg and cards */
+  --sidebar: 222 44% 10%;
+  --sidebar-foreground: 210 40% 96%;
+  --sidebar-border: 219 30% 15%;
   --sidebar-primary: 217 91% 60%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 13% 14%;
-  --sidebar-accent-foreground: 210 40% 98%;
+  --sidebar-accent: 220 30% 16%;
+  --sidebar-accent-foreground: 210 40% 96%;
   --sidebar-ring: 217 91% 60%;
 
-  --popover: 221 39% 11%;
-  --popover-foreground: 210 40% 98%;
-  --popover-border: 220 13% 18%;
+  --popover: 218 38% 13%;
+  --popover-foreground: 210 40% 96%;
+  --popover-border: 219 30% 20%;
 
   /* Tapas Blue #3B82F6 */
   --primary: 217 91% 60%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 220 13% 16%;
-  --secondary-foreground: 210 40% 98%;
+  --secondary: 219 30% 18%;
+  --secondary-foreground: 210 40% 96%;
 
-  --muted: 220 13% 14%;
-  --muted-foreground: 215 20% 58%;
+  --muted: 219 30% 16%;
+  --muted-foreground: 215 20% 62%;
 
-  --accent: 220 13% 18%;
-  --accent-foreground: 210 40% 98%;
+  --accent: 219 30% 20%;
+  --accent-foreground: 210 40% 96%;
 
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
@@ -205,7 +206,7 @@
   --info: 199 89% 48%;
   --info-foreground: 0 0% 100%;
 
-  --input: 220 13% 18%;
+  --input: 219 30% 18%;
   --ring: 217 91% 60%;
 
   --chart-1: 217 91% 60%;
@@ -234,13 +235,25 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
-    /* Minimum readable size from design spec */
+    /* Design spec: 16px base, 1.6 line-height for readability */
     font-size: 16px;
-    line-height: 1.5;
+    line-height: 1.6;
     /* GPU-composited text rendering */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
+  /* ── Type scale from design spec ──────────────── */
+  h1 { font-size: 2.125rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; }
+  h2 { font-size: 1.375rem; font-weight: 600; line-height: 1.3; letter-spacing: -0.015em; }
+  h3 { font-size: 1.125rem; font-weight: 600; line-height: 1.4; }
+  h4 { font-size: 1rem;     font-weight: 600; line-height: 1.4; }
+
+  /* Sidebar nav text: 15px Medium per spec */
+  .nav-label { font-size: 0.9375rem; font-weight: 500; }
+
+  /* Message content: 16px Regular, generous leading */
+  .msg-content { font-size: 1rem; line-height: 1.55; }
 
   /* ── Scrollbar styling (matches brand) ─────── */
   ::-webkit-scrollbar {
@@ -265,12 +278,15 @@
   }
 
   /* ── Touch targets min 44×44 (WCAG) ────────── */
-  button, a, [role="button"] {
+  /* Applied to buttons/links that are NOT inside compact/icon-only layouts */
+  button:not(.btn-compact):not([data-compact]),
+  a:not(.btn-compact):not([data-compact]) {
     min-height: 44px;
-    min-width: 44px;
   }
-  /* Inline links don't need min-width */
-  a.inline-link { min-width: unset; }
+  /* Icon-only buttons keep square minimum */
+  button.btn-icon { min-height: 44px; min-width: 44px; }
+  /* Inline links and tiny badges have no forced size */
+  a.inline-link, button.btn-xs { min-height: unset; min-width: unset; }
 }
 
 /* ═══════════════════════ COMPONENTS ═══════════════════════ */
@@ -414,6 +430,84 @@
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(4px); }
     to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Chat message slide-in ───────────────────────────────── */
+  .msg-appear {
+    animation: msgIn 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .msg-appear-own {
+    animation: msgInOwn 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes msgIn {
+    from { opacity: 0; transform: translateX(-10px) scale(0.97); }
+    to   { opacity: 1; transform: translateX(0) scale(1); }
+  }
+  @keyframes msgInOwn {
+    from { opacity: 0; transform: translateX(10px) scale(0.97); }
+    to   { opacity: 1; transform: translateX(0) scale(1); }
+  }
+
+  /* ── Online status dot ───────────────────────────────────── */
+  .online-dot {
+    @apply absolute bottom-0 right-0 w-3 h-3 rounded-full border-2;
+    border-color: hsl(var(--card));
+    background: hsl(var(--success));
+    box-shadow: 0 0 0 1px hsl(var(--success) / 0.4);
+  }
+
+  /* ── Date separator ──────────────────────────────────────── */
+  .date-separator {
+    @apply flex items-center gap-3 py-2 my-2;
+  }
+  .date-separator::before,
+  .date-separator::after {
+    content: '';
+    @apply flex-1 h-px bg-border/60;
+  }
+  .date-separator span {
+    @apply text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-widest whitespace-nowrap px-1;
+  }
+
+  /* ── Glass header ────────────────────────────────────────── */
+  .glass-header {
+    background: hsl(var(--card) / 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid hsl(var(--border) / 0.7);
+  }
+
+  /* ── Channel row hover gradient ──────────────────────────── */
+  .channel-row {
+    @apply w-full flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm text-left transition-all duration-150 relative;
+  }
+  .channel-row:hover:not(.channel-row-active) {
+    background: hsl(var(--muted) / 0.6);
+  }
+  .channel-row-active {
+    color: white;
+  }
+
+  /* ── AI floating button glow ─────────────────────────────── */
+  .ai-fab {
+    @apply fixed z-50 flex items-center gap-2 rounded-full shadow-2xl px-4 py-3;
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    right: 16px;
+    background: linear-gradient(135deg, #7c3aed, #3b82f6);
+    color: white;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    box-shadow: 0 8px 28px rgba(124, 58, 237, 0.45);
+    transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms ease;
+  }
+  .ai-fab:hover {
+    transform: scale(1.05) translateY(-2px);
+    box-shadow: 0 12px 36px rgba(124, 58, 237, 0.55);
+  }
+
+  /* Show only on desktop (mobile has the existing FAB) */
+  @media (max-width: 768px) {
+    .ai-fab { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); right: 12px; }
   }
 
   /* ── Progress bar (stock / capacity) ────────────────────── */

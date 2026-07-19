@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils"
 import {
   MessageSquare, Pin, Search, Send, Paperclip, Megaphone, User, Video, Phone, Briefcase, X, Building2,
   Sparkles, Loader2, ChevronLeft, ClipboardList, CalendarClock, Repeat, Plus, Smile, Mic,
-  Hash, Users,
+  Hash, Users, ArrowLeft, MoreVertical, FileText, AtSign,
 } from "lucide-react"
 
 /* ─────────────────────────────── Types ─────────────────────────────────── */
@@ -46,10 +46,8 @@ interface MeetingNoteSummary {
 interface MeetingNoteDetail extends MeetingNoteSummary { transcript: string | null; notes: string | null }
 
 /* ─────────────────────────── Brand palette ─────────────────────────────── */
-// TapasHub: #111111 black | #FFFFFF white | #2DA8FF primary blue | #0F1115 dark bg
-// Used via inline styles so they work in both light and dark mode.
-
-const BRAND_BLUE = "#2DA8FF"
+const BRAND_BLUE = "#3B82F6"
+const BRAND_BLUE_DARK = "#1d6fd8"
 const EMOJIS = ["👍", "❤️", "😂", "🎉", "🔥", "👏", "😮", "🚀"]
 
 /* ─────────────────────────── Helpers ───────────────────────────────────── */
@@ -63,17 +61,56 @@ function timeAgo(date: string) {
   if (d < 86_400_000) return `${Math.floor(d / 3_600_000)}h ago`
   return new Date(date).toLocaleDateString()
 }
+function formatTime(date: string) {
+  return new Date(date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+}
+function getDateLabel(dateStr: string): string {
+  const date = new Date(dateStr)
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (date.toDateString() === today.toDateString()) return "Today"
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday"
+  return date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
+}
+function getGreeting(): string {
+  const h = new Date().getHours()
+  if (h < 12) return "Good morning"
+  if (h < 17) return "Good afternoon"
+  return "Good evening"
+}
 
-/* ─────────────────────────── Reusable avatar ───────────────────────────── */
-function Avatar({ name, size = 36, blue = false }: { name: string; size?: number; blue?: boolean }) {
+/* ─────────────────────────── Channel avatar ────────────────────────────── */
+function ChannelAvatar({ name, size = 40, own = false }: { name: string; size?: number; own?: boolean }) {
+  const hue = [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 360
+  return (
+    <div
+      style={{
+        width: size, height: size, borderRadius: size * 0.3, flexShrink: 0,
+        background: own ? `linear-gradient(135deg, ${BRAND_BLUE}, ${BRAND_BLUE_DARK})` : `hsl(${hue} 60% 40% / 0.2)`,
+        border: own ? "none" : `1.5px solid hsl(${hue} 60% 50% / 0.3)`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: size * 0.35, fontWeight: 700,
+        color: own ? "#fff" : `hsl(${hue} 60% 70%)`,
+      }}
+    >
+      {initials(name)}
+    </div>
+  )
+}
+
+/* ─────────────────────────── Message avatar ────────────────────────────── */
+function MsgAvatar({ name, size = 32 }: { name: string; size?: number }) {
+  const hue = [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 360
   return (
     <div
       style={{
         width: size, height: size, borderRadius: "50%", flexShrink: 0,
-        background: blue ? BRAND_BLUE : "linear-gradient(135deg,#2DA8FF22,#2DA8FF55)",
-        border: `1.5px solid ${BRAND_BLUE}44`,
+        background: `hsl(${hue} 55% 40% / 0.25)`,
+        border: `1.5px solid hsl(${hue} 55% 50% / 0.35)`,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: size * 0.35, fontWeight: 700, color: BRAND_BLUE,
+        fontSize: size * 0.38, fontWeight: 700,
+        color: `hsl(${hue} 55% 70%)`,
       }}
     >
       {initials(name)}
@@ -107,6 +144,7 @@ export default function ChatPage() {
 
   const [socket, setSocket] = React.useState<Socket | null>(null)
   const [selectedChannel, setSelectedChannel] = React.useState<ChatChannel | null>(null)
+  const [mobileView, setMobileView] = React.useState<"list" | "conversation">("list")
   const [input, setInput] = React.useState("")
   const [messages, setMessages] = React.useState<ChatMessage[]>([])
   const [typingUsers, setTypingUsers] = React.useState<number[]>([])
@@ -134,10 +172,11 @@ export default function ChatPage() {
   const [assigningIndex, setAssigningIndex] = React.useState<number | null>(null)
   const [retryingNote, setRetryingNote] = React.useState(false)
   const [channelFilter, setChannelFilter] = React.useState<"all" | "direct" | "groups" | "unread">("all")
+  const [showEmojiRow, setShowEmojiRow] = React.useState(false)
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null)
 
-  // Tell the global DM notification listener which channel is active so it
-  // doesn't pop a toast for messages the user is already reading.
+  // Tell the global DM notification listener which channel is active
   React.useEffect(() => {
     setActiveChannelId(selectedChannel?.id ?? null)
     return () => setActiveChannelId(null)
@@ -321,6 +360,10 @@ export default function ChatPage() {
     })
     setInput("")
     setReplyTo(null)
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto"
+    }
   }
 
   const toggleReaction = (messageId: number, emoji: string) => {
@@ -346,7 +389,7 @@ export default function ChatPage() {
       const { channelId } = await res.json()
       queryClient.invalidateQueries({ queryKey: ["/api/chat/channels", companyId] })
       const ch = channels?.find((c) => c.id === channelId)
-      if (ch) setSelectedChannel(ch)
+      if (ch) { setSelectedChannel(ch); setMobileView("conversation") }
       setUsersOpen(false)
     }
   }
@@ -457,13 +500,33 @@ export default function ChatPage() {
 
   const totalUnread = channels?.reduce((s, c) => s + c.unread, 0) ?? 0
 
+  /* ── Date-grouped messages ── */
+  const groupedMessages = React.useMemo(() => {
+    const groups: { label: string; messages: ChatMessage[] }[] = []
+    let currentLabel = ""
+    for (const msg of messages) {
+      const label = getDateLabel(msg.createdAt)
+      if (label !== currentLabel) {
+        groups.push({ label, messages: [msg] })
+        currentLabel = label
+      } else {
+        groups[groups.length - 1].messages.push(msg)
+      }
+    }
+    return groups
+  }, [messages])
+
+  /* ── Handle channel select ── */
+  const handleSelectChannel = (ch: ChatChannel) => {
+    setSelectedChannel(ch)
+    setMobileView("conversation")
+  }
+
+  /* ── Guards ── */
   if (!companyId) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] gap-6">
-        <div
-          className="w-16 h-16 rounded-2xl flex items-center justify-center"
-          style={{ background: `${BRAND_BLUE}22` }}
-        >
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: `${BRAND_BLUE}20` }}>
           <MessageSquare className="h-8 w-8" style={{ color: BRAND_BLUE }} />
         </div>
         <div className="text-center space-y-1">
@@ -494,46 +557,62 @@ export default function ChatPage() {
 
   /* ───────────────────────────────── RENDER ─────────────────────────────── */
   return (
-    <div className="flex h-[calc(100vh-5rem)] overflow-hidden rounded-2xl border border-border/60 shadow-xl bg-card">
+    <div className="flex h-[calc(100vh-5rem)] overflow-hidden rounded-2xl border border-border/50 shadow-2xl"
+      style={{ background: "hsl(var(--background))" }}>
 
-      {/* ── Sidebar ── */}
-      <div className="w-72 shrink-0 flex flex-col border-r border-border/60 bg-card">
+      {/* ══════════ CHANNEL SIDEBAR ══════════ */}
+      <div
+        className={cn(
+          "flex-col border-r border-border/60",
+          "md:flex md:w-72 md:shrink-0",
+          // Mobile: show list OR conversation, never both
+          mobileView === "list" ? "flex w-full" : "hidden",
+        )}
+        style={{ background: "hsl(var(--sidebar))" }}
+      >
         {/* Sidebar header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
-          <span className="font-bold text-base">Chats</span>
-          <div className="flex items-center gap-1">
+        <div className="flex items-center justify-between px-4 py-4 border-b border-border/50">
+          <div>
+            <h1 className="font-bold text-lg leading-tight">Messages</h1>
             {totalUnread > 0 && (
-              <Badge
-                className="text-[10px] h-5 px-1.5"
-                style={{ background: BRAND_BLUE, color: "#fff", border: "none" }}
-              >
-                {totalUnread}
-              </Badge>
+              <p className="text-xs text-muted-foreground">{totalUnread} unread</p>
             )}
-            <Button
-              variant="ghost" size="icon" className="h-7 w-7"
-              style={{ color: BRAND_BLUE }}
-              title="New direct message"
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              data-compact
+              onClick={() => { setScheduleOpen(true); setShowScheduleForm(false) }}
+              className="btn-compact w-9 h-9 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
+              title="Scheduled meetings"
+            >
+              <CalendarClock className="h-4.5 w-4.5" style={{ width: 18, height: 18 }} />
+            </button>
+            <button
+              data-compact
               onClick={() => setUsersOpen(true)}
+              className="btn-compact w-9 h-9 flex items-center justify-center rounded-xl transition-all text-white"
+              style={{ background: BRAND_BLUE }}
+              title="New direct message"
             >
               <Plus className="h-4 w-4" />
-            </Button>
+            </button>
           </div>
         </div>
 
         {/* Filter tabs */}
-        <div className="flex gap-1 px-3 py-2">
+        <div className="flex gap-1 px-3 py-2.5">
           {(["all", "direct", "groups", "unread"] as const).map((f) => (
             <button
               key={f}
+              data-compact
               onClick={() => setChannelFilter(f)}
               className={cn(
-                "flex-1 text-[11px] font-medium py-1 rounded-md capitalize transition-all",
+                "btn-compact flex-1 text-[11px] font-semibold py-1.5 rounded-lg capitalize transition-all",
                 channelFilter === f
-                  ? "text-white"
+                  ? "text-white shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
               )}
-              style={channelFilter === f ? { background: BRAND_BLUE } : {}}
+              style={channelFilter === f ? { background: BRAND_BLUE, boxShadow: `0 2px 8px ${BRAND_BLUE}40` } : {}}
             >
               {f}
             </button>
@@ -541,58 +620,62 @@ export default function ChatPage() {
         </div>
 
         {/* Channel list */}
-        <div className="flex-1 overflow-y-auto px-2 space-y-0.5 py-1">
+        <div className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5">
           {filteredChannels.length === 0 ? (
-            <div className="text-center text-xs text-muted-foreground py-8">
-              {channelFilter === "unread" ? "No unread messages" : "No channels yet"}
+            <div className="text-center text-sm text-muted-foreground py-10">
+              {channelFilter === "unread" ? "No unread messages 🎉" : "No channels yet"}
             </div>
           ) : (
             filteredChannels.map((ch) => {
               const isSelected = selectedChannel?.id === ch.id
-              const icon = ch.type === "direct" ? <User className="h-3.5 w-3.5 shrink-0" />
-                : ch.type === "team" ? <Users className="h-3.5 w-3.5 shrink-0" />
-                : ch.type === "department" ? <Hash className="h-3.5 w-3.5 shrink-0" />
-                : <Briefcase className="h-3.5 w-3.5 shrink-0" />
+              const typeIcon = ch.type === "direct"
+                ? <User style={{ width: 12, height: 12 }} />
+                : ch.type === "team" ? <Users style={{ width: 12, height: 12 }} />
+                : ch.type === "department" ? <Hash style={{ width: 12, height: 12 }} />
+                : <Briefcase style={{ width: 12, height: 12 }} />
+
               return (
                 <button
                   key={ch.id}
-                  onClick={() => setSelectedChannel(ch)}
-                  className={cn(
-                    "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-left transition-all",
-                    isSelected
-                      ? "text-white shadow-sm"
-                      : "hover:bg-muted/60 text-foreground"
-                  )}
-                  style={isSelected ? { background: BRAND_BLUE } : {}}
+                  onClick={() => handleSelectChannel(ch)}
+                  className={cn("channel-row", isSelected && "channel-row-active")}
+                  style={isSelected ? {
+                    background: `linear-gradient(135deg, ${BRAND_BLUE}, ${BRAND_BLUE_DARK})`,
+                    boxShadow: `0 4px 16px ${BRAND_BLUE}35`,
+                  } : {}}
                 >
-                  <div
-                    className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0"
-                    style={{
-                      background: isSelected ? "rgba(255,255,255,0.2)" : `${BRAND_BLUE}18`,
-                      color: isSelected ? "#fff" : BRAND_BLUE,
-                    }}
-                  >
-                    {initials(ch.name)}
+                  {/* Avatar with online dot */}
+                  <div className="relative">
+                    <ChannelAvatar name={ch.name} size={42} own={isSelected} />
+                    {/* Simulated online dot for group channels */}
+                    {ch.type !== "direct" && (
+                      <span className="online-dot" style={isSelected ? { borderColor: BRAND_BLUE_DARK } : {}} />
+                    )}
                   </div>
+
                   <div className="flex-1 min-w-0">
-                    <div className={cn("font-medium text-sm truncate flex items-center gap-1.5")}>
-                      {icon}
-                      {ch.name}
+                    <div className="flex items-center justify-between gap-1">
+                      <div className={cn("font-semibold text-[0.9375rem] truncate flex items-center gap-1.5",
+                        isSelected ? "text-white" : "text-foreground")}>
+                        {typeIcon}
+                        <span>{ch.name}</span>
+                      </div>
+                      {ch.unread > 0 && (
+                        <span
+                          className="text-[10px] font-bold h-5 min-w-5 px-1.5 rounded-full flex items-center justify-center shrink-0"
+                          style={isSelected
+                            ? { background: "rgba(255,255,255,0.25)", color: "#fff" }
+                            : { background: BRAND_BLUE, color: "#fff" }}
+                        >
+                          {ch.unread > 99 ? "99+" : ch.unread}
+                        </span>
+                      )}
                     </div>
-                    <div className={cn("text-xs truncate", isSelected ? "text-white/70" : "text-muted-foreground")}>
-                      {ch.type === "direct" ? "Direct message" : ch.type}
+                    <div className={cn("text-xs truncate mt-0.5",
+                      isSelected ? "text-white/65" : "text-muted-foreground")}>
+                      {ch.type === "direct" ? "Direct message" : ch.type === "team" ? "Team channel" : ch.department ?? ch.type}
                     </div>
                   </div>
-                  {ch.unread > 0 && (
-                    <Badge
-                      className="text-[10px] h-5 px-1.5 shrink-0"
-                      style={isSelected
-                        ? { background: "rgba(255,255,255,0.3)", color: "#fff", border: "none" }
-                        : { background: BRAND_BLUE, color: "#fff", border: "none" }}
-                    >
-                      {ch.unread}
-                    </Badge>
-                  )}
                 </button>
               )
             })
@@ -600,252 +683,399 @@ export default function ChatPage() {
         </div>
 
         {/* Sidebar actions */}
-        <div className="p-3 border-t border-border/60 space-y-1">
+        <div className="p-3 border-t border-border/50 space-y-0.5">
           {[
-            { icon: User, label: "Direct Message", action: () => setUsersOpen(true) },
             { icon: Search, label: "Search Messages", action: () => setSearchOpen(true) },
-            { icon: CalendarClock, label: "Scheduled Meetings", action: () => { setScheduleOpen(true); setShowScheduleForm(false) } },
-            { icon: Sparkles, label: "Meeting Notes", action: () => { setNotesOpen(true); setOpenNoteId(null) } },
+            { icon: Sparkles, label: "AI Meeting Notes", action: () => { setNotesOpen(true); setOpenNoteId(null) } },
           ].map(({ icon: Icon, label, action }) => (
             <button
               key={label}
               onClick={action}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all font-medium"
             >
-              <Icon className="h-4 w-4" style={{ color: BRAND_BLUE }} />
+              <Icon className="h-4 w-4 shrink-0" style={{ color: BRAND_BLUE }} />
               {label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* ── Chat area ── */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* ══════════ CHAT AREA ══════════ */}
+      <div
+        className={cn(
+          "flex-col min-w-0",
+          "md:flex md:flex-1",
+          // Mobile: show conversation OR empty list
+          mobileView === "conversation" ? "flex flex-1" : "hidden md:flex md:flex-1",
+        )}
+        style={{ background: "hsl(var(--background))" }}
+      >
         {!selectedChannel ? (
-          /* Empty state */
-          <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-8">
-            <div
-              className="w-20 h-20 rounded-2xl flex items-center justify-center"
-              style={{ background: `${BRAND_BLUE}18` }}
-            >
-              <MessageSquare className="h-10 w-10" style={{ color: BRAND_BLUE }} />
+          /* ── Dashboard empty state ── */
+          <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 gap-6 overflow-y-auto">
+            {/* Watermark logo */}
+            <div className="relative">
+              <div
+                className="w-24 h-24 rounded-3xl flex items-center justify-center shadow-2xl"
+                style={{ background: `linear-gradient(135deg, ${BRAND_BLUE}20, ${BRAND_BLUE}40)`, border: `2px solid ${BRAND_BLUE}30` }}
+              >
+                <span className="text-5xl font-black" style={{ color: BRAND_BLUE, opacity: 0.7 }}>T</span>
+              </div>
             </div>
-            <div>
-              <p className="text-lg font-semibold mb-1">Select a conversation</p>
-              <p className="text-sm text-muted-foreground">Choose a channel from the left or start a direct message.</p>
+
+            <div className="text-center space-y-1">
+              <p className="text-2xl font-bold">{getGreeting()}, {user?.name?.split(" ")[0] ?? "there"} 👋</p>
+              <p className="text-muted-foreground">Select a conversation or start a new one.</p>
             </div>
+
+            {/* Quick stats */}
+            <div className="flex gap-3 flex-wrap justify-center">
+              {totalUnread > 0 && (
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-border/60"
+                  style={{ background: "hsl(var(--card))" }}>
+                  <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: BRAND_BLUE }} />
+                  <span className="text-sm font-semibold">{totalUnread}</span>
+                  <span className="text-sm text-muted-foreground">unread</span>
+                </div>
+              )}
+              {(channels?.length ?? 0) > 0 && (
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-border/60"
+                  style={{ background: "hsl(var(--card))" }}>
+                  <MessageSquare className="w-4 h-4" style={{ color: BRAND_BLUE }} />
+                  <span className="text-sm font-semibold">{channels!.length}</span>
+                  <span className="text-sm text-muted-foreground">channels</span>
+                </div>
+              )}
+            </div>
+
+            {/* Recent channels */}
+            {(channels?.length ?? 0) > 0 && (
+              <div className="w-full max-w-sm space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70 text-center mb-3">Recent</p>
+                {channels!.slice(0, 4).map((ch) => (
+                  <button
+                    key={ch.id}
+                    onClick={() => handleSelectChannel(ch)}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-border/60 hover:border-primary/40 transition-all group"
+                    style={{ background: "hsl(var(--card))" }}
+                  >
+                    <ChannelAvatar name={ch.name} size={38} />
+                    <div className="flex-1 text-left min-w-0">
+                      <div className="font-semibold text-sm truncate group-hover:text-primary transition-colors">{ch.name}</div>
+                      <div className="text-xs text-muted-foreground capitalize">{ch.type === "direct" ? "Direct message" : ch.type}</div>
+                    </div>
+                    {ch.unread > 0 && (
+                      <span className="text-[10px] font-bold h-5 min-w-5 px-1.5 rounded-full flex items-center justify-center text-white"
+                        style={{ background: BRAND_BLUE }}>
+                        {ch.unread}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <Button
               onClick={() => setUsersOpen(true)}
-              style={{ background: BRAND_BLUE, color: "#fff" }}
-              className="rounded-xl"
+              className="rounded-2xl px-6 gap-2"
+              style={{ background: BRAND_BLUE, color: "#fff", boxShadow: `0 4px 20px ${BRAND_BLUE}45` }}
             >
-              <Plus className="h-4 w-4 mr-2" /> New Direct Message
+              <Plus className="h-4 w-4" /> New Direct Message
             </Button>
           </div>
         ) : (
           <>
-            {/* Chat header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-border/60 bg-card shrink-0">
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold"
-                  style={{ background: `${BRAND_BLUE}18`, color: BRAND_BLUE }}
-                >
-                  {initials(selectedChannel.name)}
+            {/* ── Chat header ── */}
+            <div className="flex items-center justify-between px-4 py-3 glass-header shrink-0 gap-3">
+              {/* Back button (mobile) */}
+              <button
+                data-compact
+                className="btn-compact md:hidden w-9 h-9 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/60 transition-all shrink-0"
+                onClick={() => { setMobileView("list"); setSelectedChannel(null) }}
+              >
+                <ArrowLeft className="h-4.5 w-4.5" style={{ width: 18, height: 18 }} />
+              </button>
+
+              {/* Channel info */}
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="relative">
+                  <ChannelAvatar name={selectedChannel.name} size={40} />
+                  {selectedChannel.type !== "direct" && <span className="online-dot" />}
                 </div>
-                <div>
-                  <div className="font-semibold flex items-center gap-1.5">
-                    {selectedChannel.type === "direct" && <User className="h-3.5 w-3.5" style={{ color: BRAND_BLUE }} />}
-                    {selectedChannel.type === "team" && <Users className="h-3.5 w-3.5" style={{ color: BRAND_BLUE }} />}
-                    {selectedChannel.type === "department" && <Hash className="h-3.5 w-3.5" style={{ color: BRAND_BLUE }} />}
-                    {selectedChannel.name}
+                <div className="min-w-0">
+                  <div className="font-semibold text-[0.9375rem] truncate leading-tight">{selectedChannel.name}</div>
+                  <div className="text-xs text-muted-foreground capitalize leading-tight">
+                    {selectedChannel.type === "direct"
+                      ? "Direct message"
+                      : `${selectedChannel.type} · ${channelUsers?.length ?? 0} members`}
                   </div>
-                  <div className="text-xs text-muted-foreground capitalize">{selectedChannel.type} channel</div>
                 </div>
               </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost" size="icon" className="h-9 w-9 rounded-xl"
-                  title="Voice call"
-                  disabled={!!startingCall || !!activeCall}
-                  onClick={() => startChannelCall(false)}
-                  style={{ color: BRAND_BLUE }}
-                >
-                  {startingCall === "voice" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
-                </Button>
-                <Button
-                  variant="ghost" size="icon" className="h-9 w-9 rounded-xl"
-                  title="Video call"
-                  disabled={!!startingCall || !!activeCall}
-                  onClick={() => startChannelCall(true)}
-                  style={{ color: BRAND_BLUE }}
-                >
-                  {startingCall === "video" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
-                </Button>
-                <Button
-                  variant="ghost" size="icon" className="h-9 w-9 rounded-xl"
-                  title="Search messages"
-                  onClick={() => setSearchOpen(true)}
-                  style={{ color: BRAND_BLUE }}
-                >
-                  <Search className="h-4 w-4" />
-                </Button>
+
+              {/* Actions */}
+              <div className="flex items-center gap-0.5 shrink-0">
+                {[
+                  { icon: Phone, title: "Voice call", disabled: !!startingCall || !!activeCall, onClick: () => startChannelCall(false), loading: startingCall === "voice" },
+                  { icon: Video, title: "Video call", disabled: !!startingCall || !!activeCall, onClick: () => startChannelCall(true), loading: startingCall === "video" },
+                  { icon: Search, title: "Search", disabled: false, onClick: () => setSearchOpen(true), loading: false },
+                ].map(({ icon: Icon, title, disabled, onClick, loading }) => (
+                  <button
+                    key={title}
+                    data-compact
+                    className="btn-compact w-9 h-9 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all disabled:opacity-40"
+                    title={title}
+                    disabled={disabled}
+                    onClick={onClick}
+                  >
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon style={{ width: 17, height: 17 }} />}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            {/* ── Messages ── */}
+            <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4" style={{ background: "hsl(var(--background))" }}>
               {messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
-                  <div
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center"
-                    style={{ background: `${BRAND_BLUE}18` }}
-                  >
-                    <MessageSquare className="h-7 w-7" style={{ color: BRAND_BLUE }} />
+                /* Empty message area with watermark */
+                <div className="flex flex-col items-center justify-center h-full gap-4 text-center select-none">
+                  <div className="text-9xl font-black text-center leading-none"
+                    style={{ color: BRAND_BLUE, opacity: 0.04, userSelect: "none", fontSize: "clamp(6rem, 15vw, 12rem)" }}>
+                    T
                   </div>
-                  <p className="text-sm text-muted-foreground">No messages yet. Say hello! 👋</p>
+                  <div className="text-center space-y-1 -mt-8">
+                    <p className="font-semibold text-lg">Say hello to {selectedChannel.name} 👋</p>
+                    <p className="text-sm text-muted-foreground">Be the first to send a message.</p>
+                  </div>
                 </div>
               ) : (
-                messages.map((msg) => {
-                  const isOwn = msg.userId === userId
-                  return (
-                    <div key={msg.id} className={cn("flex gap-3", isOwn ? "flex-row-reverse" : "flex-row")}>
-                      {!isOwn && <Avatar name={msg.displayName} size={32} />}
-                      <div className={cn("max-w-[70%] flex flex-col gap-1", isOwn && "items-end")}>
-                        {!isOwn && (
-                          <div className="flex items-center gap-2 px-1">
-                            <span className="text-xs font-semibold" style={{ color: BRAND_BLUE }}>{msg.displayName}</span>
-                            <span className="text-[10px] text-muted-foreground">{new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                            {msg.isPinned && <Pin className="h-3 w-3 text-muted-foreground" />}
-                          </div>
-                        )}
-                        {msg.replyToId && (
-                          <div className="text-xs text-muted-foreground border-l-2 pl-2 ml-1 mb-0.5" style={{ borderColor: BRAND_BLUE }}>
-                            Reply to #{msg.replyToId}
-                          </div>
-                        )}
-                        {msg.isAnnouncement && (
-                          <div
-                            className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full w-fit"
-                            style={{ background: `${BRAND_BLUE}22`, color: BRAND_BLUE }}
-                          >
-                            📢 Announcement
-                          </div>
-                        )}
-                        <div
-                          className="px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap leading-relaxed shadow-sm"
-                          style={isOwn
-                            ? { background: BRAND_BLUE, color: "#fff", borderBottomRightRadius: 4 }
-                            : { background: "var(--card)", border: "1px solid var(--border)", borderBottomLeftRadius: 4 }
-                          }
-                        >
-                          {msg.content}
-                          {isOwn && (
-                            <span className="ml-2 text-[10px] opacity-70">
-                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                              {msg.editedAt && " · edited"}
-                            </span>
-                          )}
-                        </div>
-                        {/* Attachments */}
-                        {msg.attachments?.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-1">
-                            {msg.attachments.map((a, i) => (
-                              <a
-                                key={i}
-                                href={`/api/storage/objects/${a.objectPath}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-all hover:opacity-80"
-                                style={{ borderColor: `${BRAND_BLUE}44`, color: BRAND_BLUE }}
-                              >
-                                <Paperclip className="h-3 w-3" /> {a.name}
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                        {/* Reactions */}
-                        <div className="flex flex-wrap gap-1 mt-0.5">
-                          {Object.entries(msg.reactions ?? {})
-                            .filter(([, ids]) => ids.length > 0)
-                            .map(([emoji, ids]) => (
-                              <button
-                                key={emoji}
-                                onClick={() => toggleReaction(msg.id, emoji)}
-                                className="flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full border transition-all hover:scale-105"
-                                style={
-                                  ids.includes(userId ?? 0)
-                                    ? { background: `${BRAND_BLUE}22`, borderColor: BRAND_BLUE, color: BRAND_BLUE }
-                                    : { borderColor: "var(--border)" }
-                                }
-                              >
-                                {emoji} <span>{ids.length}</span>
-                              </button>
-                            ))}
-                          <button
-                            className="text-xs px-1.5 py-0.5 rounded-full border border-transparent text-muted-foreground hover:border-border opacity-0 group-hover:opacity-100 transition-all"
-                            onClick={() => toggleReaction(msg.id, "👍")}
-                            title="React"
-                          >
-                            <Smile className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                            onClick={() => setReplyTo(msg)}
-                          >
-                            Reply
-                          </button>
-                        </div>
+                <div className="space-y-1">
+                  {groupedMessages.map(({ label, messages: dayMsgs }) => (
+                    <div key={label}>
+                      {/* Date separator */}
+                      <div className="date-separator">
+                        <span>{label}</span>
                       </div>
+
+                      {/* Messages for this day */}
+                      {dayMsgs.map((msg, idx) => {
+                        const isOwn = msg.userId === userId
+                        const prevMsg = idx > 0 ? dayMsgs[idx - 1] : null
+                        const showAvatar = !isOwn && (prevMsg?.userId !== msg.userId)
+                        const isGrouped = prevMsg?.userId === msg.userId && !showAvatar
+
+                        return (
+                          <div
+                            key={msg.id}
+                            className={cn("flex gap-3 group", isOwn ? "flex-row-reverse" : "flex-row", isGrouped ? "mt-0.5" : "mt-3")}
+                          >
+                            {/* Avatar — only on first message of a run */}
+                            {!isOwn && (
+                              <div style={{ width: 32, flexShrink: 0 }}>
+                                {showAvatar && <MsgAvatar name={msg.displayName} size={32} />}
+                              </div>
+                            )}
+
+                            <div className={cn("max-w-[72%] flex flex-col gap-1", isOwn && "items-end")}>
+                              {/* Sender + time — only on first of a run */}
+                              {showAvatar && (
+                                <div className="flex items-center gap-2 px-1">
+                                  <span className="text-[0.8125rem] font-semibold" style={{ color: BRAND_BLUE }}>{msg.displayName}</span>
+                                  <span className="text-[11px] text-muted-foreground">{formatTime(msg.createdAt)}</span>
+                                  {msg.isPinned && <Pin className="h-3 w-3 text-muted-foreground" />}
+                                </div>
+                              )}
+
+                              {msg.replyToId && (
+                                <div className="text-xs text-muted-foreground border-l-2 pl-2 ml-1 mb-0.5" style={{ borderColor: BRAND_BLUE }}>
+                                  Reply to #{msg.replyToId}
+                                </div>
+                              )}
+
+                              {msg.isAnnouncement && (
+                                <div className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full w-fit"
+                                  style={{ background: `${BRAND_BLUE}20`, color: BRAND_BLUE }}>
+                                  📢 Announcement
+                                </div>
+                              )}
+
+                              {/* Bubble */}
+                              <div
+                                className={cn(
+                                  "msg-content px-4 py-2.5 relative whitespace-pre-wrap",
+                                  isOwn ? "msg-appear-own" : "msg-appear"
+                                )}
+                                style={isOwn ? {
+                                  background: `linear-gradient(135deg, ${BRAND_BLUE}, ${BRAND_BLUE_DARK})`,
+                                  color: "#fff",
+                                  borderRadius: 20,
+                                  borderBottomRightRadius: isGrouped ? 20 : 6,
+                                  boxShadow: `0 4px 14px ${BRAND_BLUE}35`,
+                                } : {
+                                  background: "hsl(var(--card))",
+                                  border: "1px solid hsl(var(--border) / 0.8)",
+                                  borderRadius: 20,
+                                  borderBottomLeftRadius: isGrouped ? 20 : 6,
+                                  color: "hsl(var(--foreground))",
+                                }}
+                              >
+                                {msg.content}
+                                {isOwn && (
+                                  <span className="ml-2 text-[10px] opacity-60">
+                                    {formatTime(msg.createdAt)}{msg.editedAt ? " · edited" : ""}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Attachments */}
+                              {msg.attachments?.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 mt-1">
+                                  {msg.attachments.map((a, i) => (
+                                    <a
+                                      key={i}
+                                      href={`/api/storage/objects/${a.objectPath}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-link flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border transition-all hover:opacity-80"
+                                      style={{ borderColor: `${BRAND_BLUE}44`, color: BRAND_BLUE }}
+                                    >
+                                      <Paperclip style={{ width: 11, height: 11 }} /> {a.name}
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Reactions */}
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {Object.entries(msg.reactions ?? {})
+                                  .filter(([, ids]) => ids.length > 0)
+                                  .map(([emoji, ids]) => (
+                                    <button
+                                      key={emoji}
+                                      data-compact
+                                      onClick={() => toggleReaction(msg.id, emoji)}
+                                      className="btn-compact flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full border transition-all hover:scale-110 active:scale-95"
+                                      style={
+                                        ids.includes(userId ?? 0)
+                                          ? { background: `${BRAND_BLUE}20`, borderColor: BRAND_BLUE, color: BRAND_BLUE }
+                                          : { borderColor: "hsl(var(--border))", background: "hsl(var(--card))" }
+                                      }
+                                    >
+                                      {emoji} <span>{ids.length}</span>
+                                    </button>
+                                  ))}
+                                {/* Add reaction + reply — visible on hover */}
+                                <button
+                                  data-compact
+                                  className="btn-compact opacity-0 group-hover:opacity-100 flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full border border-border/60 text-muted-foreground hover:bg-muted transition-all"
+                                  onClick={() => toggleReaction(msg.id, "👍")}
+                                  title="React"
+                                >
+                                  <Smile style={{ width: 12, height: 12 }} />
+                                </button>
+                                <button
+                                  data-compact
+                                  className="btn-compact opacity-0 group-hover:opacity-100 text-[11px] text-muted-foreground hover:text-foreground transition-all px-1.5 py-0.5 rounded-full border border-transparent hover:border-border/60"
+                                  onClick={() => setReplyTo(msg)}
+                                >
+                                  Reply
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
-                  )
-                })
-              )}
-              {typingUsers.length > 0 && (
-                <div className="flex items-center gap-2 px-1">
-                  <div className="flex gap-0.5">
-                    {[0, 1, 2].map((i) => (
-                      <div
-                        key={i}
-                        className="w-1.5 h-1.5 rounded-full animate-bounce"
-                        style={{ background: BRAND_BLUE, animationDelay: `${i * 0.15}s` }}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-xs text-muted-foreground">Someone is typing…</span>
+                  ))}
+
+                  {/* Typing indicator */}
+                  {typingUsers.length > 0 && (
+                    <div className="flex items-center gap-2 px-2 mt-3 ml-11">
+                      <div className="flex gap-1 px-3 py-2 rounded-2xl rounded-bl-md"
+                        style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border) / 0.6)" }}>
+                        {[0, 1, 2].map((i) => (
+                          <div
+                            key={i}
+                            className="w-2 h-2 rounded-full animate-bounce"
+                            style={{ background: BRAND_BLUE, animationDelay: `${i * 0.15}s` }}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-xs text-muted-foreground">typing…</span>
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} className="h-1" />
                 </div>
               )}
-              <div ref={messagesEndRef} />
             </div>
 
-            {/* Composer */}
-            <div className="px-4 pb-4 pt-2 shrink-0">
+            {/* ── Composer ── */}
+            <div className="px-4 pb-4 pt-2 shrink-0 border-t border-border/40"
+              style={{ background: "hsl(var(--card) / 0.6)", backdropFilter: "blur(8px)" }}>
+
+              {/* Reply indicator */}
               {replyTo && (
-                <div
-                  className="flex items-center justify-between text-xs mb-2 px-3 py-1.5 rounded-lg"
-                  style={{ background: `${BRAND_BLUE}14`, borderLeft: `3px solid ${BRAND_BLUE}` }}
-                >
+                <div className="flex items-center justify-between text-xs mb-2 px-3 py-2 rounded-xl"
+                  style={{ background: `${BRAND_BLUE}12`, borderLeft: `3px solid ${BRAND_BLUE}` }}>
                   <span className="text-muted-foreground">
-                    <span className="font-medium" style={{ color: BRAND_BLUE }}>{replyTo.displayName}:</span>{" "}
-                    {replyTo.content.slice(0, 50)}{replyTo.content.length > 50 ? "…" : ""}
+                    <span className="font-semibold" style={{ color: BRAND_BLUE }}>{replyTo.displayName}:</span>{" "}
+                    {replyTo.content.slice(0, 60)}{replyTo.content.length > 60 ? "…" : ""}
                   </span>
-                  <button onClick={() => setReplyTo(null)} className="text-muted-foreground hover:text-foreground ml-2">
-                    <X className="h-3.5 w-3.5" />
+                  <button data-compact className="btn-compact w-5 h-5 text-muted-foreground hover:text-foreground ml-2" onClick={() => setReplyTo(null)}>
+                    <X style={{ width: 14, height: 14 }} />
                   </button>
                 </div>
               )}
+
+              {/* Emoji quick-row */}
+              {showEmojiRow && (
+                <div className="flex gap-2 mb-2 px-1">
+                  {EMOJIS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      data-compact
+                      onClick={() => {
+                        if (selectedChannel) socket?.emit("message:send", { channelId: selectedChannel.id, content: emoji, mentions: [] }, () => {})
+                        setShowEmojiRow(false)
+                      }}
+                      className="btn-compact text-xl hover:scale-125 transition-transform active:scale-110"
+                      title={`Send ${emoji}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Main composer box */}
               <div
-                className="flex items-end gap-2 rounded-2xl border px-3 py-2.5 transition-all focus-within:border-[#2DA8FF] focus-within:ring-2 focus-within:ring-[#2DA8FF22]"
-                style={{ borderColor: "var(--border)" }}
+                className="flex items-end gap-2 rounded-2xl border px-3 py-2 transition-all focus-within:shadow-lg"
+                style={{
+                  borderColor: "hsl(var(--border) / 0.8)",
+                  background: "hsl(var(--card))",
+                  transition: "border-color 200ms, box-shadow 200ms",
+                }}
+                onFocus={(e) => e.currentTarget.style.borderColor = BRAND_BLUE}
+                onBlur={(e) => e.currentTarget.style.borderColor = "hsl(var(--border) / 0.8)"}
               >
+                {/* Emoji toggle */}
+                <button
+                  data-compact
+                  className="btn-compact shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setShowEmojiRow((v) => !v)}
+                  title="Emoji"
+                >
+                  <Smile style={{ width: 17, height: 17 }} />
+                </button>
+
+                {/* Textarea */}
                 <div className="flex-1 relative">
                   <textarea
+                    ref={textareaRef}
                     value={input}
                     rows={1}
                     onChange={(e) => {
                       const value = e.target.value
                       setInput(value)
-                      // Auto-resize
                       e.target.style.height = "auto"
                       e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"
                       const cursor = e.target.selectionStart ?? value.length
@@ -857,17 +1087,16 @@ export default function ChatPage() {
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage() }
                     }}
-                    placeholder={replyTo ? "Reply…" : "Type a message… @name to mention"}
-                    className="w-full bg-transparent outline-none resize-none text-sm leading-relaxed placeholder:text-muted-foreground max-h-[120px]"
-                    style={{ minHeight: 24 }}
+                    placeholder={replyTo ? "Reply…" : "Message " + selectedChannel.name + "…"}
+                    className="w-full bg-transparent outline-none resize-none text-sm leading-relaxed placeholder:text-muted-foreground max-h-[120px] py-1"
+                    style={{ minHeight: 26 }}
                   />
                   {showMentions && (
-                    <div className="absolute bottom-full left-0 mb-1 w-full max-h-[180px] overflow-y-auto rounded-xl border bg-card shadow-lg z-10 p-1 space-y-0.5">
-                      {(channelUsers?.filter((u) => u.id !== userId).filter((u) => {
-                        const q = (mentionQuery ?? "").toLowerCase()
-                        return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
-                      }).length ?? 0) === 0 ? (
-                        <div className="text-xs text-muted-foreground px-2 py-1">No matching members</div>
+                    <div className="absolute bottom-full left-0 mb-2 w-64 max-h-[200px] overflow-y-auto rounded-2xl border bg-card shadow-xl z-10 p-1.5 space-y-0.5">
+                      {(channelUsers?.filter((u) => u.id !== userId && (
+                        !(mentionQuery ?? "") || u.name.toLowerCase().includes(mentionQuery!) || u.email.toLowerCase().includes(mentionQuery!)
+                      )).length ?? 0) === 0 ? (
+                        <div className="text-xs text-muted-foreground px-3 py-2">No matching members</div>
                       ) : (
                         channelUsers?.filter((u) => u.id !== userId)
                           .filter((u) => {
@@ -879,12 +1108,12 @@ export default function ChatPage() {
                             <button
                               key={u.id}
                               onClick={() => insertMention(u.name)}
-                              className="w-full text-left rounded-lg px-3 py-1.5 hover:bg-muted text-sm flex items-center gap-2"
+                              className="w-full text-left rounded-xl px-3 py-2 hover:bg-muted text-sm flex items-center gap-3 transition-colors"
                             >
-                              <Avatar name={u.name} size={24} />
+                              <MsgAvatar name={u.name} size={28} />
                               <div>
-                                <div className="font-medium text-xs">{u.name}</div>
-                                <div className="text-[10px] text-muted-foreground">{u.email}</div>
+                                <div className="font-semibold text-[0.8125rem]">{u.name}</div>
+                                <div className="text-[11px] text-muted-foreground">{u.email}</div>
                               </div>
                             </button>
                           ))
@@ -892,58 +1121,87 @@ export default function ChatPage() {
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-1">
+
+                {/* Right actions */}
+                <div className="flex items-center gap-0.5 shrink-0">
+                  {/* Attach */}
                   <input type="file" multiple className="hidden" id="chat-file-input" />
-                  <label htmlFor="chat-file-input">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" asChild>
-                      <span title="Attach file"><Paperclip className="h-4 w-4 text-muted-foreground" /></span>
-                    </Button>
+                  <label htmlFor="chat-file-input" data-compact>
+                    <span className="btn-compact w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground cursor-pointer transition-colors">
+                      <Paperclip style={{ width: 16, height: 16 }} />
+                    </span>
                   </label>
-                  <Button
-                    size="icon"
-                    className="h-8 w-8 rounded-xl transition-all"
+                  {/* Mic */}
+                  <button
+                    data-compact
+                    className="btn-compact w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+                    title="Voice message"
+                  >
+                    <Mic style={{ width: 16, height: 16 }} />
+                  </button>
+                  {/* AI assist */}
+                  <button
+                    data-compact
+                    className="btn-compact w-8 h-8 flex items-center justify-center rounded-lg transition-all"
+                    style={{ color: "#7c3aed" }}
+                    title="AI assist"
+                    onClick={() => { setNotesOpen(true); setOpenNoteId(null) }}
+                  >
+                    <Sparkles style={{ width: 16, height: 16 }} />
+                  </button>
+                  {/* Send */}
+                  <button
+                    data-compact
+                    className="btn-compact w-9 h-9 flex items-center justify-center rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                     disabled={!input.trim()}
                     onClick={sendMessage}
-                    style={{ background: input.trim() ? BRAND_BLUE : undefined }}
+                    style={input.trim() ? {
+                      background: `linear-gradient(135deg, ${BRAND_BLUE}, ${BRAND_BLUE_DARK})`,
+                      color: "#fff",
+                      boxShadow: `0 4px 12px ${BRAND_BLUE}40`,
+                    } : { background: "hsl(var(--muted))", color: "hsl(var(--muted-foreground))" }}
                   >
-                    <Send className="h-4 w-4" />
-                  </Button>
+                    <Send style={{ width: 16, height: 16 }} />
+                  </button>
                 </div>
               </div>
-              <div className="flex justify-center gap-2 mt-2">
-                {EMOJIS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => {
-                      if (selectedChannel) {
-                        socket?.emit("message:send", { channelId: selectedChannel.id, content: emoji, mentions: [] }, () => {})
-                      }
-                    }}
-                    className="text-lg hover:scale-125 transition-transform"
-                    title={`Send ${emoji}`}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
+
+              <p className="text-center text-[11px] text-muted-foreground/50 mt-1.5">
+                Enter to send · Shift+Enter for new line · @name to mention
+              </p>
             </div>
           </>
         )}
       </div>
+
+      {/* ── Floating AI button (desktop only when in a conversation) ── */}
+      {selectedChannel && (
+        <button
+          className="ai-fab hidden md:flex"
+          onClick={() => { setNotesOpen(true); setOpenNoteId(null) }}
+          title="AI Meeting Notes"
+        >
+          <Sparkles style={{ width: 15, height: 15 }} />
+          <span>Ask AI</span>
+        </button>
+      )}
 
       {/* ─────────────────── Dialogs ────────────────────── */}
       <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader><DialogTitle>Search Messages</DialogTitle></DialogHeader>
           <div className="flex gap-2">
-            <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()} placeholder="Search…" />
+            <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()} placeholder="Search messages…" />
             <Button onClick={handleSearch} style={{ background: BRAND_BLUE, color: "#fff" }}>Search</Button>
           </div>
-          <div className="max-h-[300px] overflow-y-auto space-y-2">
+          <div className="max-h-[320px] overflow-y-auto space-y-2">
+            {searchResults.length === 0 && (
+              <div className="text-center text-sm text-muted-foreground py-6">Type a keyword and press Search.</div>
+            )}
             {searchResults.map((msg) => (
-              <div key={msg.id} className="rounded-xl border p-3 text-sm hover:bg-muted/50 transition-colors">
-                <div className="font-medium text-xs mb-0.5" style={{ color: BRAND_BLUE }}>{msg.displayName}</div>
-                <div className="text-muted-foreground">{msg.content}</div>
+              <div key={msg.id} className="rounded-2xl border p-3.5 text-sm hover:bg-muted/50 transition-colors">
+                <div className="font-semibold text-xs mb-1" style={{ color: BRAND_BLUE }}>{msg.displayName}</div>
+                <div className="text-muted-foreground leading-relaxed">{msg.content}</div>
               </div>
             ))}
           </div>
@@ -953,36 +1211,34 @@ export default function ChatPage() {
       <Dialog open={usersOpen} onOpenChange={(o) => { setUsersOpen(o); if (!o) setDmQuery("") }}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle>New Direct Message</DialogTitle></DialogHeader>
-          <Input placeholder="Search team members…" value={dmQuery} onChange={(e) => setDmQuery(e.target.value)} className="mb-2" />
-          <div className="max-h-[300px] overflow-y-auto space-y-1">
+          <Input placeholder="Search team members…" value={dmQuery} onChange={(e) => setDmQuery(e.target.value)} className="mb-3" />
+          <div className="max-h-[320px] overflow-y-auto space-y-1.5">
             {isLoadingUsers ? (
-              <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" style={{ color: BRAND_BLUE }} /></div>
+              <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin" style={{ color: BRAND_BLUE }} /></div>
+            ) : (channelUsers?.filter((u) => u.id !== userId).filter((u) => {
+              const q = dmQuery.toLowerCase()
+              return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+            })?.length ?? 0) === 0 ? (
+              <div className="text-center text-sm text-muted-foreground py-8">No team members found.</div>
             ) : (
-              (channelUsers?.filter((u) => u.id !== userId).filter((u) => {
-                const q = dmQuery.toLowerCase()
-                return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
-              })?.length ?? 0) === 0 ? (
-                <div className="text-center text-sm text-muted-foreground py-6">No team members found.</div>
-              ) : (
-                channelUsers?.filter((u) => u.id !== userId)
-                  .filter((u) => {
-                    const q = dmQuery.toLowerCase()
-                    return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
-                  })
-                  .map((u) => (
-                    <button
-                      key={u.id}
-                      onClick={() => startDirect(u.id)}
-                      className="w-full text-left rounded-xl border p-3 hover:bg-muted/60 text-sm flex items-center gap-3 transition-all"
-                    >
-                      <Avatar name={u.name} size={36} />
-                      <div>
-                        <div className="font-medium">{u.name}</div>
-                        <div className="text-xs text-muted-foreground">{u.email}</div>
-                      </div>
-                    </button>
-                  ))
-              )
+              channelUsers?.filter((u) => u.id !== userId)
+                .filter((u) => {
+                  const q = dmQuery.toLowerCase()
+                  return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+                })
+                .map((u) => (
+                  <button
+                    key={u.id}
+                    onClick={() => startDirect(u.id)}
+                    className="w-full text-left rounded-2xl border p-3.5 hover:bg-muted/50 text-sm flex items-center gap-3 transition-all"
+                  >
+                    <MsgAvatar name={u.name} size={40} />
+                    <div>
+                      <div className="font-semibold">{u.name}</div>
+                      <div className="text-xs text-muted-foreground">{u.email}</div>
+                    </div>
+                  </button>
+                ))
             )}
           </div>
         </DialogContent>
@@ -999,30 +1255,30 @@ export default function ChatPage() {
             <>
               <div className="max-h-[360px] overflow-y-auto space-y-2">
                 {isLoadingUpcoming ? (
-                  <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" style={{ color: BRAND_BLUE }} /></div>
+                  <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin" style={{ color: BRAND_BLUE }} /></div>
                 ) : !upcomingMeetings?.length ? (
-                  <div className="text-center text-sm text-muted-foreground py-8">No upcoming meetings.</div>
+                  <div className="text-center text-sm text-muted-foreground py-10">No upcoming meetings.</div>
                 ) : (
                   upcomingMeetings.map((m) => (
-                    <div key={m.id} className="rounded-xl border p-3 flex items-center justify-between gap-3">
+                    <div key={m.id} className="rounded-2xl border p-4 flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="font-medium text-sm truncate flex items-center gap-1.5">
+                        <div className="font-semibold text-sm truncate flex items-center gap-2">
                           {m.title}
                           {m.isRecurring && <Repeat className="h-3 w-3 shrink-0 text-muted-foreground" />}
                         </div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-muted-foreground mt-0.5">
                           {m.scheduledAt ? new Date(m.scheduledAt).toLocaleString() : "Now"} · {m.duration} min
                           {m.recurrence ? ` · ${m.recurrence}` : ""}
                         </div>
                       </div>
-                      <Button size="sm" disabled={!!activeCall || !!joiningId} onClick={() => joinScheduledMeeting(m.meetingId, m.title)} style={{ background: BRAND_BLUE, color: "#fff" }}>
+                      <Button size="sm" className="rounded-xl shrink-0" disabled={!!activeCall || !!joiningId} onClick={() => joinScheduledMeeting(m.meetingId, m.title)} style={{ background: BRAND_BLUE, color: "#fff" }}>
                         {joiningId === m.meetingId ? <Loader2 className="h-4 w-4 animate-spin" /> : "Join"}
                       </Button>
                     </div>
                   ))
                 )}
               </div>
-              <Button onClick={() => setShowScheduleForm(true)} style={{ background: BRAND_BLUE, color: "#fff" }}>
+              <Button onClick={() => setShowScheduleForm(true)} style={{ background: BRAND_BLUE, color: "#fff" }} className="rounded-xl">
                 <CalendarClock className="mr-2 h-4 w-4" /> Schedule a Meeting
               </Button>
             </>
@@ -1050,28 +1306,28 @@ export default function ChatPage() {
                 </SelectContent>
               </Select>
               <div>
-                <div className="text-xs font-medium mb-1">Invite participants</div>
-                <div className="max-h-[160px] overflow-y-auto rounded-xl border p-2 space-y-1">
+                <div className="text-xs font-semibold mb-2">Invite participants</div>
+                <div className="max-h-[160px] overflow-y-auto rounded-xl border p-2 space-y-0.5">
                   {!channelUsers?.length ? (
-                    <div className="text-xs text-muted-foreground p-1">No other members.</div>
+                    <div className="text-xs text-muted-foreground p-2">No other members.</div>
                   ) : (
                     channelUsers.filter((u) => u.id !== userId).map((u) => (
-                      <label key={u.id} className="flex items-center gap-2 text-sm rounded-lg px-2 py-1 hover:bg-muted cursor-pointer">
+                      <label key={u.id} className="flex items-center gap-3 text-sm rounded-xl px-2 py-2 hover:bg-muted cursor-pointer">
                         <input
                           type="checkbox"
                           checked={schedParticipants.includes(u.id)}
                           onChange={(e) => setSchedParticipants((prev) => e.target.checked ? [...prev, u.id] : prev.filter((id) => id !== u.id))}
                         />
-                        <span className="truncate">{u.name}</span>
-                        <span className="text-xs text-muted-foreground truncate">{u.email}</span>
+                        <span className="truncate font-medium">{u.name}</span>
+                        <span className="text-xs text-muted-foreground truncate ml-auto">{u.email}</span>
                       </label>
                     ))
                   )}
                 </div>
               </div>
               <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setShowScheduleForm(false)} disabled={schedSaving}>Back</Button>
-                <Button onClick={submitSchedule} disabled={schedSaving || !schedTitle.trim() || !schedWhen} style={{ background: BRAND_BLUE, color: "#fff" }}>
+                <Button variant="outline" className="rounded-xl" onClick={() => setShowScheduleForm(false)} disabled={schedSaving}>Back</Button>
+                <Button className="rounded-xl" onClick={submitSchedule} disabled={schedSaving || !schedTitle.trim() || !schedWhen} style={{ background: BRAND_BLUE, color: "#fff" }}>
                   {schedSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CalendarClock className="mr-2 h-4 w-4" />}
                   Schedule
                 </Button>
@@ -1090,8 +1346,8 @@ export default function ChatPage() {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
               )}
-              <Sparkles className="h-4 w-4" style={{ color: BRAND_BLUE }} />
-              {openNoteId ? openNote?.title ?? "Meeting Notes" : "Meeting Notes"}
+              <Sparkles className="h-4 w-4" style={{ color: "#7c3aed" }} />
+              {openNoteId ? openNote?.title ?? "Meeting Notes" : "AI Meeting Notes"}
             </DialogTitle>
           </DialogHeader>
           {!openNoteId ? (
@@ -1099,16 +1355,16 @@ export default function ChatPage() {
               <Input value={notesQuery} onChange={(e) => setNotesQuery(e.target.value)} placeholder="Search notes, summaries…" />
               <div className="max-h-[400px] overflow-y-auto space-y-2">
                 {isLoadingNotes ? (
-                  <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" style={{ color: BRAND_BLUE }} /></div>
+                  <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin" style={{ color: BRAND_BLUE }} /></div>
                 ) : !meetingNotes?.length ? (
-                  <div className="text-center text-sm text-muted-foreground py-8">
+                  <div className="text-center text-sm text-muted-foreground py-10">
                     No meeting notes yet. After a call ends, the AI assistant transcribes it and posts notes here.
                   </div>
                 ) : (
                   meetingNotes.map((note) => (
-                    <button key={note.id} onClick={() => setOpenNoteId(note.id)} className="w-full text-left rounded-xl border p-3 hover:bg-muted/50 space-y-1 transition-colors">
+                    <button key={note.id} onClick={() => setOpenNoteId(note.id)} className="w-full text-left rounded-2xl border p-4 hover:bg-muted/50 space-y-1.5 transition-colors">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium text-sm truncate">{note.title}</span>
+                        <span className="font-semibold text-sm truncate">{note.title}</span>
                         <span className="flex items-center gap-2 shrink-0">
                           {note.status === "processing" && <Badge variant="outline" className="text-xs gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Processing</Badge>}
                           {note.status === "failed" && <Badge variant="destructive" className="text-xs">Failed</Badge>}
@@ -1119,7 +1375,7 @@ export default function ChatPage() {
                         </span>
                       </div>
                       {note.status !== "failed" && note.summary && (
-                        <div className="text-xs text-muted-foreground line-clamp-2">{note.summary}</div>
+                        <div className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{note.summary}</div>
                       )}
                     </button>
                   ))
@@ -1129,59 +1385,90 @@ export default function ChatPage() {
           ) : (
             <div className="max-h-[440px] overflow-y-auto space-y-4 text-sm">
               {!openNote ? (
-                <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" style={{ color: BRAND_BLUE }} /></div>
+                <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin" style={{ color: BRAND_BLUE }} /></div>
               ) : openNote.status === "processing" ? (
-                <div className="text-center text-muted-foreground py-8 space-y-2">
-                  <Loader2 className="h-5 w-5 animate-spin mx-auto" style={{ color: BRAND_BLUE }} />
+                <div className="text-center text-muted-foreground py-10 space-y-3">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto" style={{ color: BRAND_BLUE }} />
                   <p>The AI assistant is processing this meeting…</p>
                 </div>
               ) : openNote.status === "failed" ? (
-                <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 space-y-2">
-                  <div className="font-medium text-destructive">AI notes couldn't be generated</div>
-                  <Button size="sm" onClick={retryNote} disabled={retryingNote} style={{ background: BRAND_BLUE, color: "#fff" }}>
-                    {retryingNote ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Repeat className="h-3.5 w-3.5 mr-1" />}
-                    Retry AI notes
+                <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4 space-y-3">
+                  <div className="font-semibold text-destructive">AI notes couldn't be generated</div>
+                  {openNote.error && <p className="text-xs text-muted-foreground">{openNote.error}</p>}
+                  <Button size="sm" className="rounded-xl" onClick={retryNote} disabled={retryingNote} style={{ background: BRAND_BLUE, color: "#fff" }}>
+                    {retryingNote ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" /> : <Repeat className="h-3.5 w-3.5 mr-2" />}
+                    Retry AI Notes
                   </Button>
                 </div>
               ) : (
                 <>
-                  {openNote.summary && <div><div className="font-semibold mb-1">Summary</div><p className="text-muted-foreground whitespace-pre-wrap">{openNote.summary}</p></div>}
-                  {!!openNote.actionItems?.length && (
+                  {openNote.summary && (
                     <div>
-                      <div className="font-semibold mb-1">Action Items</div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Summary</div>
+                      <p className="leading-relaxed text-sm">{openNote.summary}</p>
+                    </div>
+                  )}
+                  {openNote.notes && (
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Notes</div>
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans">{openNote.notes}</pre>
+                      </div>
+                    </div>
+                  )}
+                  {openNote.actionItems?.length > 0 && (
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Action Items</div>
                       <div className="space-y-2">
-                        {openNote.actionItems.map((item, i) => (
-                          <div key={i} className="rounded-xl border p-3">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-medium">{item.title}</span>
-                              <span className="flex items-center gap-1 shrink-0">
-                                {item.priority && <Badge variant="outline" className="text-xs">{item.priority}</Badge>}
-                                {item.taskId && <Badge className="text-xs" style={{ background: `${BRAND_BLUE}22`, color: BRAND_BLUE, border: "none" }}>Task created</Badge>}
-                              </span>
+                        {openNote.actionItems.map((item, idx) => (
+                          <div key={idx} className="rounded-xl border p-3 space-y-2">
+                            <div className="font-semibold text-sm flex items-start gap-2">
+                              <ClipboardList className="h-4 w-4 mt-0.5 shrink-0" style={{ color: BRAND_BLUE }} />
+                              {item.title}
                             </div>
-                            <div className="text-xs text-muted-foreground mt-0.5">
-                              {item.assigneeName ? `Assigned to ${item.assigneeName}` : "Unassigned"}
-                              {item.dueDate ? ` · Due ${item.dueDate}` : ""}
+                            {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {item.assigneeName && (
+                                <Badge variant="secondary" className="text-xs">{item.assigneeName}</Badge>
+                              )}
+                              {item.priority && (
+                                <Badge variant="outline" className="text-xs">{item.priority}</Badge>
+                              )}
+                              {item.dueDate && (
+                                <span className="text-xs text-muted-foreground">{new Date(item.dueDate).toLocaleDateString()}</span>
+                              )}
+                              {item.taskId ? (
+                                <Badge variant="secondary" className="text-xs gap-1 ml-auto">
+                                  <ClipboardList className="h-3 w-3" /> Task #{item.taskId}
+                                </Badge>
+                              ) : employeesData?.items?.length && !item.taskId ? (
+                                <div className="ml-auto">
+                                  <Select onValueChange={(v) => assignActionItem(idx, v)} disabled={assigningIndex !== null}>
+                                    <SelectTrigger className="h-7 text-xs rounded-lg w-40">
+                                      <SelectValue placeholder={assigningIndex === idx ? "Assigning…" : "Assign to…"} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {employeesData.items.map((e) => (
+                                        <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              ) : null}
                             </div>
-                            {!item.taskId && (
-                              <div className="mt-2 max-w-[240px]">
-                                <Select disabled={assigningIndex !== null} onValueChange={(v) => assignActionItem(i, v)}>
-                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={assigningIndex === i ? "Assigning…" : "Assign to employee…"} /></SelectTrigger>
-                                  <SelectContent>
-                                    {employeesData?.items?.map((e) => (
-                                      <SelectItem key={e.id} value={e.id.toString()} className="text-xs">{e.firstName} {e.lastName}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            )}
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
-                  {openNote.notes && <div><div className="font-semibold mb-1">Notes</div><p className="text-muted-foreground whitespace-pre-wrap">{openNote.notes}</p></div>}
-                  {openNote.transcript && <div><div className="font-semibold mb-1">Transcript</div><p className="text-muted-foreground whitespace-pre-wrap text-xs">{openNote.transcript}</p></div>}
+                  {openNote.transcript && (
+                    <details>
+                      <summary className="text-xs font-bold uppercase tracking-widest text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
+                        Transcript
+                      </summary>
+                      <pre className="mt-2 text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground font-mono bg-muted/40 p-3 rounded-xl">{openNote.transcript}</pre>
+                    </details>
+                  )}
                 </>
               )}
             </div>

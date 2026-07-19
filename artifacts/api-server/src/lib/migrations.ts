@@ -609,6 +609,7 @@ export async function applyMigrations(): Promise<void> {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS ai_meeting_notes_channel_id_idx ON ai_meeting_notes(channel_id)`);
     await db.execute(sql`ALTER TABLE ai_meeting_notes ADD COLUMN IF NOT EXISTS audio_object_path TEXT`);
     await db.execute(sql`ALTER TABLE ai_meeting_notes ADD COLUMN IF NOT EXISTS audio_mime_type TEXT`);
+    await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
 
     // ── Call Center module ────────────────────────────────────────────────
     await db.execute(sql`

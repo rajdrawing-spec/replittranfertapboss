@@ -10,6 +10,7 @@ import {
   getMeetingByMeetingId,
   cancelMeeting,
   endMeeting,
+  softDeleteMeeting,
   joinMeeting,
   leaveMeeting,
   getOrCreateMeetingSettings,
@@ -449,6 +450,24 @@ router.post("/meetings/:id/end", requirePermission("meetings.manage"), async (re
   } catch (e) {
     req.log.error(e);
     res.status(500).json({ error: "Failed to end meeting" });
+  }
+});
+
+// ── Delete (soft) ─────────────────────────────────────────────────────────────
+router.delete("/meetings/:id", requirePermission("meetings.manage"), async (req, res) => {
+  try {
+    const id = parseInt(String(req.params.id), 10);
+    const companyId = parseInt(String(req.query.companyId), 10);
+    if (!companyId || !canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const meeting = await softDeleteMeeting(id, companyId);
+    if (!meeting) { res.status(404).json({ error: "Meeting not found" }); return; }
+    res.json({ ok: true });
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to delete meeting" });
   }
 });
 

@@ -1,5 +1,5 @@
 import { db, meetingsTable, meetingParticipantsTable, meetingSettingsTable, companiesTable, usersTable, notificationsTable, generatedTasksTable, chatChannelsTable } from "@workspace/db";
-import { eq, and, or, gte, desc, asc, inArray } from "drizzle-orm";
+import { eq, and, or, gte, desc, asc, inArray, isNull } from "drizzle-orm";
 import { liveKitProvider, isLiveKitConfigured } from "./livekit-provider";
 import type { MeetingProvider } from "./meeting-provider";
 
@@ -118,8 +118,18 @@ export async function createMeeting(input: CreateMeetingInput) {
   return meeting;
 }
 
+export async function softDeleteMeeting(id: number, companyId: number) {
+  const [updated] = await db.update(meetingsTable)
+    .set({ deletedAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(meetingsTable.id, id), eq(meetingsTable.companyId, companyId)))
+    .returning();
+  return updated ?? null;
+}
+
 export async function listCompanyMeetings(companyId: number, userId?: number) {
-  const meetings = await db.select().from(meetingsTable).where(eq(meetingsTable.companyId, companyId)).orderBy(desc(meetingsTable.scheduledAt));
+  const meetings = await db.select().from(meetingsTable).where(
+    and(eq(meetingsTable.companyId, companyId), isNull(meetingsTable.deletedAt))
+  ).orderBy(desc(meetingsTable.scheduledAt));
   return Promise.all(meetings.map(async (m) => ({
     ...m,
     participants: await getMeetingParticipants(m.id),
@@ -146,6 +156,7 @@ export async function listUpcomingMeetings(companyId: number, userId?: number) {
       eq(meetingsTable.companyId, companyId),
       or(eq(meetingsTable.status, "scheduled"), eq(meetingsTable.status, "ongoing")),
       gte(meetingsTable.scheduledAt, now),
+      isNull(meetingsTable.deletedAt),
     ),
   ).orderBy(asc(meetingsTable.scheduledAt));
   return Promise.all(meetings.map(async (m) => ({

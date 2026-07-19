@@ -14,15 +14,11 @@ import { useMeeting } from "@/contexts/meeting-context"
 import { cn } from "@/lib/utils"
 import {
   MessageSquare, Pin, Search, Send, Paperclip, Megaphone, User, Video, Phone, Briefcase, X, Building2,
-  Sparkles, Loader2, ChevronLeft, ClipboardList, CalendarClock, Repeat, Plus, Smile, Mic,
-  Hash, Users, ArrowLeft, MoreVertical, FileText, AtSign,
+  Sparkles, Loader2, Plus, Smile, Mic,
+  Hash, Users, ArrowLeft, MoreVertical,
 } from "lucide-react"
 
 /* ─────────────────────────────── Types ─────────────────────────────────── */
-interface UpcomingMeeting {
-  id: number; meetingId: string; title: string; scheduledAt: string | null
-  duration: number; status: string; isRecurring: boolean; recurrence: string | null; organizerId: number
-}
 interface ChatChannel {
   id: number; type: "team" | "department" | "direct" | "project"; name: string
   department?: string; projectId?: number; unread: number
@@ -34,16 +30,6 @@ interface ChatMessage {
   isPinned: boolean; editedAt: string | null; createdAt: string
 }
 interface ChatUser { id: number; name: string; email: string }
-interface MeetingActionItem {
-  title: string; description?: string; assigneeName?: string
-  priority?: string; dueDate?: string; taskId?: number
-}
-interface MeetingNoteSummary {
-  id: number; meetingId: string; channelId: number | null; title: string
-  summary: string | null; actionItems: MeetingActionItem[]
-  status: "processing" | "done" | "failed"; error: string | null; createdAt: string
-}
-interface MeetingNoteDetail extends MeetingNoteSummary { transcript: string | null; notes: string | null }
 
 /* ─────────────────────────── Brand palette ─────────────────────────────── */
 const BRAND_BLUE = "#3B82F6"
@@ -153,24 +139,10 @@ export default function ChatPage() {
   const [searchResults, setSearchResults] = React.useState<ChatMessage[]>([])
   const [usersOpen, setUsersOpen] = React.useState(false)
   const [dmQuery, setDmQuery] = React.useState("")
-  const [scheduleOpen, setScheduleOpen] = React.useState(false)
-  const [showScheduleForm, setShowScheduleForm] = React.useState(false)
-  const [schedTitle, setSchedTitle] = React.useState("")
-  const [schedWhen, setSchedWhen] = React.useState("")
-  const [schedDuration, setSchedDuration] = React.useState("30")
-  const [schedRecurrence, setSchedRecurrence] = React.useState("none")
-  const [schedParticipants, setSchedParticipants] = React.useState<number[]>([])
-  const [schedSaving, setSchedSaving] = React.useState(false)
-  const [joiningId, setJoiningId] = React.useState<string | null>(null)
-  const [notesOpen, setNotesOpen] = React.useState(false)
-  const [notesQuery, setNotesQuery] = React.useState("")
-  const [openNoteId, setOpenNoteId] = React.useState<number | null>(null)
   const [replyTo, setReplyTo] = React.useState<ChatMessage | null>(null)
   const [showMentions, setShowMentions] = React.useState(false)
   const [mentionQuery, setMentionQuery] = React.useState<string | null>(null)
   const [startingCall, setStartingCall] = React.useState<"voice" | "video" | null>(null)
-  const [assigningIndex, setAssigningIndex] = React.useState<number | null>(null)
-  const [retryingNote, setRetryingNote] = React.useState(false)
   const [channelFilter, setChannelFilter] = React.useState<"all" | "direct" | "groups" | "unread">("all")
   const [showEmojiRow, setShowEmojiRow] = React.useState(false)
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
@@ -200,48 +172,6 @@ export default function ChatPage() {
       return res.json()
     },
     enabled: !!companyId,
-  })
-
-  const { data: upcomingMeetings, isLoading: isLoadingUpcoming } = useQuery<UpcomingMeeting[]>({
-    queryKey: ["/api/meetings/upcoming", companyId],
-    queryFn: async () => {
-      const res = await fetch(`/api/meetings/upcoming?companyId=${companyId}`, { credentials: "include" })
-      if (!res.ok) throw new Error(await res.text())
-      return res.json()
-    },
-    enabled: !!companyId && scheduleOpen,
-  })
-
-  const { data: meetingNotes, isLoading: isLoadingNotes } = useQuery<MeetingNoteSummary[]>({
-    queryKey: ["/api/meetings/notes", companyId, notesQuery],
-    queryFn: async () => {
-      const q = notesQuery ? `&q=${encodeURIComponent(notesQuery)}` : ""
-      const res = await fetch(`/api/meetings/notes?companyId=${companyId}${q}`, { credentials: "include" })
-      if (!res.ok) throw new Error(await res.text())
-      return res.json()
-    },
-    enabled: !!companyId && notesOpen,
-  })
-
-  const { data: employeesData } = useQuery<{ items: Array<{ id: number; firstName: string; lastName: string }> }>({
-    queryKey: ["/api/hr/employees", companyId, 1],
-    queryFn: async () => {
-      const res = await fetch(`/api/hr/employees?companyId=${companyId}&page=1&limit=100`, { credentials: "include" })
-      if (!res.ok) throw new Error(await res.text())
-      return res.json()
-    },
-    enabled: !!companyId && notesOpen && !!openNoteId,
-  })
-
-  const { data: openNote } = useQuery<MeetingNoteDetail>({
-    queryKey: ["/api/meetings/notes", companyId, "detail", openNoteId],
-    queryFn: async () => {
-      const res = await fetch(`/api/meetings/notes/${openNoteId}?companyId=${companyId}`, { credentials: "include" })
-      if (!res.ok) throw new Error(await res.text())
-      return res.json()
-    },
-    enabled: !!companyId && !!openNoteId,
-    refetchInterval: (query) => (query.state.data?.status === "processing" ? 5_000 : false),
   })
 
   const selectedChannelRef = React.useRef(selectedChannel)
@@ -311,30 +241,6 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  // Auto-join from ?join= deep link
-  const autoJoinAttempted = React.useRef(false)
-  React.useEffect(() => {
-    if (autoJoinAttempted.current || !companyId || activeCall) return
-    const params = new URLSearchParams(window.location.search)
-    const joinId = params.get("join")
-    if (!joinId) return
-    autoJoinAttempted.current = true
-    const url = new URL(window.location.href)
-    url.searchParams.delete("join")
-    window.history.replaceState(null, "", url.toString())
-    fetch(`/api/meetings/token?roomName=${encodeURIComponent(joinId)}&companyId=${companyId}`, { credentials: "include" })
-      .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Failed to get token")
-        return r.json()
-      })
-      .then(async ({ token, serverUrl }: { token: string; serverUrl: string }) => {
-        await fetch(`/api/meetings/join/${joinId}`, { method: "POST", credentials: "include" })
-        startCall({ meetingId: joinId, title: "Meeting", companyId }, token, serverUrl)
-        queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
-      })
-      .catch((e) => toast({ title: "Could not join the meeting", description: String(e), variant: "destructive" }))
-  }, [companyId, activeCall, startCall, queryClient, toast])
-
   const insertMention = (name: string) => {
     const cursor = input.length
     const textBeforeCursor = input.slice(0, cursor)
@@ -394,53 +300,6 @@ export default function ChatPage() {
     }
   }
 
-  const joinScheduledMeeting = async (meetingId: string, title: string) => {
-    if (activeCall || joiningId) return
-    setJoiningId(meetingId)
-    try {
-      const tokenRes = await fetch(`/api/meetings/token?roomName=${encodeURIComponent(meetingId)}&companyId=${companyId}`, { credentials: "include" })
-      if (!tokenRes.ok) {
-        const err = await tokenRes.json().catch(() => ({}))
-        toast({ title: "Could not join", description: err.error || "Failed to get call token", variant: "destructive" })
-        return
-      }
-      const { token, serverUrl } = await tokenRes.json()
-      await fetch(`/api/meetings/join/${meetingId}`, { method: "POST", credentials: "include" })
-      startCall({ meetingId, title, companyId: companyId! }, token, serverUrl)
-      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
-      setScheduleOpen(false)
-    } finally { setJoiningId(null) }
-  }
-
-  const submitSchedule = async () => {
-    if (!schedTitle.trim() || !schedWhen || schedSaving) return
-    const when = new Date(schedWhen)
-    if (isNaN(when.getTime()) || when.getTime() < Date.now()) {
-      toast({ title: "Pick a future date and time", variant: "destructive" }); return
-    }
-    setSchedSaving(true)
-    try {
-      const res = await fetch(`/api/meetings`, {
-        method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyId, title: schedTitle.trim(), scheduledAt: when.toISOString(),
-          duration: Number(schedDuration) || 30, participantIds: schedParticipants,
-          isRecurring: schedRecurrence !== "none", recurrence: schedRecurrence !== "none" ? schedRecurrence : undefined,
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        toast({ title: "Failed to schedule meeting", description: err.error || (await res.text().catch(() => "")), variant: "destructive" })
-        return
-      }
-      toast({ title: "Meeting scheduled", description: `"${schedTitle.trim()}" — invitees have been notified.` })
-      setShowScheduleForm(false)
-      setSchedTitle(""); setSchedWhen(""); setSchedDuration("30"); setSchedRecurrence("none"); setSchedParticipants([])
-      queryClient.invalidateQueries({ queryKey: ["/api/meetings/upcoming", companyId] })
-    } finally { setSchedSaving(false) }
-  }
-
   const startChannelCall = async (video: boolean) => {
     if (!selectedChannel || startingCall) return
     setStartingCall(video ? "video" : "voice")
@@ -459,32 +318,6 @@ export default function ChatPage() {
       startCall({ id: meeting.id, meetingId: meeting.meetingId, title: meeting.title, companyId: companyId! }, token, serverUrl, { video })
       queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
     } finally { setStartingCall(null) }
-  }
-
-  const retryNote = async () => {
-    if (!openNoteId || !companyId || retryingNote) return
-    setRetryingNote(true)
-    try {
-      const res = await fetch(`/api/meetings/notes/${openNoteId}/retry?companyId=${companyId}`, { method: "POST", credentials: "include" })
-      if (!res.ok) { toast({ title: "Retry failed", variant: "destructive" }); return }
-      toast({ title: "AI notes retriggered — processing…" })
-      queryClient.invalidateQueries({ queryKey: ["/api/meetings/notes", companyId, "detail", openNoteId] })
-    } finally { setRetryingNote(false) }
-  }
-
-  const assignActionItem = async (index: number, employeeId: string) => {
-    if (!openNoteId || !companyId || assigningIndex !== null) return
-    setAssigningIndex(index)
-    try {
-      const res = await fetch(`/api/meetings/notes/${openNoteId}/assign-task`, {
-        method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, actionItemIndex: index, employeeId: Number(employeeId) }),
-      })
-      if (!res.ok) { toast({ title: "Failed to assign task", variant: "destructive" }); return }
-      toast({ title: "Task created and assigned" })
-      queryClient.invalidateQueries({ queryKey: ["/api/meetings/notes", companyId, "detail", openNoteId] })
-    } finally { setAssigningIndex(null) }
   }
 
   /* ── Filter helpers ── */
@@ -579,14 +412,6 @@ export default function ChatPage() {
             )}
           </div>
           <div className="flex items-center gap-1">
-            <button
-              data-compact
-              onClick={() => { setScheduleOpen(true); setShowScheduleForm(false) }}
-              className="btn-compact w-9 h-9 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
-              title="Scheduled meetings"
-            >
-              <CalendarClock className="h-4.5 w-4.5" style={{ width: 18, height: 18 }} />
-            </button>
             <button
               data-compact
               onClick={() => setUsersOpen(true)}
@@ -686,7 +511,6 @@ export default function ChatPage() {
         <div className="p-3 border-t border-border/50 space-y-0.5">
           {[
             { icon: Search, label: "Search Messages", action: () => setSearchOpen(true) },
-            { icon: Sparkles, label: "AI Meeting Notes", action: () => { setNotesOpen(true); setOpenNoteId(null) } },
           ].map(({ icon: Icon, label, action }) => (
             <button
               key={label}
@@ -1139,13 +963,13 @@ export default function ChatPage() {
                   >
                     <Mic style={{ width: 16, height: 16 }} />
                   </button>
-                  {/* AI assist */}
+                  {/* AI Meeting Notes shortcut */}
                   <button
                     data-compact
                     className="btn-compact w-8 h-8 flex items-center justify-center rounded-lg transition-all"
                     style={{ color: "#7c3aed" }}
-                    title="AI assist"
-                    onClick={() => { setNotesOpen(true); setOpenNoteId(null) }}
+                    title="AI Meeting Notes"
+                    onClick={() => window.location.assign("/meetings#notes")}
                   >
                     <Sparkles style={{ width: 16, height: 16 }} />
                   </button>
@@ -1233,237 +1057,6 @@ export default function ChatPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
-        <DialogContent className="sm:max-w-[560px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CalendarClock className="h-4 w-4" style={{ color: BRAND_BLUE }} /> Scheduled Meetings
-            </DialogTitle>
-          </DialogHeader>
-          {!showScheduleForm ? (
-            <>
-              <div className="max-h-[360px] overflow-y-auto space-y-2">
-                {isLoadingUpcoming ? (
-                  <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin" style={{ color: BRAND_BLUE }} /></div>
-                ) : !upcomingMeetings?.length ? (
-                  <div className="text-center text-sm text-muted-foreground py-10">No upcoming meetings.</div>
-                ) : (
-                  upcomingMeetings.map((m) => (
-                    <div key={m.id} className="rounded-2xl border p-4 flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="font-semibold text-sm truncate flex items-center gap-2">
-                          {m.title}
-                          {m.isRecurring && <Repeat className="h-3 w-3 shrink-0 text-muted-foreground" />}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {m.scheduledAt ? new Date(m.scheduledAt).toLocaleString() : "Now"} · {m.duration} min
-                          {m.recurrence ? ` · ${m.recurrence}` : ""}
-                        </div>
-                      </div>
-                      <Button size="sm" className="rounded-xl shrink-0" disabled={!!activeCall || !!joiningId} onClick={() => joinScheduledMeeting(m.meetingId, m.title)} style={{ background: BRAND_BLUE, color: "#fff" }}>
-                        {joiningId === m.meetingId ? <Loader2 className="h-4 w-4 animate-spin" /> : "Join"}
-                      </Button>
-                    </div>
-                  ))
-                )}
-              </div>
-              <Button onClick={() => setShowScheduleForm(true)} style={{ background: BRAND_BLUE, color: "#fff" }} className="rounded-xl">
-                <CalendarClock className="mr-2 h-4 w-4" /> Schedule a Meeting
-              </Button>
-            </>
-          ) : (
-            <div className="space-y-3">
-              <Input value={schedTitle} onChange={(e) => setSchedTitle(e.target.value)} placeholder="Meeting title" />
-              <div className="grid grid-cols-2 gap-3">
-                <Input type="datetime-local" value={schedWhen} onChange={(e) => setSchedWhen(e.target.value)} />
-                <Select value={schedDuration} onValueChange={setSchedDuration}>
-                  <SelectTrigger><SelectValue placeholder="Duration" /></SelectTrigger>
-                  <SelectContent>
-                    {["15", "30", "45", "60", "90", "120"].map((d) => (
-                      <SelectItem key={d} value={d}>{d} minutes</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Select value={schedRecurrence} onValueChange={setSchedRecurrence}>
-                <SelectTrigger><SelectValue placeholder="Repeats" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Does not repeat</SelectItem>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                </SelectContent>
-              </Select>
-              <div>
-                <div className="text-xs font-semibold mb-2">Invite participants</div>
-                <div className="max-h-[160px] overflow-y-auto rounded-xl border p-2 space-y-0.5">
-                  {!channelUsers?.length ? (
-                    <div className="text-xs text-muted-foreground p-2">No other members.</div>
-                  ) : (
-                    channelUsers.filter((u) => u.id !== userId).map((u) => (
-                      <label key={u.id} className="flex items-center gap-3 text-sm rounded-xl px-2 py-2 hover:bg-muted cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={schedParticipants.includes(u.id)}
-                          onChange={(e) => setSchedParticipants((prev) => e.target.checked ? [...prev, u.id] : prev.filter((id) => id !== u.id))}
-                        />
-                        <span className="truncate font-medium">{u.name}</span>
-                        <span className="text-xs text-muted-foreground truncate ml-auto">{u.email}</span>
-                      </label>
-                    ))
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" className="rounded-xl" onClick={() => setShowScheduleForm(false)} disabled={schedSaving}>Back</Button>
-                <Button className="rounded-xl" onClick={submitSchedule} disabled={schedSaving || !schedTitle.trim() || !schedWhen} style={{ background: BRAND_BLUE, color: "#fff" }}>
-                  {schedSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CalendarClock className="mr-2 h-4 w-4" />}
-                  Schedule
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={notesOpen} onOpenChange={(o) => { setNotesOpen(o); if (!o) setOpenNoteId(null) }}>
-        <DialogContent className="sm:max-w-[640px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {openNoteId && (
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setOpenNoteId(null)}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-              )}
-              <Sparkles className="h-4 w-4" style={{ color: "#7c3aed" }} />
-              {openNoteId ? openNote?.title ?? "Meeting Notes" : "AI Meeting Notes"}
-            </DialogTitle>
-          </DialogHeader>
-          {!openNoteId ? (
-            <>
-              <Input value={notesQuery} onChange={(e) => setNotesQuery(e.target.value)} placeholder="Search notes, summaries…" />
-              <div className="max-h-[400px] overflow-y-auto space-y-2">
-                {isLoadingNotes ? (
-                  <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin" style={{ color: BRAND_BLUE }} /></div>
-                ) : !meetingNotes?.length ? (
-                  <div className="text-center text-sm text-muted-foreground py-10">
-                    No meeting notes yet. After a call ends, the AI assistant transcribes it and posts notes here.
-                  </div>
-                ) : (
-                  meetingNotes.map((note) => (
-                    <button key={note.id} onClick={() => setOpenNoteId(note.id)} className="w-full text-left rounded-2xl border p-4 hover:bg-muted/50 space-y-1.5 transition-colors">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-sm truncate">{note.title}</span>
-                        <span className="flex items-center gap-2 shrink-0">
-                          {note.status === "processing" && <Badge variant="outline" className="text-xs gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Processing</Badge>}
-                          {note.status === "failed" && <Badge variant="destructive" className="text-xs">Failed</Badge>}
-                          {note.status === "done" && !!note.actionItems?.length && (
-                            <Badge variant="secondary" className="text-xs gap-1"><ClipboardList className="h-3 w-3" /> {note.actionItems.length}</Badge>
-                          )}
-                          <span className="text-xs text-muted-foreground">{new Date(note.createdAt).toLocaleDateString()}</span>
-                        </span>
-                      </div>
-                      {note.status !== "failed" && note.summary && (
-                        <div className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{note.summary}</div>
-                      )}
-                    </button>
-                  ))
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="max-h-[440px] overflow-y-auto space-y-4 text-sm">
-              {!openNote ? (
-                <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin" style={{ color: BRAND_BLUE }} /></div>
-              ) : openNote.status === "processing" ? (
-                <div className="text-center text-muted-foreground py-10 space-y-3">
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto" style={{ color: BRAND_BLUE }} />
-                  <p>The AI assistant is processing this meeting…</p>
-                </div>
-              ) : openNote.status === "failed" ? (
-                <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4 space-y-3">
-                  <div className="font-semibold text-destructive">AI notes couldn't be generated</div>
-                  {openNote.error && <p className="text-xs text-muted-foreground">{openNote.error}</p>}
-                  <Button size="sm" className="rounded-xl" onClick={retryNote} disabled={retryingNote} style={{ background: BRAND_BLUE, color: "#fff" }}>
-                    {retryingNote ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" /> : <Repeat className="h-3.5 w-3.5 mr-2" />}
-                    Retry AI Notes
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  {openNote.summary && (
-                    <div>
-                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Summary</div>
-                      <p className="leading-relaxed text-sm">{openNote.summary}</p>
-                    </div>
-                  )}
-                  {openNote.notes && (
-                    <div>
-                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Notes</div>
-                      <div className="prose prose-sm dark:prose-invert max-w-none">
-                        <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans">{openNote.notes}</pre>
-                      </div>
-                    </div>
-                  )}
-                  {openNote.actionItems?.length > 0 && (
-                    <div>
-                      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Action Items</div>
-                      <div className="space-y-2">
-                        {openNote.actionItems.map((item, idx) => (
-                          <div key={idx} className="rounded-xl border p-3 space-y-2">
-                            <div className="font-semibold text-sm flex items-start gap-2">
-                              <ClipboardList className="h-4 w-4 mt-0.5 shrink-0" style={{ color: BRAND_BLUE }} />
-                              {item.title}
-                            </div>
-                            {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {item.assigneeName && (
-                                <Badge variant="secondary" className="text-xs">{item.assigneeName}</Badge>
-                              )}
-                              {item.priority && (
-                                <Badge variant="outline" className="text-xs">{item.priority}</Badge>
-                              )}
-                              {item.dueDate && (
-                                <span className="text-xs text-muted-foreground">{new Date(item.dueDate).toLocaleDateString()}</span>
-                              )}
-                              {item.taskId ? (
-                                <Badge variant="secondary" className="text-xs gap-1 ml-auto">
-                                  <ClipboardList className="h-3 w-3" /> Task #{item.taskId}
-                                </Badge>
-                              ) : employeesData?.items?.length && !item.taskId ? (
-                                <div className="ml-auto">
-                                  <Select onValueChange={(v) => assignActionItem(idx, v)} disabled={assigningIndex !== null}>
-                                    <SelectTrigger className="h-7 text-xs rounded-lg w-40">
-                                      <SelectValue placeholder={assigningIndex === idx ? "Assigning…" : "Assign to…"} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {employeesData.items.map((e) => (
-                                        <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {openNote.transcript && (
-                    <details>
-                      <summary className="text-xs font-bold uppercase tracking-widest text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
-                        Transcript
-                      </summary>
-                      <pre className="mt-2 text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground font-mono bg-muted/40 p-3 rounded-xl">{openNote.transcript}</pre>
-                    </details>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

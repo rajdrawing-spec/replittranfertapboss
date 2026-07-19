@@ -62,6 +62,7 @@ export const meetingsTable = pgTable(
     maxParticipants: integer("max_participants").notNull().default(50),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at"),
   },
   (table) => ({
     companyIdx: index("meetings_company_id_idx").on(table.companyId),

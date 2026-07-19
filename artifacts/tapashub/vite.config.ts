@@ -105,72 +105,15 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist/public'),
     emptyOutDir: true,
-    // Keep chunks under ~500 KB uncompressed so the browser can parallelise
-    // downloads. Individual page chunks are already split by React.lazy; this
-    // splits the shared vendor bundle into focused groups so the dashboard
-    // doesn't have to wait for recharts/xlsx/framer-motion.
-    chunkSizeWarningLimit: 600,
+    // NOTE: manual vendor chunking was removed. The previous manualChunks
+    // config produced circular chunks (vendor-common <-> vendor-react/charts),
+    // which crashed the production bundle at load time with
+    // "Cannot access 'X' before initialization" — a blank white screen.
+    // Rollup's automatic chunking plus the React.lazy route splits keep
+    // bundles reasonably sized without cycle risk.
+    chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          // xlsx is heavy (≈300 KB) and only used on the Finance page —
-          // keep it in its own chunk so every other page avoids loading it.
-          if (id.includes('node_modules/xlsx')) return 'vendor-xlsx';
-
-          // Recharts + d3 helpers — only loaded on Analytics/Finance pages.
-          if (id.includes('node_modules/recharts') || id.includes('node_modules/d3-')) return 'vendor-charts';
-
-          // Framer Motion — animation library, not needed on first paint.
-          if (id.includes('node_modules/framer-motion')) return 'vendor-motion';
-
-          // Clerk auth SDK — needed before route render, but can be its own chunk
-          // so React core finishes parsing before the auth SDK arrives.
-          if (id.includes('node_modules/@clerk')) return 'vendor-clerk';
-
-          // Radix UI primitives — large but tree-shakeable at build time;
-          // splitting them away from React means the UI shell renders faster.
-          if (id.includes('node_modules/@radix-ui')) return 'vendor-radix';
-
-          // Tanstack Query + Wouter — small but shared across every page.
-          if (
-            id.includes('node_modules/@tanstack') ||
-            id.includes('node_modules/wouter')
-          ) return 'vendor-query';
-
-          // React core — always needed first, isolated so the browser can
-          // cache it independently from everything else.
-          if (
-            id.includes('node_modules/react/') ||
-            id.includes('node_modules/react-dom/')
-          ) return 'vendor-react';
-
-          // LiveKit video/audio — only used on meetings/call-center pages.
-          // Split the core client from the React components so each chunk is
-          // smaller and can be cached/loaded independently.
-          if (id.includes('node_modules/livekit-client')) return 'vendor-livekit-client';
-          if (id.includes('node_modules/@livekit')) return 'vendor-livekit';
-
-          // Socket.IO client — only used by chat realtime.
-          if (id.includes('node_modules/socket.io-client')) return 'vendor-socket';
-
-          // FullCalendar — only used by planner.
-          if (id.includes('node_modules/@fullcalendar')) return 'vendor-calendar';
-
-          // Uppy file upload stack — only used on documents/inventory pages.
-          if (id.includes('node_modules/@uppy')) return 'vendor-uppy';
-
-          // Heavy icon/animation libraries that are not needed on every page.
-          if (id.includes('node_modules/react-icons')) return 'vendor-icons';
-          if (id.includes('node_modules/framer-motion')) return 'vendor-motion';
-
-          // Date/calendar utilities and other page-specific libraries.
-          if (id.includes('node_modules/date-fns')) return 'vendor-date';
-          if (id.includes('node_modules/react-day-picker')) return 'vendor-date';
-          if (id.includes('node_modules/vaul') || id.includes('node_modules/embla-carousel')) return 'vendor-ui';
-
-          // Remaining third-party code into a shared common vendor chunk.
-          if (id.includes('node_modules')) return 'vendor-common';
-        },
       },
     },
   },

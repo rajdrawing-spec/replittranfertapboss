@@ -369,7 +369,7 @@ function NavGroupSection({
           onClick={() => setOpen((v) => !v)}
           className="w-full flex items-center gap-1.5 px-2 py-1 mb-0.5 group"
         >
-          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/50 flex-1 text-left group-hover:text-muted-foreground/80 transition-colors">
+          <span className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground/80 flex-1 text-left group-hover:text-foreground/90 transition-colors">
             {group.label}
           </span>
           <ChevronRight

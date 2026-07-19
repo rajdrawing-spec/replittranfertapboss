@@ -1174,17 +1174,6 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* ── Floating AI button (desktop only when in a conversation) ── */}
-      {selectedChannel && (
-        <button
-          className="ai-fab hidden md:flex"
-          onClick={() => { setNotesOpen(true); setOpenNoteId(null) }}
-          title="AI Meeting Notes"
-        >
-          <Sparkles style={{ width: 15, height: 15 }} />
-          <span>Ask AI</span>
-        </button>
-      )}
 
       {/* ─────────────────── Dialogs ────────────────────── */}
       <Dialog open={searchOpen} onOpenChange={setSearchOpen}>

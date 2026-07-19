@@ -248,7 +248,6 @@ export async function processMeetingAudio(noteId: number, meeting: Meeting, audi
       .select({ id: employeesTable.id, firstName: employeesTable.firstName, lastName: employeesTable.lastName, email: employeesTable.email, department: employeesTable.department, designation: employeesTable.designation })
       .from(employeesTable)
       .where(eq(employeesTable.companyId, meeting.companyId));
-
     const actionItems: MeetingActionItem[] = [];
     for (const item of analysis.actionItems) {
       const entry: MeetingActionItem = {
@@ -273,7 +272,7 @@ export async function processMeetingAudio(noteId: number, meeting: Meeting, audi
         entry.assigneeName = fullName;
         const taskStatus = assignment.confidence === "high" ? "assigned" : "draft";
         try {
-          const [task] = await db
+          const inserted = await db
             .insert(generatedTasksTable)
             .values({
               companyId: meeting.companyId,
@@ -298,6 +297,7 @@ export async function processMeetingAudio(noteId: number, meeting: Meeting, audi
               dueDate: entry.dueDate ?? null,
             })
             .returning({ id: generatedTasksTable.id });
+          const [task] = inserted;
           if (task) {
             entry.taskId = task.id;
             void emitNotification({

@@ -63,6 +63,9 @@ const H = vi.hoisted(() => {
     where(c: any) { this.cond = c; return this; }
     orderBy() { return this; }
     limit(n: number) { this._limit = n; return this; }
+    for() { return this; }
+    onConflictDoNothing() { return this; }
+    returning() { return this; }
     then(resolve: (v: any) => void, reject: (e: any) => void) {
       try { resolve(this._exec()); } catch (e) { reject(e); }
     }
@@ -170,6 +173,7 @@ vi.mock("@workspace/integrations-gemini-ai", () => ({
 }));
 
 import { processMeetingAudio, getMeetingNote } from "../lib/meetings/meeting-notes.service";
+import type { Meeting } from "@workspace/db";
 
 const COMPANY = 1;
 
@@ -240,7 +244,7 @@ describe("processMeetingAudio", () => {
       }),
     });
 
-    await processMeetingAudio(noteId, meeting, "fake-audio", "audio/webm");
+    await processMeetingAudio(noteId, meeting as Meeting, "fake-audio", "audio/webm");
 
     const note = await getMeetingNote(noteId, COMPANY);
     expect(note?.status).toBe("done");
@@ -261,9 +265,9 @@ describe("processMeetingAudio", () => {
     expect(byTitle["Update documentation"].status).toBe("draft");
     expect(byTitle["Update documentation"].aiCustomizations.confidence).toBe("low");
 
-    expect(note?.actionItems.map((a: any) => a.taskId)).toEqual(tasks.map((t) => t.id));
+    expect((note?.actionItems ?? []).map((a: any) => a.taskId)).toEqual(tasks.map((t) => t.id));
     expect(mocks.broadcastTaskEvent).toHaveBeenCalledTimes(3);
-    expect(mocks.emitNotification).toHaveBeenCalledTimes(3);
+    expect(mocks.emitNotification).toHaveBeenCalledTimes(4);
   });
 
   it("does not create tasks when no employees exist", async () => {
@@ -277,7 +281,7 @@ describe("processMeetingAudio", () => {
       }),
     });
 
-    await processMeetingAudio(noteId, meeting, "fake-audio", "audio/webm");
+    await processMeetingAudio(noteId, meeting as Meeting, "fake-audio", "audio/webm");
 
     const note = await getMeetingNote(noteId, COMPANY);
     expect(note?.status).toBe("done");

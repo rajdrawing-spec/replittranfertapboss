@@ -1,5 +1,6 @@
 @layer theme, base, clerk, components, utilities;
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* Fonts loaded via <link> in index.html with preconnect for fastest delivery on slow connections */
 @import 'tailwindcss';
 @import '@clerk/themes/shadcn.css';
 @import 'tw-animate-css';
@@ -66,6 +67,7 @@
   --color-sidebar-accent-border: var(--sidebar-accent-border);
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
+  /* System-first font stack — renders instantly on any connection speed */
   --font-sans: var(--app-font-sans);
   --font-serif: var(--app-font-serif);
   --font-mono: var(--app-font-mono);
@@ -76,137 +78,353 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* LIGHT MODE */
+/* ═══════════════════════ LIGHT MODE ═══════════════════════ */
 :root {
   --button-outline: rgba(0, 0, 0, 0.1);
   --badge-outline: rgba(0, 0, 0, 0.05);
-
   --opaque-button-border-intensity: -8;
-
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.08);
 
-  --background: 210 40% 98%;
+  /* TapBoss brand — light */
+  --background: 214 32% 97%;
   --foreground: 222 47% 11%;
-  --border: 214 32% 91%;
+  --border: 215 25% 88%;
+
   --card: 0 0% 100%;
   --card-foreground: 222 47% 11%;
-  --card-border: 214 32% 91%;
+  --card-border: 215 25% 88%;
+
   --sidebar: 0 0% 100%;
   --sidebar-foreground: 222 47% 11%;
-  --sidebar-border: 214 32% 91%;
-  --sidebar-primary: 221 83% 53%;
-  --sidebar-primary-foreground: 210 40% 98%;
-  --sidebar-accent: 210 40% 96%;
+  --sidebar-border: 215 25% 88%;
+  --sidebar-primary: 217 91% 60%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 214 32% 95%;
   --sidebar-accent-foreground: 222 47% 11%;
-  --sidebar-ring: 221 83% 53%;
+  --sidebar-ring: 217 91% 60%;
+
   --popover: 0 0% 100%;
   --popover-foreground: 222 47% 11%;
-  --popover-border: 214 32% 91%;
-  --primary: 221 83% 53%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 222 47% 11%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
-  --accent: 210 40% 96%;
-  --accent-foreground: 222 47% 11%;
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 210 40% 98%;
-  
-  --success: 142 76% 36%;
-  --success-foreground: 355 100% 100%;
-  --warning: 38 92% 50%;
-  --warning-foreground: 355 100% 100%;
-  --info: 199 89% 48%;
-  --info-foreground: 355 100% 100%;
+  --popover-border: 215 25% 88%;
 
-  --input: 214 32% 91%;
-  --ring: 221 83% 53%;
-  
-  --chart-1: 221 83% 53%;
+  /* Tapas Blue #3B82F6 */
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 214 32% 95%;
+  --secondary-foreground: 222 47% 11%;
+
+  --muted: 214 32% 95%;
+  --muted-foreground: 215 16% 47%;
+
+  --accent: 214 32% 95%;
+  --accent-foreground: 222 47% 11%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --success: 142 71% 45%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 100%;
+  --info: 199 89% 48%;
+  --info-foreground: 0 0% 100%;
+
+  --input: 215 25% 88%;
+  --ring: 217 91% 60%;
+
+  --chart-1: 217 91% 60%;
   --chart-2: 173 58% 39%;
   --chart-3: 197 37% 24%;
   --chart-4: 43 74% 66%;
   --chart-5: 27 87% 67%;
 
-  --app-font-sans: 'Inter', sans-serif;
-  --app-font-serif: Georgia, serif;
-  --app-font-mono: 'JetBrains Mono', monospace;
-  --radius: 0.5rem;
+  /* System-first → Inter only loads if cached */
+  --app-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  --app-font-serif: Georgia, 'Times New Roman', serif;
+  --app-font-mono: 'Menlo', 'Monaco', 'Cascadia Code', 'JetBrains Mono', monospace;
+
+  /* 16px base → border-radius xl = 16px (premium card feel) */
+  --radius: 0.75rem;
 }
 
+/* ═══════════════════════ DARK MODE ═══════════════════════ */
+/* TapBoss dark: #0F172A bg, #111827 card, #1F2937 border, #3B82F6 primary */
 .dark {
   --button-outline: rgba(255, 255, 255, 0.1);
   --badge-outline: rgba(255, 255, 255, 0.05);
-
   --opaque-button-border-intensity: 9;
-
   --elevate-1: rgba(255, 255, 255, 0.04);
   --elevate-2: rgba(255, 255, 255, 0.09);
 
-  /* Deep slate/navy background for premium mission control feel */
-  --background: 225 30% 6%;
+  /* #0F172A */
+  --background: 222 47% 11%;
   --foreground: 210 40% 98%;
-  --border: 220 20% 14%;
-  
-  --card: 225 30% 8%;
+  /* #1F2937 */
+  --border: 220 13% 18%;
+
+  /* #111827 */
+  --card: 221 39% 11%;
   --card-foreground: 210 40% 98%;
-  --card-border: 220 20% 14%;
-  
-  --sidebar: 225 30% 8%;
+  --card-border: 220 13% 18%;
+
+  --sidebar: 222 47% 8%;
   --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 220 20% 14%;
-  --sidebar-primary: 213 94% 68%;
-  --sidebar-primary-foreground: 222 47% 11%;
-  --sidebar-accent: 220 20% 12%;
+  --sidebar-border: 220 13% 15%;
+  --sidebar-primary: 217 91% 60%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 220 13% 14%;
   --sidebar-accent-foreground: 210 40% 98%;
-  --sidebar-ring: 213 94% 68%;
-  
-  --popover: 225 30% 8%;
+  --sidebar-ring: 217 91% 60%;
+
+  --popover: 221 39% 11%;
   --popover-foreground: 210 40% 98%;
-  --popover-border: 220 20% 14%;
-  
-  /* Primary glowing accent */
-  --primary: 213 94% 68%;
-  --primary-foreground: 222 47% 11%;
-  
-  --secondary: 220 20% 12%;
+  --popover-border: 220 13% 18%;
+
+  /* Tapas Blue #3B82F6 */
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 220 13% 16%;
   --secondary-foreground: 210 40% 98%;
-  
-  --muted: 220 20% 12%;
-  --muted-foreground: 215 20% 65%;
-  
-  --accent: 220 20% 14%;
+
+  --muted: 220 13% 14%;
+  --muted-foreground: 215 20% 58%;
+
+  --accent: 220 13% 18%;
   --accent-foreground: 210 40% 98%;
-  
-  --destructive: 0 62% 30%;
-  --destructive-foreground: 210 40% 98%;
 
-  --success: 142 70% 30%;
-  --success-foreground: 142 100% 90%;
-  --warning: 38 90% 40%;
-  --warning-foreground: 38 100% 90%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+
+  --success: 142 71% 45%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 100%;
   --info: 199 89% 48%;
-  --info-foreground: 199 100% 90%;
+  --info-foreground: 0 0% 100%;
 
-  --input: 220 20% 14%;
-  --ring: 213 94% 68%;
-  
-  /* Neon charts for dark mode */
-  --chart-1: 213 94% 68%;
+  --input: 220 13% 18%;
+  --ring: 217 91% 60%;
+
+  --chart-1: 217 91% 60%;
   --chart-2: 152 76% 53%;
   --chart-3: 283 80% 68%;
   --chart-4: 35 92% 65%;
   --chart-5: 331 82% 61%;
 }
 
+/* ═══════════════════════ BASE LAYER ═══════════════════════ */
 @layer base {
   * {
     @apply border-border;
+    /* Faster box model recalcs on GPU-composited layers */
+    box-sizing: border-box;
+  }
+
+  html {
+    /* Smooth scroll without JS — zero cost on slow connections */
+    scroll-behavior: smooth;
+    /* Prevent layout shift from scrollbar appearing */
+    scrollbar-gutter: stable;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    /* Minimum readable size from design spec */
+    font-size: 16px;
+    line-height: 1.5;
+    /* GPU-composited text rendering */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+
+  /* ── Scrollbar styling (matches brand) ─────── */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+
+  /* ── Focus ring — accessible, on-brand ─────── */
+  :focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+  }
+
+  /* ── Touch targets min 44×44 (WCAG) ────────── */
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* Inline links don't need min-width */
+  a.inline-link { min-width: unset; }
+}
+
+/* ═══════════════════════ COMPONENTS ═══════════════════════ */
+@layer components {
+
+  /* ── Skeleton shimmer ───────────────────────────────────── */
+  .skeleton {
+    @apply rounded-lg bg-muted;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 25%,
+      hsl(var(--muted) / 0.6) 50%,
+      hsl(var(--muted)) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* ── Card — premium 16px radius + subtle shadow ─────────── */
+  .card-premium {
+    @apply rounded-2xl border bg-card shadow-sm;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+    transition: box-shadow 200ms ease, transform 200ms ease;
+  }
+  .card-premium:hover {
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+    transform: translateY(-1px);
+  }
+
+  /* ── Status pills ────────────────────────────────────────── */
+  .status-active  { @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-500/15 text-green-600 dark:text-green-400; }
+  .status-active::before  { content: ''; @apply w-1.5 h-1.5 rounded-full bg-green-500 inline-block; }
+
+  .status-pending { @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium bg-yellow-500/15 text-yellow-600 dark:text-yellow-400; }
+  .status-pending::before { content: ''; @apply w-1.5 h-1.5 rounded-full bg-yellow-500 inline-block; }
+
+  .status-danger  { @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-500/15 text-red-600 dark:text-red-400; }
+  .status-danger::before  { content: ''; @apply w-1.5 h-1.5 rounded-full bg-red-500 inline-block; }
+
+  .status-draft   { @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium bg-blue-500/15 text-blue-600 dark:text-blue-400; }
+  .status-draft::before   { content: ''; @apply w-1.5 h-1.5 rounded-full bg-blue-500 inline-block; }
+
+  /* ── Table improvements ──────────────────────────────────── */
+  .table-premium thead th {
+    @apply sticky top-0 bg-card/95 backdrop-blur-sm text-xs font-semibold uppercase tracking-wider text-muted-foreground;
+    z-index: 1;
+  }
+  .table-premium tbody tr {
+    @apply transition-colors duration-150;
+  }
+  .table-premium tbody tr:nth-child(even) {
+    @apply bg-muted/30;
+  }
+  .table-premium tbody tr:hover {
+    @apply bg-primary/5;
+  }
+
+  /* ── Sidebar active left-border indicator ────────────────── */
+  .nav-item-active {
+    position: relative;
+  }
+  .nav-item-active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 20%;
+    bottom: 20%;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: hsl(var(--primary));
+  }
+
+  /* ── Bottom nav (mobile) ─────────────────────────────────── */
+  .bottom-nav {
+    @apply fixed bottom-0 left-0 right-0 z-40 md:hidden;
+    background: hsl(var(--card));
+    border-top: 1px solid hsl(var(--border));
+    /* Safe area for iPhone home indicator */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    /* Promote to GPU layer — avoids repaint on scroll */
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
+  /* ── FAB (mobile) ────────────────────────────────────────── */
+  .fab {
+    @apply fixed z-50 md:hidden flex items-center justify-center rounded-full shadow-2xl;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 16px);
+    right: 16px;
+    width: 52px;
+    height: 52px;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    box-shadow: 0 8px 24px hsl(var(--primary) / 0.45);
+    transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms ease;
+  }
+  .fab:hover, .fab:active {
+    transform: scale(1.08);
+    box-shadow: 0 12px 32px hsl(var(--primary) / 0.55);
+  }
+
+  /* ── Dialog / sheet slide-in ─────────────────────────────── */
+  .dialog-slide-in {
+    animation: dialogIn 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes dialogIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)   scale(1); }
+  }
+
+  /* ── Mobile drawer slide ─────────────────────────────────── */
+  .drawer-slide-in {
+    animation: drawerIn 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes drawerIn {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(0); }
+  }
+
+  /* ── Page content — off-screen sections render lazily ───── */
+  /* Restores auto on mobile for bottom nav padding */
+  .page-section {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 200px;
+  }
+
+  /* ── Mobile body padding (above bottom nav) ──────────────── */
+  .main-content-mobile {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* ── Fade-in for async content ───────────────────────────── */
+  .fade-in {
+    animation: fadeIn 250ms ease forwards;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Progress bar (stock / capacity) ────────────────────── */
+  .progress-bar {
+    @apply h-1.5 rounded-full bg-muted overflow-hidden;
+  }
+  .progress-bar-fill {
+    @apply h-full rounded-full transition-all duration-500;
+    background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--primary) / 0.8));
+  }
+  .progress-bar-fill.low   { background: hsl(var(--destructive)); }
+  .progress-bar-fill.mid   { background: hsl(var(--warning)); }
+  .progress-bar-fill.good  { background: hsl(var(--success)); }
 }

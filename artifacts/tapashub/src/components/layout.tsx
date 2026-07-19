@@ -1,47 +1,17 @@
 import * as React from "react"
 import { Link, useLocation } from "wouter"
 import {
-  Building2,
-  PackageSearch,
-  ShoppingCart,
-  Wallet,
-  Users,
-  UsersRound,
-  CheckSquare,
-  Bell,
-  Bot,
-  Globe2,
-  Settings,
-  Menu,
-  Moon,
-  Sun,
-  ChevronDown,
-  TrendingUp,
-  FileText,
-  Megaphone,
-  Heart,
-  PawPrint,
-  Shirt,
-  BookOpen,
-  Wrench,
-  LayoutDashboard,
-  Layers,
-  PieChart,
-  LogOut,
-  Contact,
-  Headset,
-  Truck,
-  ShieldCheck,
-  ScrollText,
-  Landmark,
-  MessageSquare,
-  Video,
-  CalendarDays,
+  Building2, PackageSearch, ShoppingCart, Wallet, Users, UsersRound,
+  CheckSquare, Bell, Bot, Globe2, Settings, Menu, Moon, Sun, ChevronDown,
+  TrendingUp, FileText, Megaphone, Heart, PawPrint, Shirt, BookOpen,
+  Wrench, LayoutDashboard, Layers, PieChart, LogOut, Contact, Headset,
+  Truck, ShieldCheck, ScrollText, Landmark, MessageSquare, Video,
+  CalendarDays, ChevronRight, Home, Phone, MoreHorizontal, X, Plus,
+  Sparkles, Briefcase,
 } from "lucide-react"
 import { GlobalSearch } from "@/components/global-search"
 import { NotificationBadge } from "@/components/notification-badge"
 import { WorkingCapitalWidget } from "@/components/working-capital-widget"
-
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
@@ -53,88 +23,184 @@ import type { ActiveCompany } from "@/contexts/company-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useQuery } from "@tanstack/react-query"
 
+/* ─────────────────────────────────────────────────────────────
+   Types
+───────────────────────────────────────────────────────────── */
 interface NavItem {
   name: string
   href: string
   icon: React.ElementType
-  /** Permission required to see this item. Undefined = always visible. */
   perm?: string
 }
 
-/* ─────────────────────────────────────────────────────
-   Nav definitions
-───────────────────────────────────────────────────── */
-
-const parentNav: NavItem[] = [
-  { name: "Portfolio Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Companies", href: "/companies", icon: Building2, perm: "platform.companies" },
-  { name: "Marketing", href: "/marketing", icon: Megaphone, perm: "marketing.view" },
-  { name: "Finance", href: "/finance", icon: Wallet, perm: "finance.view" },
-  { name: "Treasury", href: "/treasury", icon: Landmark, perm: "treasury.view" },
-  { name: "Fund Allocation", href: "/fund-allocation", icon: Landmark, perm: "funds.view" },
-  { name: "Shareholders", href: "/shareholders", icon: PieChart, perm: "shareholders.view" },
-  { name: "Analytics", href: "/analytics", icon: TrendingUp },
-  { name: "HR & People", href: "/hr", icon: Users, perm: "hr.view" },
-  { name: "Team & Roles", href: "/admin/access", icon: ShieldCheck, perm: "platform.roles" },
-  { name: "Documents", href: "/documents", icon: FileText, perm: "documents.view" },
-  { name: "Account Directory", href: "/accounts", icon: Contact, perm: "directory.view" },
-  { name: "Approvals", href: "/approvals", icon: CheckSquare, perm: "approvals.view" },
-  { name: "Director Portal", href: "/director", icon: PieChart, perm: "director.view" },
-  { name: "AI Reports", href: "/ai-reports", icon: Bot, perm: "ai.reports" },
-  { name: "AI Insights", href: "/ai-assistant", icon: Bot, perm: "ai.read" },
-]
-
-const baseSubsidiaryNav: NavItem[] = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Orders", href: "/orders", icon: ShoppingCart, perm: "orders.view" },
-  { name: "Products", href: "/inventory", icon: PackageSearch, perm: "inventory.view" },
-  { name: "Shipping", href: "/shipping", icon: Truck, perm: "shipping.view" },
-  { name: "Customers", href: "/crm", icon: UsersRound, perm: "crm.view" },
-  { name: "Marketing", href: "/marketing", icon: Megaphone, perm: "marketing.view" },
-  { name: "Finance", href: "/finance", icon: Wallet, perm: "finance.view" },
-  { name: "Documents", href: "/documents", icon: FileText, perm: "documents.view" },
-  { name: "AI Tasks", href: "/ai-tasks", icon: CheckSquare, perm: "ai_tasks.read" },
-  { name: "Planner", href: "/planner", icon: CalendarDays },
-  { name: "Team", href: "/chat", icon: MessageSquare, perm: "chat.read" },
-  { name: "Call Center", href: "/call-center", icon: Headset, perm: "callcenter.view" },
-  { name: "Account Directory", href: "/accounts", icon: Contact, perm: "directory.view" },
-  { name: "Integrations", href: "/integrations", icon: Globe2, perm: "platform.integrations" },
-]
-
-const industryExtras: Record<string, NavItem[]> = {
-  tikkatails: [
-    { name: "Veterinary", href: "/veterinary", icon: PawPrint },
-    { name: "Pet Community", href: "/community", icon: Heart },
-  ],
-  hugfab: [
-    { name: "Collections", href: "/collections", icon: Shirt },
-    { name: "Lookbook", href: "/lookbook", icon: Layers },
-  ],
-  pepalworks: [
-    { name: "Catalog", href: "/catalog", icon: BookOpen },
-  ],
-  throttledaires: [
-    { name: "Services", href: "/services", icon: Wrench },
-  ],
-  sanchikart: [
-    { name: "Analytics", href: "/analytics", icon: TrendingUp },
-  ],
+interface NavGroup {
+  label: string
+  items: NavItem[]
 }
 
-function getNavItems(company: ActiveCompany | null) {
-  if (!company || company.mode === "parent") return parentNav
-  const extras = industryExtras[company.slug.toLowerCase()] ?? []
-  // Insert industry extras before Integrations
-  const base = [...baseSubsidiaryNav]
-  const intIdx = base.findIndex((n) => n.href === "/integrations")
-  base.splice(intIdx, 0, ...extras)
-  return base
+/* ─────────────────────────────────────────────────────────────
+   Nav definitions — grouped for collapsible sections
+───────────────────────────────────────────────────────────── */
+const parentGroups: NavGroup[] = [
+  {
+    label: "Overview",
+    items: [
+      { name: "Portfolio Dashboard", href: "/", icon: LayoutDashboard },
+      { name: "Analytics", href: "/analytics", icon: TrendingUp },
+      { name: "Director Portal", href: "/director", icon: PieChart, perm: "director.view" },
+    ],
+  },
+  {
+    label: "Companies",
+    items: [
+      { name: "Companies", href: "/companies", icon: Building2, perm: "platform.companies" },
+      { name: "Marketing", href: "/marketing", icon: Megaphone, perm: "marketing.view" },
+      { name: "Account Directory", href: "/accounts", icon: Contact, perm: "directory.view" },
+    ],
+  },
+  {
+    label: "Finance",
+    items: [
+      { name: "Finance", href: "/finance", icon: Wallet, perm: "finance.view" },
+      { name: "Treasury", href: "/treasury", icon: Landmark, perm: "treasury.view" },
+      { name: "Fund Allocation", href: "/fund-allocation", icon: Landmark, perm: "funds.view" },
+      { name: "Shareholders", href: "/shareholders", icon: PieChart, perm: "shareholders.view" },
+    ],
+  },
+  {
+    label: "People & Ops",
+    items: [
+      { name: "HR & People", href: "/hr", icon: Users, perm: "hr.view" },
+      { name: "Documents", href: "/documents", icon: FileText, perm: "documents.view" },
+      { name: "Approvals", href: "/approvals", icon: CheckSquare, perm: "approvals.view" },
+      { name: "Team & Roles", href: "/admin/access", icon: ShieldCheck, perm: "platform.roles" },
+    ],
+  },
+  {
+    label: "AI",
+    items: [
+      { name: "AI Reports", href: "/ai-reports", icon: Bot, perm: "ai.reports" },
+      { name: "AI Insights", href: "/ai-assistant", icon: Sparkles, perm: "ai.read" },
+    ],
+  },
+]
+
+const subsidiaryGroups: NavGroup[] = [
+  {
+    label: "Workspace",
+    items: [
+      { name: "Dashboard", href: "/", icon: LayoutDashboard },
+      { name: "Team Chat", href: "/chat", icon: MessageSquare, perm: "chat.read" },
+      { name: "Meetings", href: "/meetings", icon: Video },
+      { name: "Call Center", href: "/call-center", icon: Headset, perm: "callcenter.view" },
+      { name: "Planner", href: "/planner", icon: CalendarDays },
+    ],
+  },
+  {
+    label: "Commerce",
+    items: [
+      { name: "Orders", href: "/orders", icon: ShoppingCart, perm: "orders.view" },
+      { name: "Products", href: "/inventory", icon: PackageSearch, perm: "inventory.view" },
+      { name: "Shipping", href: "/shipping", icon: Truck, perm: "shipping.view" },
+      { name: "Customers", href: "/crm", icon: UsersRound, perm: "crm.view" },
+      { name: "Marketing", href: "/marketing", icon: Megaphone, perm: "marketing.view" },
+    ],
+  },
+  {
+    label: "Finance",
+    items: [
+      { name: "Finance", href: "/finance", icon: Wallet, perm: "finance.view" },
+    ],
+  },
+  {
+    label: "AI & Tasks",
+    items: [
+      { name: "AI Tasks", href: "/ai-tasks", icon: Sparkles, perm: "ai_tasks.read" },
+    ],
+  },
+  {
+    label: "Admin",
+    items: [
+      { name: "Documents", href: "/documents", icon: FileText, perm: "documents.view" },
+      { name: "Account Directory", href: "/accounts", icon: Contact, perm: "directory.view" },
+      { name: "Integrations", href: "/integrations", icon: Globe2, perm: "platform.integrations" },
+    ],
+  },
+]
+
+const industryExtras: Record<string, { groupLabel: string; items: NavItem[] }> = {
+  tikkatails: {
+    groupLabel: "Veterinary",
+    items: [
+      { name: "Veterinary", href: "/veterinary", icon: PawPrint },
+      { name: "Pet Community", href: "/community", icon: Heart },
+    ],
+  },
+  hugfab: {
+    groupLabel: "Fashion",
+    items: [
+      { name: "Collections", href: "/collections", icon: Shirt },
+      { name: "Lookbook", href: "/lookbook", icon: Layers },
+    ],
+  },
+  pepalworks: {
+    groupLabel: "Catalog",
+    items: [{ name: "Catalog", href: "/catalog", icon: BookOpen }],
+  },
+  throttledaires: {
+    groupLabel: "Services",
+    items: [{ name: "Services", href: "/services", icon: Wrench }],
+  },
+  sanchikart: {
+    groupLabel: "Analytics",
+    items: [{ name: "Analytics", href: "/analytics", icon: TrendingUp }],
+  },
 }
 
-/* ─────────────────────────────────────────────────────
+function getNavGroups(company: ActiveCompany | null, isSuperAdmin: boolean, isParentView: boolean): NavGroup[] {
+  const base: NavGroup[] = company?.mode === "parent" || !company
+    ? parentGroups
+    : subsidiaryGroups
+
+  // Industry-specific group
+  const slug = company?.slug?.toLowerCase() ?? ""
+  const extra = industryExtras[slug]
+  let groups = extra
+    ? [...base, { label: extra.groupLabel, items: extra.items }]
+    : [...base]
+
+  // Super admin extras
+  if (isSuperAdmin) {
+    groups = [
+      ...groups,
+      {
+        label: "Super Admin",
+        items: [
+          ...(!isParentView ? [{ name: "Team & Roles", href: "/admin/access", icon: ShieldCheck }] : []),
+          ...(isParentView ? [{ name: "Team Chat", href: "/chat", icon: MessageSquare }] : []),
+          { name: "Audit Logs", href: "/admin/audit", icon: ScrollText },
+          { name: "Admin Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
+        ],
+      },
+    ]
+  }
+
+  return groups
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Bottom nav items (mobile) — most-used 4 + "More"
+───────────────────────────────────────────────────────────── */
+const bottomNavItems = [
+  { href: "/", icon: Home, label: "Home" },
+  { href: "/chat", icon: MessageSquare, label: "Chat" },
+  { href: "/ai-tasks", icon: Sparkles, label: "Tasks" },
+  { href: "/call-center", icon: Phone, label: "Calls" },
+]
+
+/* ─────────────────────────────────────────────────────────────
    Company Switcher
-───────────────────────────────────────────────────── */
-
+───────────────────────────────────────────────────────────── */
 function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
   const { activeCompany, companies, setActiveCompanyId } = useCompany()
   const [open, setOpen] = React.useState(false)
@@ -150,9 +216,8 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
 
   const label = activeCompany?.name ?? "TapasHub"
   const initials = label.substring(0, 2).toUpperCase()
-  const color = activeCompany?.color ?? "#2563EB"
+  const color = activeCompany?.color ?? "#3B82F6"
 
-  // Sort: parent first, then subsidiaries
   const sorted = [...companies].sort((a, b) => {
     if (a.mode === "parent" && b.mode !== "parent") return -1
     if (b.mode === "parent" && a.mode !== "parent") return 1
@@ -164,14 +229,14 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
       <div className="relative" ref={ref}>
         <button
           onClick={() => setOpen(!open)}
-          className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-md transition-transform hover:scale-105"
+          className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-md transition-all hover:scale-105 hover:shadow-lg"
           style={{ background: color }}
           title={label}
         >
           {initials}
         </button>
         {open && (
-          <div className="absolute left-12 top-0 z-50 w-52 bg-card border rounded-xl shadow-2xl py-1 overflow-hidden">
+          <div className="absolute left-12 top-0 z-50 w-56 bg-card border rounded-2xl shadow-2xl py-1 overflow-hidden">
             <CompanyList sorted={sorted} activeCompany={activeCompany} setActiveCompanyId={setActiveCompanyId} setOpen={setOpen} />
           </div>
         )}
@@ -180,31 +245,31 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
   }
 
   return (
-    <div className="relative mx-3 mb-4" ref={ref}>
+    <div className="relative mx-3 mb-3" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border bg-muted/40 hover:bg-muted/70 transition-all group"
       >
         <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-md"
+          className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-md"
           style={{ background: color }}
         >
           {initials}
         </div>
         <div className="flex-1 text-left min-w-0">
           <div className="text-sm font-semibold truncate leading-tight">{label}</div>
-          <div className="text-xs text-muted-foreground leading-tight">
+          <div className="text-[11px] text-muted-foreground leading-tight">
             {activeCompany == null || activeCompany.mode === "parent"
-              ? "Holding Company · Portfolio View"
+              ? "Portfolio View"
               : activeCompany.industry ?? "Subsidiary"}
           </div>
         </div>
-        <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-200", open && "rotate-180")} />
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 bg-card border rounded-xl shadow-2xl py-1 overflow-hidden">
-          <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 bg-card border rounded-2xl shadow-2xl py-1 overflow-hidden">
+          <div className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
             Switch Workspace
           </div>
           <CompanyList sorted={sorted} activeCompany={activeCompany} setActiveCompanyId={setActiveCompanyId} setOpen={setOpen} />
@@ -215,10 +280,7 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
 }
 
 function CompanyList({
-  sorted,
-  activeCompany,
-  setActiveCompanyId,
-  setOpen,
+  sorted, activeCompany, setActiveCompanyId, setOpen,
 }: {
   sorted: ActiveCompany[]
   activeCompany: ActiveCompany | null
@@ -227,7 +289,6 @@ function CompanyList({
 }) {
   return (
     <>
-      {/* TapasHub parent option */}
       <button
         className={cn(
           "w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted/60 transition-colors",
@@ -235,18 +296,16 @@ function CompanyList({
         )}
         onClick={() => { setActiveCompanyId(null); setOpen(false) }}
       >
-        <div className="w-7 h-7 rounded-md flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: "#2563EB" }}>
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: "#3B82F6" }}>
           TH
         </div>
-        <div className="text-left">
-          <div className="font-medium leading-tight">TapasHub</div>
-          <div className="text-[11px] text-muted-foreground">Parent · Portfolio View</div>
+        <div className="text-left flex-1 min-w-0">
+          <div className="font-medium leading-tight truncate">TapasHub</div>
+          <div className="text-[10px] text-muted-foreground">Parent · Portfolio</div>
         </div>
-        {activeCompany == null && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+        {activeCompany == null && <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
       </button>
-
       <div className="my-1 border-t" />
-
       {sorted.filter((c) => c.mode !== "parent").map((c) => (
         <button
           key={c.id}
@@ -257,47 +316,121 @@ function CompanyList({
           onClick={() => { setActiveCompanyId(c.id); setOpen(false) }}
         >
           <div
-            className="w-7 h-7 rounded-md flex items-center justify-center text-white text-xs font-bold shrink-0"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
             style={{ background: c.color }}
           >
             {c.name.substring(0, 2).toUpperCase()}
           </div>
-          <div className="text-left">
-            <div className="font-medium leading-tight">{c.name}</div>
-            <div className="text-[11px] text-muted-foreground">{c.industry ?? "Subsidiary"}</div>
+          <div className="text-left flex-1 min-w-0">
+            <div className="font-medium leading-tight truncate">{c.name}</div>
+            <div className="text-[10px] text-muted-foreground truncate">{c.industry ?? "Subsidiary"}</div>
           </div>
-          {activeCompany?.id === c.id && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+          {activeCompany?.id === c.id && <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
         </button>
       ))}
     </>
   )
 }
 
-/* ─────────────────────────────────────────────────────
-   Layout
-───────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────
+   Collapsible Nav Group
+───────────────────────────────────────────────────────────── */
+function NavGroupSection({
+  group,
+  location,
+  collapsed,
+  workspaceColor,
+  aiTasksUnreadCount,
+  onNavigate,
+}: {
+  group: NavGroup
+  location: string
+  collapsed: boolean
+  workspaceColor: string
+  aiTasksUnreadCount: number
+  onNavigate?: () => void
+}) {
+  const hasActive = group.items.some(
+    (item) => location === item.href || (item.href !== "/" && location.startsWith(item.href))
+  )
+  const [open, setOpen] = React.useState(hasActive || group.label === "Workspace" || group.label === "Overview")
 
+  return (
+    <div className="mb-1">
+      {!collapsed && (
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="w-full flex items-center gap-2 px-3 py-1 mb-0.5 group"
+        >
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 flex-1 text-left group-hover:text-muted-foreground transition-colors">
+            {group.label}
+          </span>
+          <ChevronRight
+            className={cn("w-3 h-3 text-muted-foreground/50 transition-transform duration-200", open && "rotate-90")}
+          />
+        </button>
+      )}
+
+      {(open || collapsed) && (
+        <div className={cn("space-y-0.5", collapsed && "flex flex-col items-center")}>
+          {group.items.map((item) => {
+            const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href))
+            return (
+              <Link key={item.name} href={item.href} className="block" onClick={onNavigate}>
+                <span
+                  className={cn(
+                    "nav-item-active flex items-center rounded-xl text-sm font-medium transition-all duration-150 group relative",
+                    collapsed
+                      ? "w-10 h-10 justify-center"
+                      : "px-3 py-2 gap-3",
+                    isActive
+                      ? "text-white"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                  style={isActive ? { background: workspaceColor, boxShadow: `0 4px 12px ${workspaceColor}40` } : undefined}
+                  title={collapsed ? item.name : undefined}
+                >
+                  <item.icon className={cn("shrink-0 transition-transform group-hover:scale-110", collapsed ? "w-5 h-5" : "w-[18px] h-[18px]")} />
+                  {!collapsed && (
+                    <>
+                      <span className="flex-1 truncate">{item.name}</span>
+                      {item.href === "/ai-tasks" && aiTasksUnreadCount > 0 && (
+                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-medium text-white">
+                          {aiTasksUnreadCount > 99 ? "99+" : aiTasksUnreadCount}
+                        </span>
+                      )}
+                    </>
+                  )}
+                  {collapsed && item.href === "/ai-tasks" && aiTasksUnreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-white">
+                      {aiTasksUnreadCount > 9 ? "9+" : aiTasksUnreadCount}
+                    </span>
+                  )}
+                </span>
+              </Link>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Layout
+───────────────────────────────────────────────────────────── */
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation()
   const { theme, setTheme } = useTheme()
   const [sidebarOpen, setSidebarOpen] = React.useState(true)
   const [mobileOpen, setMobileOpen] = React.useState(false)
+  const [moreOpen, setMoreOpen] = React.useState(false)
   const { activeCompany, isParentView } = useCompany()
   const { logout, user: authUser, isSuperAdmin, hasPermission } = useAuth()
 
-  // "Team & Roles" is already in parentNav when in the TapasHub parent context;
-  // only add it here (via adminNav) for subsidiary views to avoid duplication.
-  const adminNav: NavItem[] = isSuperAdmin
-    ? [
-        ...(!isParentView ? [{ name: "Team & Roles", href: "/admin/access", icon: ShieldCheck }] : []),
-        ...(isParentView ? [{ name: "Team", href: "/chat", icon: MessageSquare }] : []),
-        { name: "Audit Logs", href: "/admin/audit", icon: ScrollText },
-        { name: "Admin Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
-      ]
-    : []
-  const navItems = [...getNavItems(activeCompany), ...adminNav].filter(
-    (item) => !item.perm || hasPermission(item.perm),
-  )
+  const navGroups = getNavGroups(activeCompany ?? null, isSuperAdmin, isParentView)
+
+  // Flatten for permission filtering — done per item inside render
   const collapsed = !sidebarOpen
 
   const { data: aiTasksUnread } = useQuery<{ count: number }>({
@@ -309,25 +442,47 @@ export function Layout({ children }: { children: React.ReactNode }) {
       if (!res.ok) return { count: 0 }
       return res.json()
     },
-    enabled: !!activeCompany?.id && navItems.some((n) => n.href === "/ai-tasks"),
+    enabled: !!activeCompany?.id,
     refetchInterval: 60_000,
+    staleTime: 30_000,
   })
   const aiTasksUnreadCount = aiTasksUnread?.count ?? 0
 
   const workspaceLabel = activeCompany?.name ?? "TapasHub"
-  const workspaceColor = activeCompany?.color ?? "#2563EB"
+  const workspaceColor = activeCompany?.color ?? "#3B82F6"
 
-  const SidebarContent = () => (
-    <>
+  // Filter groups to only items with permissions
+  const filteredGroups = navGroups
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((item) => !item.perm || hasPermission(item.perm)),
+    }))
+    .filter((g) => g.items.length > 0)
+
+  // Mobile: all nav items flattened for "More" drawer
+  const allNavFlat = filteredGroups.flatMap((g) => g.items)
+
+  /* ── Sidebar contents (shared desktop + mobile) ── */
+  const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => (
+    <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className={cn("h-16 flex items-center border-b shrink-0", collapsed ? "px-3 justify-center" : "px-4 gap-3")}>
-        <div className="bg-white rounded-lg p-0.5 shrink-0 shadow-sm">
-          <img src="/tapashub-logo.png" alt="TapasHub" className="w-8 h-8 object-contain" />
+      <div className={cn(
+        "h-16 flex items-center border-b shrink-0",
+        collapsed ? "px-3 justify-center" : "px-4 gap-3"
+      )}>
+        <div className="bg-white rounded-xl p-1 shrink-0 shadow-sm">
+          <img
+            src="/tapashub-logo.png"
+            alt="TapasHub"
+            className="w-7 h-7 object-contain"
+            loading="eager"
+            decoding="sync"
+          />
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <div className="font-bold text-sm leading-tight truncate">TAPBOSS</div>
-            <div className="text-[10px] text-muted-foreground leading-tight truncate">Business Operating System</div>
+            <div className="font-bold text-[13px] leading-tight tracking-tight">TAPBOSS</div>
+            <div className="text-[10px] text-muted-foreground leading-tight">Business OS</div>
           </div>
         )}
       </div>
@@ -337,121 +492,123 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <CompanySwitcher collapsed={collapsed} />
       </div>
 
-      {/* Nav label */}
-      {!collapsed && (
-        <div className="px-6 pb-1">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
-            {isParentView ? "Group Management" : `${workspaceLabel} Workspace`}
-          </span>
-        </div>
-      )}
-
-      {/* Nav Items */}
-      <nav className="flex-1 overflow-y-auto py-1 px-3 space-y-0.5">
-        {navItems.map((item) => {
-          const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href))
-          return (
-            <Link key={item.name} href={item.href} className="block">
-              <span
-                className={cn(
-                  "flex items-center px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium transition-all group",
-                  isActive
-                    ? "text-white shadow-sm"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                )}
-                style={isActive ? { background: workspaceColor } : undefined}
-                title={collapsed ? item.name : undefined}
-              >
-                <item.icon className={cn("w-[18px] h-[18px] shrink-0")} />
-                {!collapsed && <span className="ml-3 truncate">{item.name}</span>}
-                {!collapsed && item.href === "/ai-tasks" && aiTasksUnreadCount > 0 && (
-                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-medium text-white">
-                    {aiTasksUnreadCount > 99 ? "99+" : aiTasksUnreadCount}
-                  </span>
-                )}
-              </span>
-            </Link>
-          )
-        })}
+      {/* Nav scroll area */}
+      <nav
+        className="flex-1 overflow-y-auto py-1 px-2 space-y-0.5"
+        style={{ scrollbarWidth: "none" }}
+      >
+        {filteredGroups.map((group) => (
+          <NavGroupSection
+            key={group.label}
+            group={group}
+            location={location}
+            collapsed={collapsed}
+            workspaceColor={workspaceColor}
+            aiTasksUnreadCount={aiTasksUnreadCount}
+            onNavigate={onNavigate}
+          />
+        ))}
       </nav>
 
-      {/* Working Capital Widget — parent view only, expanded sidebar */}
+      {/* Working Capital widget */}
       {!collapsed && isParentView && <WorkingCapitalWidget />}
 
       {/* Bottom: Settings + Logout */}
-      <div className="p-3 border-t shrink-0 space-y-0.5">
-        <Link href="/settings" className="block">
+      <div className={cn("p-2 border-t shrink-0 space-y-0.5", collapsed && "flex flex-col items-center")}>
+        <Link href="/settings" className="block" onClick={onNavigate}>
           <span className={cn(
-            "flex items-center px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium transition-all",
+            "flex items-center rounded-xl text-sm font-medium transition-all duration-150",
+            collapsed ? "w-10 h-10 justify-center" : "px-3 py-2 gap-3",
             location.startsWith("/settings")
-              ? "text-white shadow-sm"
+              ? "text-white"
               : "text-muted-foreground hover:bg-muted hover:text-foreground"
           )}
             style={location.startsWith("/settings") ? { background: workspaceColor } : undefined}
             title={collapsed ? "Settings" : undefined}
           >
-            <Settings className="w-[18px] h-[18px] shrink-0" />
-            {!collapsed && <span className="ml-3">Settings</span>}
+            <Settings className={cn("shrink-0", collapsed ? "w-5 h-5" : "w-[18px] h-[18px]")} />
+            {!collapsed && <span className="flex-1">Settings</span>}
           </span>
         </Link>
         <button
           onClick={() => logout()}
-          className="w-full flex items-center px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium text-muted-foreground hover:bg-red-500/10 hover:text-red-400 transition-all"
+          className={cn(
+            "w-full flex items-center rounded-xl text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all duration-150",
+            collapsed ? "w-10 h-10 justify-center" : "px-3 py-2 gap-3"
+          )}
           title={collapsed ? "Sign Out" : undefined}
         >
-          <LogOut className="w-[18px] h-[18px] shrink-0" />
-          {!collapsed && <span className="ml-3">Sign Out</span>}
+          <LogOut className={cn("shrink-0", collapsed ? "w-5 h-5" : "w-[18px] h-[18px]")} />
+          {!collapsed && <span>Sign Out</span>}
         </button>
       </div>
-    </>
+    </div>
   )
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row overflow-hidden font-sans">
-      {/* Desktop Sidebar */}
+    <div className="min-h-screen bg-background text-foreground flex overflow-hidden font-sans">
+
+      {/* ── Desktop Sidebar ─────────────────────────────────── */}
       <aside className={cn(
-        "hidden md:flex flex-col bg-card border-r shrink-0 transition-all duration-300",
+        "hidden md:flex flex-col bg-card border-r shrink-0 transition-[width] duration-300 ease-in-out overflow-hidden",
         collapsed ? "w-[68px]" : "w-64"
       )}>
         <SidebarContent />
       </aside>
 
-      {/* Mobile Sidebar overlay */}
+      {/* ── Mobile Sidebar overlay ───────────────────────────── */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <aside className="absolute left-0 top-0 bottom-0 w-72 flex flex-col bg-card border-r shadow-2xl">
-            <SidebarContent />
+        <div className="fixed inset-0 z-50 md:hidden" onClick={() => setMobileOpen(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" />
+          <aside
+            className="drawer-slide-in absolute left-0 top-0 bottom-0 w-72 flex flex-col bg-card border-r shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              className="absolute top-4 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
+              onClick={() => setMobileOpen(false)}
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <SidebarContent onNavigate={() => setMobileOpen(false)} />
           </aside>
         </div>
       )}
 
-      {/* Main Content */}
+      {/* ── Main Content ─────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+
         {/* Topbar */}
-        <header className="h-16 flex items-center justify-between px-4 border-b bg-card/80 backdrop-blur-sm z-10 shrink-0">
-          <div className="flex items-center gap-3">
+        <header className="h-16 flex items-center justify-between px-3 sm:px-4 border-b bg-card/80 backdrop-blur-sm z-10 shrink-0 gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Desktop collapse toggle */}
-            <Button variant="ghost" size="icon" className="hidden md:flex" onClick={() => setSidebarOpen(!sidebarOpen)}>
+            <Button
+              variant="ghost" size="icon"
+              className="hidden md:flex rounded-xl w-9 h-9"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
               <Menu className="w-5 h-5" />
             </Button>
-            {/* Mobile open toggle */}
-            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileOpen(true)}>
+            {/* Mobile hamburger */}
+            <Button
+              variant="ghost" size="icon"
+              className="md:hidden rounded-xl w-9 h-9"
+              onClick={() => setMobileOpen(true)}
+            >
               <Menu className="w-5 h-5" />
             </Button>
 
-            {/* Workspace breadcrumb */}
-            <div className="hidden sm:flex items-center gap-2">
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ background: workspaceColor }}
-              />
-              <span className="text-sm font-medium text-muted-foreground">
+            {/* Workspace breadcrumb — hidden on tiny screens */}
+            <div className="hidden sm:flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full" style={{ background: workspaceColor }} />
+              <span className="text-sm text-muted-foreground">
                 {isParentView ? "TapasHub Group" : "TapasHub"}
               </span>
               {!isParentView && (
                 <>
-                  <span className="text-muted-foreground/40">/</span>
+                  <span className="text-muted-foreground/40 text-sm">/</span>
                   <span className="text-sm font-semibold" style={{ color: workspaceColor }}>
                     {workspaceLabel}
                   </span>
@@ -460,41 +617,179 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* Global Search */}
-          <div className="flex-1 hidden md:flex justify-center px-4">
+          {/* Global Search — centered, collapses on mobile */}
+          <div className="flex-1 hidden md:flex justify-center px-4 max-w-lg mx-auto">
             <GlobalSearch />
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Right actions */}
+          <div className="flex items-center gap-1 shrink-0">
             <Button
-              variant="ghost"
-              size="icon"
+              variant="ghost" size="icon"
+              className="rounded-xl w-9 h-9"
               onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+              title={theme === "light" ? "Dark mode" : "Light mode"}
             >
-              {theme === "light" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+              {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
             </Button>
 
             <NotificationBadge />
 
-            <div className="flex items-center gap-2 border-l pl-3 ml-1">
-              <Avatar className="w-8 h-8 ring-2" style={{ "--ring-color": workspaceColor } as React.CSSProperties}>
-                <AvatarFallback className="text-xs font-bold">{authUser?.name?.substring(0, 2) || "U"}</AvatarFallback>
+            <div className="flex items-center gap-2 border-l pl-2 ml-1">
+              <Avatar
+                className="w-8 h-8 ring-2 ring-offset-1 cursor-pointer transition-transform hover:scale-105"
+                style={{ "--ring-color": workspaceColor } as React.CSSProperties}
+              >
+                <AvatarFallback className="text-xs font-bold bg-primary/20 text-primary">
+                  {authUser?.name?.substring(0, 2) || "U"}
+                </AvatarFallback>
               </Avatar>
-              <div className="hidden sm:block">
-                <div className="text-sm font-semibold leading-tight">{authUser?.name || "User"}</div>
-                <div className="text-[11px] text-muted-foreground leading-tight capitalize">{authUser?.role?.replace(/_/g, " ") || "Loading…"}</div>
+              <div className="hidden sm:block max-w-[120px]">
+                <div className="text-sm font-semibold leading-tight truncate">{authUser?.name || "User"}</div>
+                <div className="text-[11px] text-muted-foreground leading-tight capitalize truncate">
+                  {authUser?.role?.replace(/_/g, " ") || "Loading…"}
+                </div>
               </div>
             </div>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto bg-background p-4 sm:p-6">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 overflow-auto bg-background p-3 sm:p-5 main-content-mobile">
+          <div className="max-w-7xl mx-auto fade-in">
             {children}
           </div>
         </main>
       </div>
+
+      {/* ══════════════ MOBILE BOTTOM NAVIGATION ══════════════ */}
+      <nav className="bottom-nav">
+        <div className="flex items-stretch h-16">
+          {bottomNavItems.map(({ href, icon: Icon, label }) => {
+            const isActive = location === href || (href !== "/" && location.startsWith(href))
+            const showBadge = href === "/ai-tasks" && aiTasksUnreadCount > 0
+            return (
+              <Link key={href} href={href} className="flex-1 min-w-0 min-h-0">
+                <span className={cn(
+                  "flex flex-col items-center justify-center h-full gap-1 transition-all duration-150 relative",
+                  isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                )}>
+                  <div className="relative">
+                    <Icon className="w-5 h-5" />
+                    {showBadge && (
+                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-white">
+                        {aiTasksUnreadCount > 9 ? "9+" : aiTasksUnreadCount}
+                      </span>
+                    )}
+                  </div>
+                  <span className={cn(
+                    "text-[10px] font-medium leading-none transition-all",
+                    isActive && "font-semibold"
+                  )}>
+                    {label}
+                  </span>
+                  {isActive && (
+                    <span
+                      className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full"
+                      style={{ background: workspaceColor }}
+                    />
+                  )}
+                </span>
+              </Link>
+            )
+          })}
+
+          {/* More button */}
+          <button
+            className="flex-1 min-w-0 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-foreground transition-colors relative"
+            onClick={() => setMoreOpen(true)}
+          >
+            <MoreHorizontal className="w-5 h-5" />
+            <span className="text-[10px] font-medium">More</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* "More" drawer on mobile */}
+      {moreOpen && (
+        <div className="fixed inset-0 z-50 md:hidden" onClick={() => setMoreOpen(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" />
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl shadow-2xl overflow-hidden"
+            style={{ maxHeight: "75vh" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+            </div>
+            <div className="px-4 py-2 flex items-center justify-between border-b">
+              <span className="font-semibold text-sm">All Sections</span>
+              <button
+                onClick={() => setMoreOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-3" style={{ maxHeight: "calc(75vh - 80px)" }}>
+              <div className="grid grid-cols-3 gap-2">
+                {allNavFlat.map((item) => {
+                  const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href))
+                  return (
+                    <Link key={item.href} href={item.href} onClick={() => setMoreOpen(false)}>
+                      <span className={cn(
+                        "flex flex-col items-center gap-2 p-3 rounded-2xl transition-all",
+                        isActive
+                          ? "text-white"
+                          : "bg-muted/40 text-foreground hover:bg-muted"
+                      )}
+                        style={isActive ? { background: workspaceColor } : undefined}
+                      >
+                        <item.icon className="w-6 h-6" />
+                        <span className="text-[11px] font-medium text-center leading-tight">{item.name}</span>
+                      </span>
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mobile FAB (context-aware) ───────────────────────── */}
+      <MobileFab location={location} workspaceColor={workspaceColor} />
     </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Mobile FAB — shows primary action for current page
+───────────────────────────────────────────────────────────── */
+function MobileFab({ location, workspaceColor }: { location: string; workspaceColor: string }) {
+  const fab = React.useMemo(() => {
+    if (location === "/chat") return null // Chat has its own composer
+    if (location.startsWith("/meetings")) return { icon: Video, title: "New Meeting" }
+    if (location.startsWith("/ai-tasks")) return { icon: Sparkles, title: "New AI Task" }
+    if (location.startsWith("/call-center")) return { icon: Phone, title: "New Call" }
+    if (location.startsWith("/inventory")) return { icon: Plus, title: "Add Product" }
+    if (location.startsWith("/orders")) return { icon: Plus, title: "New Order" }
+    if (location.startsWith("/crm")) return { icon: Plus, title: "New Contact" }
+    if (location.startsWith("/planner")) return { icon: Plus, title: "New Task" }
+    return null
+  }, [location])
+
+  if (!fab) return null
+
+  return (
+    <button
+      className="fab"
+      style={{ background: workspaceColor, boxShadow: `0 8px 24px ${workspaceColor}55` }}
+      title={fab.title}
+      aria-label={fab.title}
+    >
+      <fab.icon className="w-6 h-6" />
+    </button>
   )
 }

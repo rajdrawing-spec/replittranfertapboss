@@ -51,6 +51,13 @@ const parentGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Workspace",
+    items: [
+      { name: "Team Chat", href: "/chat", icon: MessageSquare, perm: "chat.read" },
+      { name: "Meetings", href: "/meetings", icon: Video },
+    ],
+  },
+  {
     label: "Companies",
     items: [
       { name: "Companies", href: "/companies", icon: Building2, perm: "platform.companies" },
@@ -194,8 +201,8 @@ function getNavGroups(company: ActiveCompany | null, isSuperAdmin: boolean, isPa
 const bottomNavItems = [
   { href: "/", icon: Home, label: "Home" },
   { href: "/chat", icon: MessageSquare, label: "Chat" },
+  { href: "/meetings", icon: Video, label: "Meetings" },
   { href: "/ai-tasks", icon: Sparkles, label: "Tasks" },
-  { href: "/call-center", icon: Phone, label: "Calls" },
 ]
 
 /* ─────────────────────────────────────────────────────────────

@@ -31,7 +31,14 @@ const DEFAULT_COLOR = "#64748B"
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const [activeId, setActiveId] = React.useState<number | null>(null)
   const { data: rawCompanies } = useListCompanies({
-    query: { enabled: true, queryKey: ["/api/companies"] }
+    query: {
+      enabled: true,
+      queryKey: ["/api/companies"],
+      // Auto-sync every 30 s so newly-added companies appear without a manual refresh
+      refetchInterval: 30_000,
+      staleTime: 0,
+      refetchOnWindowFocus: true,
+    }
   })
 
   const companies: ActiveCompany[] = React.useMemo(

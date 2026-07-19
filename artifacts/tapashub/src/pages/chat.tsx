@@ -424,6 +424,51 @@ export default function ChatPage() {
           </div>
         </div>
 
+        {/* Company switcher — only shown when there is more than one workspace */}
+        {companies.length > 1 && (
+          <div className="px-3 pt-2.5 pb-1">
+            <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+              {companies.map((c) => {
+                const isActive = c.id.toString() === selectedCompanyId
+                const abbr = c.name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)
+                return (
+                  <button
+                    key={c.id}
+                    data-compact
+                    title={c.name}
+                    onClick={() => {
+                      setSelectedCompanyId(c.id.toString())
+                      setSelectedChannel(null)
+                      setMobileView("list")
+                    }}
+                    className={cn(
+                      "btn-compact shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap",
+                      isActive
+                        ? "text-white border-transparent shadow-md"
+                        : "text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/60"
+                    )}
+                    style={isActive ? {
+                      background: `linear-gradient(135deg, ${BRAND_BLUE}, ${BRAND_BLUE_DARK})`,
+                      boxShadow: `0 3px 10px ${BRAND_BLUE}40`,
+                    } : {}}
+                  >
+                    <span
+                      className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black shrink-0"
+                      style={{
+                        background: isActive ? "rgba(255,255,255,0.25)" : `${BRAND_BLUE}20`,
+                        color: isActive ? "#fff" : BRAND_BLUE,
+                      }}
+                    >
+                      {abbr}
+                    </span>
+                    <span className="truncate max-w-[80px]">{c.name}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Filter tabs */}
         <div className="flex gap-1 px-3 py-2.5">
           {(["all", "direct", "groups", "unread"] as const).map((f) => (

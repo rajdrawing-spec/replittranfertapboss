@@ -4,100 +4,93 @@ import { io, type Socket } from "socket.io-client"
 import { useCompany } from "@/contexts/company-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { useDmNotification } from "@/contexts/dm-notification-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { EmptyState } from "@/components/empty-state"
-import { ChatSkeleton } from "@/components/skeletons"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useMeeting } from "@/contexts/meeting-context"
+import { cn } from "@/lib/utils"
 import {
   MessageSquare, Pin, Search, Send, Paperclip, Megaphone, User, Video, Phone, Briefcase, X, Building2,
-  Sparkles, Loader2, ChevronLeft, ClipboardList, CalendarClock, Repeat,
+  Sparkles, Loader2, ChevronLeft, ClipboardList, CalendarClock, Repeat, Plus, Smile, Mic,
+  Hash, Users,
 } from "lucide-react"
 
+/* ─────────────────────────────── Types ─────────────────────────────────── */
 interface UpcomingMeeting {
-  id: number
-  meetingId: string
-  title: string
-  scheduledAt: string | null
-  duration: number
-  status: string
-  isRecurring: boolean
-  recurrence: string | null
-  organizerId: number
+  id: number; meetingId: string; title: string; scheduledAt: string | null
+  duration: number; status: string; isRecurring: boolean; recurrence: string | null; organizerId: number
 }
-
 interface ChatChannel {
-  id: number
-  type: "team" | "department" | "direct" | "project"
-  name: string
-  department?: string
-  projectId?: number
-  unread: number
+  id: number; type: "team" | "department" | "direct" | "project"; name: string
+  department?: string; projectId?: number; unread: number
 }
-
 interface ChatMessage {
-  id: number
-  channelId: number
-  userId: number
-  displayName: string
-  content: string
-  replyToId?: number
-  attachments: Array<{ name: string; objectPath: string; contentType: string; size?: number }>
-  reactions: Record<string, number[]>
-  mentions: number[]
-  isAnnouncement: boolean
-  isPinned: boolean
-  editedAt: string | null
-  createdAt: string
+  id: number; channelId: number; userId: number; displayName: string; content: string
+  replyToId?: number; attachments: Array<{ name: string; objectPath: string; contentType: string; size?: number }>
+  reactions: Record<string, number[]>; mentions: number[]; isAnnouncement: boolean
+  isPinned: boolean; editedAt: string | null; createdAt: string
 }
-
-interface ChatUser {
-  id: number
-  name: string
-  email: string
-}
-
+interface ChatUser { id: number; name: string; email: string }
 interface MeetingActionItem {
-  title: string
-  description?: string
-  assigneeName?: string
-  priority?: string
-  dueDate?: string
-  taskId?: number
+  title: string; description?: string; assigneeName?: string
+  priority?: string; dueDate?: string; taskId?: number
 }
-
 interface MeetingNoteSummary {
-  id: number
-  meetingId: string
-  channelId: number | null
-  title: string
-  summary: string | null
-  actionItems: MeetingActionItem[]
-  status: "processing" | "done" | "failed"
-  error: string | null
-  createdAt: string
+  id: number; meetingId: string; channelId: number | null; title: string
+  summary: string | null; actionItems: MeetingActionItem[]
+  status: "processing" | "done" | "failed"; error: string | null; createdAt: string
+}
+interface MeetingNoteDetail extends MeetingNoteSummary { transcript: string | null; notes: string | null }
+
+/* ─────────────────────────── Brand palette ─────────────────────────────── */
+// TapasHub: #111111 black | #FFFFFF white | #2DA8FF primary blue | #0F1115 dark bg
+// Used via inline styles so they work in both light and dark mode.
+
+const BRAND_BLUE = "#2DA8FF"
+const EMOJIS = ["👍", "❤️", "😂", "🎉", "🔥", "👏", "😮", "🚀"]
+
+/* ─────────────────────────── Helpers ───────────────────────────────────── */
+function initials(name: string) {
+  return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)
+}
+function timeAgo(date: string) {
+  const d = Date.now() - new Date(date).getTime()
+  if (d < 60_000) return "just now"
+  if (d < 3_600_000) return `${Math.floor(d / 60_000)}m ago`
+  if (d < 86_400_000) return `${Math.floor(d / 3_600_000)}h ago`
+  return new Date(date).toLocaleDateString()
 }
 
-interface MeetingNoteDetail extends MeetingNoteSummary {
-  transcript: string | null
-  notes: string | null
+/* ─────────────────────────── Reusable avatar ───────────────────────────── */
+function Avatar({ name, size = 36, blue = false }: { name: string; size?: number; blue?: boolean }) {
+  return (
+    <div
+      style={{
+        width: size, height: size, borderRadius: "50%", flexShrink: 0,
+        background: blue ? BRAND_BLUE : "linear-gradient(135deg,#2DA8FF22,#2DA8FF55)",
+        border: `1.5px solid ${BRAND_BLUE}44`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: size * 0.35, fontWeight: 700, color: BRAND_BLUE,
+      }}
+    >
+      {initials(name)}
+    </div>
+  )
 }
 
-const EMOJIS = ["👍", "❤️", "😂", "🎉", "🤔", "👀"]
-
+/* ─────────────────────────────── Main Page ─────────────────────────────── */
 export default function ChatPage() {
   const { activeCompany, companies, isParentView } = useCompany()
   const { user } = useAuth()
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { startCall, activeCall } = useMeeting()
+  const { setActiveChannelId } = useDmNotification()
   const parentCompany = companies.find((c) => c.mode === "parent")
 
-  // In the parent view, let the user pick which workspace to chat in.
   const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>(
     activeCompany?.id?.toString() ?? parentCompany?.id?.toString() ?? "",
   )
@@ -122,12 +115,6 @@ export default function ChatPage() {
   const [searchResults, setSearchResults] = React.useState<ChatMessage[]>([])
   const [usersOpen, setUsersOpen] = React.useState(false)
   const [dmQuery, setDmQuery] = React.useState("")
-  const [mentionQuery, setMentionQuery] = React.useState<string | null>(null)
-  const [showMentions, setShowMentions] = React.useState(false)
-  const [notesOpen, setNotesOpen] = React.useState(false)
-  const [notesQuery, setNotesQuery] = React.useState("")
-  const [openNoteId, setOpenNoteId] = React.useState<number | null>(null)
-  const [startingCall, setStartingCall] = React.useState<"voice" | "video" | null>(null)
   const [scheduleOpen, setScheduleOpen] = React.useState(false)
   const [showScheduleForm, setShowScheduleForm] = React.useState(false)
   const [schedTitle, setSchedTitle] = React.useState("")
@@ -137,8 +124,24 @@ export default function ChatPage() {
   const [schedParticipants, setSchedParticipants] = React.useState<number[]>([])
   const [schedSaving, setSchedSaving] = React.useState(false)
   const [joiningId, setJoiningId] = React.useState<string | null>(null)
+  const [notesOpen, setNotesOpen] = React.useState(false)
+  const [notesQuery, setNotesQuery] = React.useState("")
+  const [openNoteId, setOpenNoteId] = React.useState<number | null>(null)
   const [replyTo, setReplyTo] = React.useState<ChatMessage | null>(null)
+  const [showMentions, setShowMentions] = React.useState(false)
+  const [mentionQuery, setMentionQuery] = React.useState<string | null>(null)
+  const [startingCall, setStartingCall] = React.useState<"voice" | "video" | null>(null)
+  const [assigningIndex, setAssigningIndex] = React.useState<number | null>(null)
+  const [retryingNote, setRetryingNote] = React.useState(false)
+  const [channelFilter, setChannelFilter] = React.useState<"all" | "direct" | "groups" | "unread">("all")
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
+
+  // Tell the global DM notification listener which channel is active so it
+  // doesn't pop a toast for messages the user is already reading.
+  React.useEffect(() => {
+    setActiveChannelId(selectedChannel?.id ?? null)
+    return () => setActiveChannelId(null)
+  }, [selectedChannel?.id, setActiveChannelId])
 
   const { data: channels, isLoading: isLoadingChannels } = useQuery<ChatChannel[]>({
     queryKey: ["/api/chat/channels", companyId],
@@ -160,7 +163,6 @@ export default function ChatPage() {
     enabled: !!companyId,
   })
 
-  // ── Scheduled / upcoming meetings ──────────────────────────────────────────
   const { data: upcomingMeetings, isLoading: isLoadingUpcoming } = useQuery<UpcomingMeeting[]>({
     queryKey: ["/api/meetings/upcoming", companyId],
     queryFn: async () => {
@@ -171,81 +173,26 @@ export default function ChatPage() {
     enabled: !!companyId && scheduleOpen,
   })
 
-  // ── AI Meeting Notes ────────────────────────────────────────────────────────
   const { data: meetingNotes, isLoading: isLoadingNotes } = useQuery<MeetingNoteSummary[]>({
     queryKey: ["/api/meetings/notes", companyId, notesQuery],
     queryFn: async () => {
-      const params = new URLSearchParams({ companyId: String(companyId) })
-      if (notesQuery.trim()) params.set("q", notesQuery.trim())
-      const res = await fetch(`/api/meetings/notes?${params}`, { credentials: "include" })
+      const q = notesQuery ? `&q=${encodeURIComponent(notesQuery)}` : ""
+      const res = await fetch(`/api/meetings/notes?companyId=${companyId}${q}`, { credentials: "include" })
       if (!res.ok) throw new Error(await res.text())
       return res.json()
     },
     enabled: !!companyId && notesOpen,
-    // Auto-refresh while any note is still processing so the list updates
-    // when the AI finishes (or fails) without the user reopening the dialog.
-    refetchInterval: (query) =>
-      query.state.data?.some((n) => n.status === "processing") ? 5_000 : false,
   })
 
-  // Employees list for manually assigning unmatched action items
   const { data: employeesData } = useQuery<{ items: Array<{ id: number; firstName: string; lastName: string }> }>({
-    queryKey: ["/api/employees", companyId, "for-assign"],
+    queryKey: ["/api/hr/employees", companyId, 1],
     queryFn: async () => {
-      const res = await fetch(`/api/employees?companyId=${companyId}&limit=200`, { credentials: "include" })
+      const res = await fetch(`/api/hr/employees?companyId=${companyId}&page=1&limit=100`, { credentials: "include" })
       if (!res.ok) throw new Error(await res.text())
       return res.json()
     },
-    enabled: !!companyId && !!openNoteId,
+    enabled: !!companyId && notesOpen && !!openNoteId,
   })
-
-  const [retryingNote, setRetryingNote] = React.useState(false)
-  const retryNote = async () => {
-    if (!openNoteId || retryingNote) return
-    setRetryingNote(true)
-    try {
-      const res = await fetch(`/api/meetings/notes/${openNoteId}/retry`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        toast({ title: "Could not retry", description: err.error || "Retry failed", variant: "destructive" })
-        return
-      }
-      toast({ title: "Retrying AI notes", description: "The recording is being re-processed — this page refreshes automatically." })
-      queryClient.invalidateQueries({ queryKey: ["/api/meetings/notes", companyId] })
-      queryClient.invalidateQueries({ queryKey: ["/api/meetings/notes", companyId, "detail", openNoteId] })
-    } finally {
-      setRetryingNote(false)
-    }
-  }
-
-  const [assigningIndex, setAssigningIndex] = React.useState<number | null>(null)
-  const assignActionItem = async (itemIndex: number, employeeId: string) => {
-    if (!openNoteId || assigningIndex !== null) return
-    setAssigningIndex(itemIndex)
-    try {
-      const res = await fetch(`/api/meetings/notes/${openNoteId}/action-items/${itemIndex}/assign`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, employeeId: Number(employeeId) }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        toast({ title: "Could not assign", description: err.error || "Assignment failed", variant: "destructive" })
-        return
-      }
-      toast({ title: "Action item assigned", description: "A task was created and the assignee was notified." })
-      queryClient.invalidateQueries({ queryKey: ["/api/meetings/notes", companyId] })
-      queryClient.invalidateQueries({ queryKey: ["/api/meetings/notes", companyId, "detail", openNoteId] })
-    } finally {
-      setAssigningIndex(null)
-    }
-  }
 
   const { data: openNote } = useQuery<MeetingNoteDetail>({
     queryKey: ["/api/meetings/notes", companyId, "detail", openNoteId],
@@ -255,22 +202,15 @@ export default function ChatPage() {
       return res.json()
     },
     enabled: !!companyId && !!openNoteId,
-    // Auto-refresh an open note while the AI is still working on it.
     refetchInterval: (query) => (query.state.data?.status === "processing" ? 5_000 : false),
   })
 
-  // Keep the currently-selected channel in a ref so socket event handlers can
-  // read it without forcing the socket to be torn down on every channel switch.
   const selectedChannelRef = React.useRef(selectedChannel)
   selectedChannelRef.current = selectedChannel
 
   React.useEffect(() => {
     if (!companyId || !userId) return
-    // Socket tokens are single-use on the server: `auth` must be a *function*
-    // so every connection AND automatic reconnection fetches a fresh token.
     const s: Socket = io({
-      // /api/socket.io so the connection follows the same routing as all API
-      // calls (works in dev AND in the deployed app).
       path: "/api/socket.io",
       auth: (cb: (data: object) => void) => {
         fetch(`/api/chat/token`, { credentials: "include" })
@@ -284,16 +224,11 @@ export default function ChatPage() {
     })
     s.on("connect", () => {
       s.emit("join", { companyId }, (res: any) => {
-        if (!res.ok) {
-          toast({ title: "Chat join failed", description: res.error, variant: "destructive" })
-          return
-        }
+        if (!res.ok) { toast({ title: "Chat join failed", description: res.error, variant: "destructive" }); return }
         const ch = selectedChannelRef.current
-        if (ch) {
-          s.emit("join:channel", { channelId: ch.id }, (joinRes: any) => {
-            if (!joinRes.ok) toast({ title: "Join channel failed", description: joinRes.error, variant: "destructive" })
-          })
-        }
+        if (ch) s.emit("join:channel", { channelId: ch.id }, (joinRes: any) => {
+          if (!joinRes.ok) toast({ title: "Join channel failed", description: joinRes.error, variant: "destructive" })
+        })
       })
     })
     s.on("message:new", (msg: ChatMessage) => {
@@ -318,11 +253,7 @@ export default function ChatPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/chat/channels", companyId] })
     })
     setSocket(s)
-
-    return () => {
-      s.disconnect()
-      setSocket(null)
-    }
+    return () => { s.disconnect(); setSocket(null) }
   }, [companyId, userId, queryClient, toast])
 
   React.useEffect(() => {
@@ -341,8 +272,7 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  // ── Auto-join when navigated here with ?join=<meetingId> ───────────────────
-  // (Deep links to /meetings redirect here and preserve the param.)
+  // Auto-join from ?join= deep link
   const autoJoinAttempted = React.useRef(false)
   React.useEffect(() => {
     if (autoJoinAttempted.current || !companyId || activeCall) return
@@ -353,9 +283,7 @@ export default function ChatPage() {
     const url = new URL(window.location.href)
     url.searchParams.delete("join")
     window.history.replaceState(null, "", url.toString())
-    fetch(`/api/meetings/token?roomName=${encodeURIComponent(joinId)}&companyId=${companyId}`, {
-      credentials: "include",
-    })
+    fetch(`/api/meetings/token?roomName=${encodeURIComponent(joinId)}&companyId=${companyId}`, { credentials: "include" })
       .then(async (r) => {
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Failed to get token")
         return r.json()
@@ -385,9 +313,7 @@ export default function ChatPage() {
     const mentionIds: number[] = []
     if (channelUsers) {
       for (const u of channelUsers) {
-        if (input.includes(`@${u.name}`) || input.includes(`@${u.email.split("@")[0]}`)) {
-          mentionIds.push(u.id)
-        }
+        if (input.includes(`@${u.name}`) || input.includes(`@${u.email.split("@")[0]}`)) mentionIds.push(u.id)
       }
     }
     socket.emit("message:send", { channelId: selectedChannel.id, content: input, mentions: mentionIds, replyToId: replyTo?.id }, (res: any) => {
@@ -412,8 +338,7 @@ export default function ChatPage() {
 
   const startDirect = async (otherUserId: number) => {
     const res = await fetch(`/api/chat/direct`, {
-      method: "POST",
-      credentials: "include",
+      method: "POST", credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ companyId, userId: otherUserId }),
     })
@@ -426,15 +351,11 @@ export default function ChatPage() {
     }
   }
 
-  // ── Scheduled meetings: join + create ──────────────────────────────────────
   const joinScheduledMeeting = async (meetingId: string, title: string) => {
     if (activeCall || joiningId) return
     setJoiningId(meetingId)
     try {
-      const tokenRes = await fetch(
-        `/api/meetings/token?roomName=${encodeURIComponent(meetingId)}&companyId=${companyId}`,
-        { credentials: "include" },
-      )
+      const tokenRes = await fetch(`/api/meetings/token?roomName=${encodeURIComponent(meetingId)}&companyId=${companyId}`, { credentials: "include" })
       if (!tokenRes.ok) {
         const err = await tokenRes.json().catch(() => ({}))
         toast({ title: "Could not join", description: err.error || "Failed to get call token", variant: "destructive" })
@@ -445,32 +366,24 @@ export default function ChatPage() {
       startCall({ meetingId, title, companyId: companyId! }, token, serverUrl)
       queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
       setScheduleOpen(false)
-    } finally {
-      setJoiningId(null)
-    }
+    } finally { setJoiningId(null) }
   }
 
   const submitSchedule = async () => {
     if (!schedTitle.trim() || !schedWhen || schedSaving) return
     const when = new Date(schedWhen)
     if (isNaN(when.getTime()) || when.getTime() < Date.now()) {
-      toast({ title: "Pick a future date and time", variant: "destructive" })
-      return
+      toast({ title: "Pick a future date and time", variant: "destructive" }); return
     }
     setSchedSaving(true)
     try {
       const res = await fetch(`/api/meetings`, {
-        method: "POST",
-        credentials: "include",
+        method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          companyId,
-          title: schedTitle.trim(),
-          scheduledAt: when.toISOString(),
-          duration: Number(schedDuration) || 30,
-          participantIds: schedParticipants,
-          isRecurring: schedRecurrence !== "none",
-          recurrence: schedRecurrence !== "none" ? schedRecurrence : undefined,
+          companyId, title: schedTitle.trim(), scheduledAt: when.toISOString(),
+          duration: Number(schedDuration) || 30, participantIds: schedParticipants,
+          isRecurring: schedRecurrence !== "none", recurrence: schedRecurrence !== "none" ? schedRecurrence : undefined,
         }),
       })
       if (!res.ok) {
@@ -482,326 +395,554 @@ export default function ChatPage() {
       setShowScheduleForm(false)
       setSchedTitle(""); setSchedWhen(""); setSchedDuration("30"); setSchedRecurrence("none"); setSchedParticipants([])
       queryClient.invalidateQueries({ queryKey: ["/api/meetings/upcoming", companyId] })
-    } finally {
-      setSchedSaving(false)
-    }
+    } finally { setSchedSaving(false) }
   }
 
-  // ── One-click calls from chat ───────────────────────────────────────────────
-  // Creates a meeting linked to this channel; the server invites every channel
-  // member (ringing popup) and this user joins immediately.
   const startChannelCall = async (video: boolean) => {
     if (!selectedChannel || startingCall) return
     setStartingCall(video ? "video" : "voice")
     try {
       const res = await fetch(`/api/meetings`, {
-        method: "POST",
-        credentials: "include",
+        method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyId,
-          channelId: selectedChannel.id,
-          title: `${selectedChannel.name} ${video ? "Call" : "Voice Call"}`,
-        }),
+        body: JSON.stringify({ companyId, channelId: selectedChannel.id, title: `${selectedChannel.name} ${video ? "Call" : "Voice Call"}` }),
       })
-      if (!res.ok) {
-        toast({ title: "Failed to start call", description: await res.text(), variant: "destructive" })
-        return
-      }
+      if (!res.ok) { toast({ title: "Failed to start call", description: await res.text(), variant: "destructive" }); return }
       const meeting = await res.json()
-      const tokenRes = await fetch(
-        `/api/meetings/token?roomName=${encodeURIComponent(meeting.meetingId)}&companyId=${companyId}`,
-        { credentials: "include" },
-      )
-      if (!tokenRes.ok) {
-        toast({ title: "Call created, but failed to join", description: await tokenRes.text(), variant: "destructive" })
-        return
-      }
+      const tokenRes = await fetch(`/api/meetings/token?roomName=${encodeURIComponent(meeting.meetingId)}&companyId=${companyId}`, { credentials: "include" })
+      if (!tokenRes.ok) { toast({ title: "Call created, but failed to join", description: await tokenRes.text(), variant: "destructive" }); return }
       const { token, serverUrl } = await tokenRes.json()
       await fetch(`/api/meetings/join/${meeting.meetingId}`, { method: "POST", credentials: "include" })
-      startCall(
-        { id: meeting.id, meetingId: meeting.meetingId, title: meeting.title, companyId: companyId! },
-        token,
-        serverUrl,
-        { video },
-      )
+      startCall({ id: meeting.id, meetingId: meeting.meetingId, title: meeting.title, companyId: companyId! }, token, serverUrl, { video })
       queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
-    } finally {
-      setStartingCall(null)
-    }
+    } finally { setStartingCall(null) }
   }
+
+  const retryNote = async () => {
+    if (!openNoteId || !companyId || retryingNote) return
+    setRetryingNote(true)
+    try {
+      const res = await fetch(`/api/meetings/notes/${openNoteId}/retry?companyId=${companyId}`, { method: "POST", credentials: "include" })
+      if (!res.ok) { toast({ title: "Retry failed", variant: "destructive" }); return }
+      toast({ title: "AI notes retriggered — processing…" })
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings/notes", companyId, "detail", openNoteId] })
+    } finally { setRetryingNote(false) }
+  }
+
+  const assignActionItem = async (index: number, employeeId: string) => {
+    if (!openNoteId || !companyId || assigningIndex !== null) return
+    setAssigningIndex(index)
+    try {
+      const res = await fetch(`/api/meetings/notes/${openNoteId}/assign-task`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, actionItemIndex: index, employeeId: Number(employeeId) }),
+      })
+      if (!res.ok) { toast({ title: "Failed to assign task", variant: "destructive" }); return }
+      toast({ title: "Task created and assigned" })
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings/notes", companyId, "detail", openNoteId] })
+    } finally { setAssigningIndex(null) }
+  }
+
+  /* ── Filter helpers ── */
+  const filteredChannels = React.useMemo(() => {
+    if (!channels) return []
+    return channels.filter((ch) => {
+      if (channelFilter === "direct") return ch.type === "direct"
+      if (channelFilter === "groups") return ch.type !== "direct"
+      if (channelFilter === "unread") return ch.unread > 0
+      return true
+    })
+  }, [channels, channelFilter])
+
+  const totalUnread = channels?.reduce((s, c) => s + c.unread, 0) ?? 0
 
   if (!companyId) {
     return (
-      <div className="p-4 md:p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <MessageSquare className="h-6 w-6" /> Team
-          </h1>
+      <div className="flex flex-col items-center justify-center h-[60vh] gap-6">
+        <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center"
+          style={{ background: `${BRAND_BLUE}22` }}
+        >
+          <MessageSquare className="h-8 w-8" style={{ color: BRAND_BLUE }} />
         </div>
-        <Card>
-          <CardContent className="p-6 space-y-4">
-            <div className="flex justify-center">
-              <Building2 className="h-12 w-12 text-muted-foreground" />
-            </div>
-            <div className="text-center space-y-1">
-              <p className="text-lg font-medium">Select a workspace</p>
-              <p className="text-sm text-muted-foreground">Choose a company or subsidiary to start chatting.</p>
-            </div>
-            <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
-              <SelectTrigger className="w-full max-w-md mx-auto">
-                <SelectValue placeholder="Choose a workspace" />
-              </SelectTrigger>
-              <SelectContent>
-                {companies.map((c) => (
-                  <SelectItem key={c.id} value={c.id.toString()}>
-                    {c.name} {c.mode === "parent" ? "(Parent)" : "(Subsidiary)"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
+        <div className="text-center space-y-1">
+          <p className="text-lg font-semibold">Select a workspace</p>
+          <p className="text-sm text-muted-foreground">Choose a company to start chatting.</p>
+        </div>
+        <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+          <SelectTrigger className="w-64">
+            <SelectValue placeholder="Choose a workspace" />
+          </SelectTrigger>
+          <SelectContent>
+            {companies.map((c) => (
+              <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     )
   }
 
   if (isLoadingChannels) {
-    return <ChatSkeleton />
+    return (
+      <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" style={{ color: BRAND_BLUE }} />
+      </div>
+    )
   }
 
+  /* ───────────────────────────────── RENDER ─────────────────────────────── */
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col md:flex-row gap-4 p-4 md:p-6">
-      <Card className="w-full md:w-64 shrink-0 flex flex-col">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" /> Team
-            </span>
-            {isParentView && companies.length > 0 && (
-              <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
-                <SelectTrigger className="w-28 h-8 text-xs">
-                  <SelectValue placeholder="Workspace" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((c) => (
-                    <SelectItem key={c.id} value={c.id.toString()} className="text-xs">
-                      {c.name} {c.mode === "parent" ? "(Parent)" : "(Subsidiary)"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+    <div className="flex h-[calc(100vh-5rem)] overflow-hidden rounded-2xl border border-border/60 shadow-xl bg-card">
+
+      {/* ── Sidebar ── */}
+      <div className="w-72 shrink-0 flex flex-col border-r border-border/60 bg-card">
+        {/* Sidebar header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
+          <span className="font-bold text-base">Chats</span>
+          <div className="flex items-center gap-1">
+            {totalUnread > 0 && (
+              <Badge
+                className="text-[10px] h-5 px-1.5"
+                style={{ background: BRAND_BLUE, color: "#fff", border: "none" }}
+              >
+                {totalUnread}
+              </Badge>
             )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 overflow-y-auto space-y-1">
-          {channels?.map((channel) => (
-            <button
-              key={channel.id}
-              onClick={() => setSelectedChannel(channel)}
-              className={`w-full flex items-center justify-between rounded-md px-3 py-2 text-sm text-left transition-colors ${
-                selectedChannel?.id === channel.id ? "bg-primary text-primary-foreground" : "hover:bg-muted"
-              }`}
+            <Button
+              variant="ghost" size="icon" className="h-7 w-7"
+              style={{ color: BRAND_BLUE }}
+              title="New direct message"
+              onClick={() => setUsersOpen(true)}
             >
-              <span className="truncate">{channel.name}</span>
-              {channel.unread > 0 && <Badge variant="secondary" className="ml-2 shrink-0">{channel.unread}</Badge>}
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Filter tabs */}
+        <div className="flex gap-1 px-3 py-2">
+          {(["all", "direct", "groups", "unread"] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setChannelFilter(f)}
+              className={cn(
+                "flex-1 text-[11px] font-medium py-1 rounded-md capitalize transition-all",
+                channelFilter === f
+                  ? "text-white"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              )}
+              style={channelFilter === f ? { background: BRAND_BLUE } : {}}
+            >
+              {f}
             </button>
           ))}
-        </CardContent>
-        <div className="p-3 border-t space-y-2">
-          <Button variant="outline" size="sm" className="w-full" onClick={() => setUsersOpen(true)}>
-            <User className="mr-2 h-4 w-4" /> Direct Message
-          </Button>
-          <Button variant="outline" size="sm" className="w-full" onClick={() => setSearchOpen(true)}>
-            <Search className="mr-2 h-4 w-4" /> Search Messages
-          </Button>
-          <Button variant="outline" size="sm" className="w-full" onClick={() => { setScheduleOpen(true); setShowScheduleForm(false) }}>
-            <CalendarClock className="mr-2 h-4 w-4" /> Scheduled Meetings
-          </Button>
-          <Button variant="outline" size="sm" className="w-full" onClick={() => { setNotesOpen(true); setOpenNoteId(null) }}>
-            <Sparkles className="mr-2 h-4 w-4" /> Meeting Notes
-          </Button>
         </div>
-      </Card>
 
-      <Card className="flex-1 flex flex-col min-h-0">
-        <CardHeader className="pb-2 border-b shrink-0">
-          <CardTitle className="text-base flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              {selectedChannel?.type === "direct" && <User className="h-4 w-4" />}
-              {selectedChannel?.type === "department" && <MessageSquare className="h-4 w-4" />}
-              {selectedChannel?.type === "team" && <Megaphone className="h-4 w-4" />}
-              {selectedChannel?.type === "project" && <Briefcase className="h-4 w-4" />}
-              {selectedChannel?.name || "Select a channel"}
-            </span>
-            {selectedChannel && (
+        {/* Channel list */}
+        <div className="flex-1 overflow-y-auto px-2 space-y-0.5 py-1">
+          {filteredChannels.length === 0 ? (
+            <div className="text-center text-xs text-muted-foreground py-8">
+              {channelFilter === "unread" ? "No unread messages" : "No channels yet"}
+            </div>
+          ) : (
+            filteredChannels.map((ch) => {
+              const isSelected = selectedChannel?.id === ch.id
+              const icon = ch.type === "direct" ? <User className="h-3.5 w-3.5 shrink-0" />
+                : ch.type === "team" ? <Users className="h-3.5 w-3.5 shrink-0" />
+                : ch.type === "department" ? <Hash className="h-3.5 w-3.5 shrink-0" />
+                : <Briefcase className="h-3.5 w-3.5 shrink-0" />
+              return (
+                <button
+                  key={ch.id}
+                  onClick={() => setSelectedChannel(ch)}
+                  className={cn(
+                    "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-left transition-all",
+                    isSelected
+                      ? "text-white shadow-sm"
+                      : "hover:bg-muted/60 text-foreground"
+                  )}
+                  style={isSelected ? { background: BRAND_BLUE } : {}}
+                >
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0"
+                    style={{
+                      background: isSelected ? "rgba(255,255,255,0.2)" : `${BRAND_BLUE}18`,
+                      color: isSelected ? "#fff" : BRAND_BLUE,
+                    }}
+                  >
+                    {initials(ch.name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={cn("font-medium text-sm truncate flex items-center gap-1.5")}>
+                      {icon}
+                      {ch.name}
+                    </div>
+                    <div className={cn("text-xs truncate", isSelected ? "text-white/70" : "text-muted-foreground")}>
+                      {ch.type === "direct" ? "Direct message" : ch.type}
+                    </div>
+                  </div>
+                  {ch.unread > 0 && (
+                    <Badge
+                      className="text-[10px] h-5 px-1.5 shrink-0"
+                      style={isSelected
+                        ? { background: "rgba(255,255,255,0.3)", color: "#fff", border: "none" }
+                        : { background: BRAND_BLUE, color: "#fff", border: "none" }}
+                    >
+                      {ch.unread}
+                    </Badge>
+                  )}
+                </button>
+              )
+            })
+          )}
+        </div>
+
+        {/* Sidebar actions */}
+        <div className="p-3 border-t border-border/60 space-y-1">
+          {[
+            { icon: User, label: "Direct Message", action: () => setUsersOpen(true) },
+            { icon: Search, label: "Search Messages", action: () => setSearchOpen(true) },
+            { icon: CalendarClock, label: "Scheduled Meetings", action: () => { setScheduleOpen(true); setShowScheduleForm(false) } },
+            { icon: Sparkles, label: "Meeting Notes", action: () => { setNotesOpen(true); setOpenNoteId(null) } },
+          ].map(({ icon: Icon, label, action }) => (
+            <button
+              key={label}
+              onClick={action}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
+            >
+              <Icon className="h-4 w-4" style={{ color: BRAND_BLUE }} />
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Chat area ── */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {!selectedChannel ? (
+          /* Empty state */
+          <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-8">
+            <div
+              className="w-20 h-20 rounded-2xl flex items-center justify-center"
+              style={{ background: `${BRAND_BLUE}18` }}
+            >
+              <MessageSquare className="h-10 w-10" style={{ color: BRAND_BLUE }} />
+            </div>
+            <div>
+              <p className="text-lg font-semibold mb-1">Select a conversation</p>
+              <p className="text-sm text-muted-foreground">Choose a channel from the left or start a direct message.</p>
+            </div>
+            <Button
+              onClick={() => setUsersOpen(true)}
+              style={{ background: BRAND_BLUE, color: "#fff" }}
+              className="rounded-xl"
+            >
+              <Plus className="h-4 w-4 mr-2" /> New Direct Message
+            </Button>
+          </div>
+        ) : (
+          <>
+            {/* Chat header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border/60 bg-card shrink-0">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold"
+                  style={{ background: `${BRAND_BLUE}18`, color: BRAND_BLUE }}
+                >
+                  {initials(selectedChannel.name)}
+                </div>
+                <div>
+                  <div className="font-semibold flex items-center gap-1.5">
+                    {selectedChannel.type === "direct" && <User className="h-3.5 w-3.5" style={{ color: BRAND_BLUE }} />}
+                    {selectedChannel.type === "team" && <Users className="h-3.5 w-3.5" style={{ color: BRAND_BLUE }} />}
+                    {selectedChannel.type === "department" && <Hash className="h-3.5 w-3.5" style={{ color: BRAND_BLUE }} />}
+                    {selectedChannel.name}
+                  </div>
+                  <div className="text-xs text-muted-foreground capitalize">{selectedChannel.type} channel</div>
+                </div>
+              </div>
               <div className="flex items-center gap-1">
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  title="Start voice call"
+                  variant="ghost" size="icon" className="h-9 w-9 rounded-xl"
+                  title="Voice call"
                   disabled={!!startingCall || !!activeCall}
                   onClick={() => startChannelCall(false)}
+                  style={{ color: BRAND_BLUE }}
                 >
                   {startingCall === "voice" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
                 </Button>
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  title="Start video call"
+                  variant="ghost" size="icon" className="h-9 w-9 rounded-xl"
+                  title="Video call"
                   disabled={!!startingCall || !!activeCall}
                   onClick={() => startChannelCall(true)}
+                  style={{ color: BRAND_BLUE }}
                 >
                   {startingCall === "video" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
                 </Button>
+                <Button
+                  variant="ghost" size="icon" className="h-9 w-9 rounded-xl"
+                  title="Search messages"
+                  onClick={() => setSearchOpen(true)}
+                  style={{ color: BRAND_BLUE }}
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
               </div>
-            )}
-          </CardTitle>
-        </CardHeader>
+            </div>
 
-        <CardContent className="flex-1 overflow-y-auto space-y-3 p-4">
-          {!selectedChannel ? (
-            <EmptyState icon={MessageSquare} message="Select a channel" hint="Choose a channel to start chatting, or start a call with the phone and camera buttons." />
-          ) : messages.length === 0 ? (
-            <div className="text-center text-sm text-muted-foreground py-8">No messages yet. Say hello!</div>
-          ) : (
-            messages.map((msg) => (
-              <div key={msg.id} className={`group flex flex-col gap-1 ${msg.isAnnouncement ? "bg-primary/5 rounded-md p-2 border" : ""}`}>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">{msg.displayName}</span>
-                  <span>{new Date(msg.createdAt).toLocaleTimeString()}</span>
-                  {msg.isPinned && <Pin className="h-3 w-3" />}
-                  {msg.editedAt && <span>(edited)</span>}
-                </div>
-                {msg.replyToId && (
-                  <div className="text-xs text-muted-foreground border-l-2 pl-2 mb-1">
-                    Replied to message #{msg.replyToId}
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              {messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+                  <div
+                    className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                    style={{ background: `${BRAND_BLUE}18` }}
+                  >
+                    <MessageSquare className="h-7 w-7" style={{ color: BRAND_BLUE }} />
                   </div>
-                )}
-                <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
-                {msg.attachments?.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {msg.attachments.map((a, i) => (
-                      <a key={i} href={`/api/storage/objects/${a.objectPath}`} target="_blank" rel="noreferrer" className="text-xs text-primary underline">
-                        {a.name}
-                      </a>
+                  <p className="text-sm text-muted-foreground">No messages yet. Say hello! 👋</p>
+                </div>
+              ) : (
+                messages.map((msg) => {
+                  const isOwn = msg.userId === userId
+                  return (
+                    <div key={msg.id} className={cn("flex gap-3", isOwn ? "flex-row-reverse" : "flex-row")}>
+                      {!isOwn && <Avatar name={msg.displayName} size={32} />}
+                      <div className={cn("max-w-[70%] flex flex-col gap-1", isOwn && "items-end")}>
+                        {!isOwn && (
+                          <div className="flex items-center gap-2 px-1">
+                            <span className="text-xs font-semibold" style={{ color: BRAND_BLUE }}>{msg.displayName}</span>
+                            <span className="text-[10px] text-muted-foreground">{new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                            {msg.isPinned && <Pin className="h-3 w-3 text-muted-foreground" />}
+                          </div>
+                        )}
+                        {msg.replyToId && (
+                          <div className="text-xs text-muted-foreground border-l-2 pl-2 ml-1 mb-0.5" style={{ borderColor: BRAND_BLUE }}>
+                            Reply to #{msg.replyToId}
+                          </div>
+                        )}
+                        {msg.isAnnouncement && (
+                          <div
+                            className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full w-fit"
+                            style={{ background: `${BRAND_BLUE}22`, color: BRAND_BLUE }}
+                          >
+                            📢 Announcement
+                          </div>
+                        )}
+                        <div
+                          className="px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap leading-relaxed shadow-sm"
+                          style={isOwn
+                            ? { background: BRAND_BLUE, color: "#fff", borderBottomRightRadius: 4 }
+                            : { background: "var(--card)", border: "1px solid var(--border)", borderBottomLeftRadius: 4 }
+                          }
+                        >
+                          {msg.content}
+                          {isOwn && (
+                            <span className="ml-2 text-[10px] opacity-70">
+                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              {msg.editedAt && " · edited"}
+                            </span>
+                          )}
+                        </div>
+                        {/* Attachments */}
+                        {msg.attachments?.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {msg.attachments.map((a, i) => (
+                              <a
+                                key={i}
+                                href={`/api/storage/objects/${a.objectPath}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-all hover:opacity-80"
+                                style={{ borderColor: `${BRAND_BLUE}44`, color: BRAND_BLUE }}
+                              >
+                                <Paperclip className="h-3 w-3" /> {a.name}
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                        {/* Reactions */}
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {Object.entries(msg.reactions ?? {})
+                            .filter(([, ids]) => ids.length > 0)
+                            .map(([emoji, ids]) => (
+                              <button
+                                key={emoji}
+                                onClick={() => toggleReaction(msg.id, emoji)}
+                                className="flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full border transition-all hover:scale-105"
+                                style={
+                                  ids.includes(userId ?? 0)
+                                    ? { background: `${BRAND_BLUE}22`, borderColor: BRAND_BLUE, color: BRAND_BLUE }
+                                    : { borderColor: "var(--border)" }
+                                }
+                              >
+                                {emoji} <span>{ids.length}</span>
+                              </button>
+                            ))}
+                          <button
+                            className="text-xs px-1.5 py-0.5 rounded-full border border-transparent text-muted-foreground hover:border-border opacity-0 group-hover:opacity-100 transition-all"
+                            onClick={() => toggleReaction(msg.id, "👍")}
+                            title="React"
+                          >
+                            <Smile className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={() => setReplyTo(msg)}
+                          >
+                            Reply
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+              {typingUsers.length > 0 && (
+                <div className="flex items-center gap-2 px-1">
+                  <div className="flex gap-0.5">
+                    {[0, 1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className="w-1.5 h-1.5 rounded-full animate-bounce"
+                        style={{ background: BRAND_BLUE, animationDelay: `${i * 0.15}s` }}
+                      />
                     ))}
                   </div>
-                )}
+                  <span className="text-xs text-muted-foreground">Someone is typing…</span>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Composer */}
+            <div className="px-4 pb-4 pt-2 shrink-0">
+              {replyTo && (
+                <div
+                  className="flex items-center justify-between text-xs mb-2 px-3 py-1.5 rounded-lg"
+                  style={{ background: `${BRAND_BLUE}14`, borderLeft: `3px solid ${BRAND_BLUE}` }}
+                >
+                  <span className="text-muted-foreground">
+                    <span className="font-medium" style={{ color: BRAND_BLUE }}>{replyTo.displayName}:</span>{" "}
+                    {replyTo.content.slice(0, 50)}{replyTo.content.length > 50 ? "…" : ""}
+                  </span>
+                  <button onClick={() => setReplyTo(null)} className="text-muted-foreground hover:text-foreground ml-2">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+              <div
+                className="flex items-end gap-2 rounded-2xl border px-3 py-2.5 transition-all focus-within:border-[#2DA8FF] focus-within:ring-2 focus-within:ring-[#2DA8FF22]"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <div className="flex-1 relative">
+                  <textarea
+                    value={input}
+                    rows={1}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setInput(value)
+                      // Auto-resize
+                      e.target.style.height = "auto"
+                      e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"
+                      const cursor = e.target.selectionStart ?? value.length
+                      const textBeforeCursor = value.slice(0, cursor)
+                      const match = textBeforeCursor.match(/@([\w.]*)$/)
+                      if (match) { setMentionQuery(match[1].toLowerCase()); setShowMentions(true) }
+                      else { setShowMentions(false); setMentionQuery(null) }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage() }
+                    }}
+                    placeholder={replyTo ? "Reply…" : "Type a message… @name to mention"}
+                    className="w-full bg-transparent outline-none resize-none text-sm leading-relaxed placeholder:text-muted-foreground max-h-[120px]"
+                    style={{ minHeight: 24 }}
+                  />
+                  {showMentions && (
+                    <div className="absolute bottom-full left-0 mb-1 w-full max-h-[180px] overflow-y-auto rounded-xl border bg-card shadow-lg z-10 p-1 space-y-0.5">
+                      {(channelUsers?.filter((u) => u.id !== userId).filter((u) => {
+                        const q = (mentionQuery ?? "").toLowerCase()
+                        return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+                      }).length ?? 0) === 0 ? (
+                        <div className="text-xs text-muted-foreground px-2 py-1">No matching members</div>
+                      ) : (
+                        channelUsers?.filter((u) => u.id !== userId)
+                          .filter((u) => {
+                            const q = (mentionQuery ?? "").toLowerCase()
+                            return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+                          })
+                          .slice(0, 6)
+                          .map((u) => (
+                            <button
+                              key={u.id}
+                              onClick={() => insertMention(u.name)}
+                              className="w-full text-left rounded-lg px-3 py-1.5 hover:bg-muted text-sm flex items-center gap-2"
+                            >
+                              <Avatar name={u.name} size={24} />
+                              <div>
+                                <div className="font-medium text-xs">{u.name}</div>
+                                <div className="text-[10px] text-muted-foreground">{u.email}</div>
+                              </div>
+                            </button>
+                          ))
+                      )}
+                    </div>
+                  )}
+                </div>
                 <div className="flex items-center gap-1">
-                  <button className="text-xs text-muted-foreground hover:underline" onClick={() => setReplyTo(msg)}>Reply</button>
-                  {EMOJIS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      onClick={() => toggleReaction(msg.id, emoji)}
-                      className={`text-xs rounded-full px-2 py-0.5 border ${msg.reactions?.[emoji]?.includes(userId ?? 0) ? "bg-primary/20" : "hover:bg-muted"}`}
-                    >
-                      {emoji} {msg.reactions?.[emoji]?.length || 0}
-                    </button>
-                  ))}
+                  <input type="file" multiple className="hidden" id="chat-file-input" />
+                  <label htmlFor="chat-file-input">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" asChild>
+                      <span title="Attach file"><Paperclip className="h-4 w-4 text-muted-foreground" /></span>
+                    </Button>
+                  </label>
+                  <Button
+                    size="icon"
+                    className="h-8 w-8 rounded-xl transition-all"
+                    disabled={!input.trim()}
+                    onClick={sendMessage}
+                    style={{ background: input.trim() ? BRAND_BLUE : undefined }}
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-            ))
-          )}
-          <div ref={messagesEndRef} />
-        </CardContent>
-
-        {selectedChannel && (
-          <div className="border-t p-3 shrink-0">
-            {replyTo && (
-              <div className="flex items-center justify-between text-xs text-muted-foreground mb-2 bg-muted rounded px-2 py-1">
-                <span>Replying to {replyTo.displayName}: {replyTo.content.slice(0, 40)}...</span>
-                <button onClick={() => setReplyTo(null)}><X className="h-3 w-3" /></button>
+              <div className="flex justify-center gap-2 mt-2">
+                {EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => {
+                      if (selectedChannel) {
+                        socket?.emit("message:send", { channelId: selectedChannel.id, content: emoji, mentions: [] }, () => {})
+                      }
+                    }}
+                    className="text-lg hover:scale-125 transition-transform"
+                    title={`Send ${emoji}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
               </div>
-            )}
-            <div className="flex items-center gap-2 relative">
-              <div className="flex-1 relative">
-                <Input
-                  value={input}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    setInput(value)
-                    const cursor = e.target.selectionStart ?? value.length
-                    const textBeforeCursor = value.slice(0, cursor)
-                    const match = textBeforeCursor.match(/@([\w.]*)$/)
-                    if (match) {
-                      setMentionQuery(match[1].toLowerCase())
-                      setShowMentions(true)
-                    } else {
-                      setShowMentions(false)
-                      setMentionQuery(null)
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage() }
-                  }}
-                  placeholder={replyTo ? "Reply..." : "Type a message... @name to mention"}
-                  className="w-full"
-                />
-                {showMentions && (
-                  <div className="absolute bottom-full left-0 mb-1 w-full max-h-[180px] overflow-y-auto rounded-md border bg-popover shadow-md z-10 p-1 space-y-1">
-                    {(channelUsers?.filter((u) => u.id !== userId).filter((u) => {
-                      const q = (mentionQuery ?? "").toLowerCase()
-                      return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
-                    }).length ?? 0) === 0 ? (
-                      <div className="text-xs text-muted-foreground px-2 py-1">No matching members</div>
-                    ) : (
-                      channelUsers
-                        ?.filter((u) => u.id !== userId)
-                        .filter((u) => {
-                          const q = (mentionQuery ?? "").toLowerCase()
-                          return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
-                        })
-                        .slice(0, 6)
-                        .map((u) => (
-                          <button
-                            key={u.id}
-                            onClick={() => insertMention(u.name)}
-                            className="w-full text-left rounded px-2 py-1 hover:bg-muted text-sm"
-                          >
-                            <div className="font-medium">{u.name}</div>
-                            <div className="text-xs text-muted-foreground">{u.email}</div>
-                          </button>
-                        ))
-                    )}
-                  </div>
-                )}
-              </div>
-              <input
-                type="file"
-                multiple
-                className="hidden"
-                id="chat-file-input"
-              />
-              <label htmlFor="chat-file-input">
-                <Button variant="ghost" size="icon" asChild>
-                  <span><Paperclip className="h-4 w-4" /></span>
-                </Button>
-              </label>
-              <Button onClick={sendMessage} disabled={!input.trim()}>
-                <Send className="h-4 w-4" />
-              </Button>
             </div>
-            {typingUsers.length > 0 && (
-              <div className="text-xs text-muted-foreground mt-1">Someone is typing...</div>
-            )}
-          </div>
+          </>
         )}
-      </Card>
+      </div>
 
+      {/* ─────────────────── Dialogs ────────────────────── */}
       <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
         <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Search Messages</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Search Messages</DialogTitle></DialogHeader>
           <div className="flex gap-2">
-            <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()} placeholder="Search..." />
-            <Button onClick={handleSearch}>Search</Button>
+            <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()} placeholder="Search…" />
+            <Button onClick={handleSearch} style={{ background: BRAND_BLUE, color: "#fff" }}>Search</Button>
           </div>
           <div className="max-h-[300px] overflow-y-auto space-y-2">
             {searchResults.map((msg) => (
-              <div key={msg.id} className="rounded-md border p-2 text-sm">
-                <div className="font-medium">{msg.displayName}</div>
+              <div key={msg.id} className="rounded-xl border p-3 text-sm hover:bg-muted/50 transition-colors">
+                <div className="font-medium text-xs mb-0.5" style={{ color: BRAND_BLUE }}>{msg.displayName}</div>
                 <div className="text-muted-foreground">{msg.content}</div>
               </div>
             ))}
@@ -811,29 +952,19 @@ export default function ChatPage() {
 
       <Dialog open={usersOpen} onOpenChange={(o) => { setUsersOpen(o); if (!o) setDmQuery("") }}>
         <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Start Direct Message</DialogTitle>
-          </DialogHeader>
-          <Input
-            placeholder="Search team members…"
-            value={dmQuery}
-            onChange={(e) => setDmQuery(e.target.value)}
-            className="mb-2"
-          />
+          <DialogHeader><DialogTitle>New Direct Message</DialogTitle></DialogHeader>
+          <Input placeholder="Search team members…" value={dmQuery} onChange={(e) => setDmQuery(e.target.value)} className="mb-2" />
           <div className="max-h-[300px] overflow-y-auto space-y-1">
             {isLoadingUsers ? (
-              <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+              <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" style={{ color: BRAND_BLUE }} /></div>
             ) : (
               (channelUsers?.filter((u) => u.id !== userId).filter((u) => {
                 const q = dmQuery.toLowerCase()
                 return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
               })?.length ?? 0) === 0 ? (
-                <div className="text-center text-sm text-muted-foreground py-6">
-                  No team members found in this workspace.
-                </div>
+                <div className="text-center text-sm text-muted-foreground py-6">No team members found.</div>
               ) : (
-                channelUsers
-                  ?.filter((u) => u.id !== userId)
+                channelUsers?.filter((u) => u.id !== userId)
                   .filter((u) => {
                     const q = dmQuery.toLowerCase()
                     return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
@@ -842,10 +973,13 @@ export default function ChatPage() {
                     <button
                       key={u.id}
                       onClick={() => startDirect(u.id)}
-                      className="w-full text-left rounded-md border p-2 hover:bg-muted text-sm"
+                      className="w-full text-left rounded-xl border p-3 hover:bg-muted/60 text-sm flex items-center gap-3 transition-all"
                     >
-                      <div className="font-medium">{u.name}</div>
-                      <div className="text-xs text-muted-foreground">{u.email}</div>
+                      <Avatar name={u.name} size={36} />
+                      <div>
+                        <div className="font-medium">{u.name}</div>
+                        <div className="text-xs text-muted-foreground">{u.email}</div>
+                      </div>
                     </button>
                   ))
               )
@@ -854,27 +988,23 @@ export default function ChatPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Scheduled Meetings ── */}
       <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
         <DialogContent className="sm:max-w-[560px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <CalendarClock className="h-4 w-4" /> Scheduled Meetings
+              <CalendarClock className="h-4 w-4" style={{ color: BRAND_BLUE }} /> Scheduled Meetings
             </DialogTitle>
           </DialogHeader>
-
           {!showScheduleForm ? (
             <>
               <div className="max-h-[360px] overflow-y-auto space-y-2">
                 {isLoadingUpcoming ? (
-                  <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                  <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" style={{ color: BRAND_BLUE }} /></div>
                 ) : !upcomingMeetings?.length ? (
-                  <div className="text-center text-sm text-muted-foreground py-8">
-                    No upcoming meetings. Schedule one below.
-                  </div>
+                  <div className="text-center text-sm text-muted-foreground py-8">No upcoming meetings.</div>
                 ) : (
                   upcomingMeetings.map((m) => (
-                    <div key={m.id} className="rounded-md border p-3 flex items-center justify-between gap-3">
+                    <div key={m.id} className="rounded-xl border p-3 flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <div className="font-medium text-sm truncate flex items-center gap-1.5">
                           {m.title}
@@ -885,20 +1015,14 @@ export default function ChatPage() {
                           {m.recurrence ? ` · ${m.recurrence}` : ""}
                         </div>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="shrink-0"
-                        disabled={!!activeCall || !!joiningId}
-                        onClick={() => joinScheduledMeeting(m.meetingId, m.title)}
-                      >
+                      <Button size="sm" disabled={!!activeCall || !!joiningId} onClick={() => joinScheduledMeeting(m.meetingId, m.title)} style={{ background: BRAND_BLUE, color: "#fff" }}>
                         {joiningId === m.meetingId ? <Loader2 className="h-4 w-4 animate-spin" /> : "Join"}
                       </Button>
                     </div>
                   ))
                 )}
               </div>
-              <Button onClick={() => setShowScheduleForm(true)}>
+              <Button onClick={() => setShowScheduleForm(true)} style={{ background: BRAND_BLUE, color: "#fff" }}>
                 <CalendarClock className="mr-2 h-4 w-4" /> Schedule a Meeting
               </Button>
             </>
@@ -906,11 +1030,7 @@ export default function ChatPage() {
             <div className="space-y-3">
               <Input value={schedTitle} onChange={(e) => setSchedTitle(e.target.value)} placeholder="Meeting title" />
               <div className="grid grid-cols-2 gap-3">
-                <Input
-                  type="datetime-local"
-                  value={schedWhen}
-                  onChange={(e) => setSchedWhen(e.target.value)}
-                />
+                <Input type="datetime-local" value={schedWhen} onChange={(e) => setSchedWhen(e.target.value)} />
                 <Select value={schedDuration} onValueChange={setSchedDuration}>
                   <SelectTrigger><SelectValue placeholder="Duration" /></SelectTrigger>
                   <SelectContent>
@@ -931,20 +1051,16 @@ export default function ChatPage() {
               </Select>
               <div>
                 <div className="text-xs font-medium mb-1">Invite participants</div>
-                <div className="max-h-[160px] overflow-y-auto rounded-md border p-2 space-y-1">
+                <div className="max-h-[160px] overflow-y-auto rounded-xl border p-2 space-y-1">
                   {!channelUsers?.length ? (
-                    <div className="text-xs text-muted-foreground p-1">No other members in this workspace.</div>
+                    <div className="text-xs text-muted-foreground p-1">No other members.</div>
                   ) : (
                     channelUsers.filter((u) => u.id !== userId).map((u) => (
-                      <label key={u.id} className="flex items-center gap-2 text-sm rounded px-1 py-0.5 hover:bg-muted cursor-pointer">
+                      <label key={u.id} className="flex items-center gap-2 text-sm rounded-lg px-2 py-1 hover:bg-muted cursor-pointer">
                         <input
                           type="checkbox"
                           checked={schedParticipants.includes(u.id)}
-                          onChange={(e) =>
-                            setSchedParticipants((prev) =>
-                              e.target.checked ? [...prev, u.id] : prev.filter((id) => id !== u.id),
-                            )
-                          }
+                          onChange={(e) => setSchedParticipants((prev) => e.target.checked ? [...prev, u.id] : prev.filter((id) => id !== u.id))}
                         />
                         <span className="truncate">{u.name}</span>
                         <span className="text-xs text-muted-foreground truncate">{u.email}</span>
@@ -955,7 +1071,7 @@ export default function ChatPage() {
               </div>
               <div className="flex gap-2 justify-end">
                 <Button variant="outline" onClick={() => setShowScheduleForm(false)} disabled={schedSaving}>Back</Button>
-                <Button onClick={submitSchedule} disabled={schedSaving || !schedTitle.trim() || !schedWhen}>
+                <Button onClick={submitSchedule} disabled={schedSaving || !schedTitle.trim() || !schedWhen} style={{ background: BRAND_BLUE, color: "#fff" }}>
                   {schedSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CalendarClock className="mr-2 h-4 w-4" />}
                   Schedule
                 </Button>
@@ -965,7 +1081,6 @@ export default function ChatPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── AI Meeting Notes ── */}
       <Dialog open={notesOpen} onOpenChange={(o) => { setNotesOpen(o); if (!o) setOpenNoteId(null) }}>
         <DialogContent className="sm:max-w-[640px]">
           <DialogHeader>
@@ -975,31 +1090,23 @@ export default function ChatPage() {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
               )}
-              <Sparkles className="h-4 w-4" /> {openNoteId ? openNote?.title ?? "Meeting Notes" : "Meeting Notes"}
+              <Sparkles className="h-4 w-4" style={{ color: BRAND_BLUE }} />
+              {openNoteId ? openNote?.title ?? "Meeting Notes" : "Meeting Notes"}
             </DialogTitle>
           </DialogHeader>
-
           {!openNoteId ? (
             <>
-              <Input
-                value={notesQuery}
-                onChange={(e) => setNotesQuery(e.target.value)}
-                placeholder="Search notes, summaries, and transcripts..."
-              />
+              <Input value={notesQuery} onChange={(e) => setNotesQuery(e.target.value)} placeholder="Search notes, summaries…" />
               <div className="max-h-[400px] overflow-y-auto space-y-2">
                 {isLoadingNotes ? (
-                  <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                  <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" style={{ color: BRAND_BLUE }} /></div>
                 ) : !meetingNotes?.length ? (
                   <div className="text-center text-sm text-muted-foreground py-8">
                     No meeting notes yet. After a call ends, the AI assistant transcribes it and posts notes here.
                   </div>
                 ) : (
                   meetingNotes.map((note) => (
-                    <button
-                      key={note.id}
-                      onClick={() => setOpenNoteId(note.id)}
-                      className="w-full text-left rounded-md border p-3 hover:bg-muted space-y-1"
-                    >
+                    <button key={note.id} onClick={() => setOpenNoteId(note.id)} className="w-full text-left rounded-xl border p-3 hover:bg-muted/50 space-y-1 transition-colors">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium text-sm truncate">{note.title}</span>
                         <span className="flex items-center gap-2 shrink-0">
@@ -1011,16 +1118,8 @@ export default function ChatPage() {
                           <span className="text-xs text-muted-foreground">{new Date(note.createdAt).toLocaleDateString()}</span>
                         </span>
                       </div>
-                      {note.status === "failed" ? (
-                        <div className="text-xs text-destructive line-clamp-2">
-                          AI notes couldn't be generated for this meeting. Open for details and how to retry.
-                        </div>
-                      ) : note.status === "processing" ? (
-                        <div className="text-xs text-muted-foreground">
-                          The AI assistant is transcribing this meeting — this list refreshes automatically.
-                        </div>
-                      ) : (
-                        note.summary && <div className="text-xs text-muted-foreground line-clamp-2">{note.summary}</div>
+                      {note.status !== "failed" && note.summary && (
+                        <div className="text-xs text-muted-foreground line-clamp-2">{note.summary}</div>
                       )}
                     </button>
                   ))
@@ -1030,53 +1129,34 @@ export default function ChatPage() {
           ) : (
             <div className="max-h-[440px] overflow-y-auto space-y-4 text-sm">
               {!openNote ? (
-                <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" style={{ color: BRAND_BLUE }} /></div>
               ) : openNote.status === "processing" ? (
                 <div className="text-center text-muted-foreground py-8 space-y-2">
-                  <Loader2 className="h-5 w-5 animate-spin mx-auto" />
-                  <p>The AI assistant is still processing this meeting…</p>
-                  <p className="text-xs">This page refreshes automatically — the notes will appear here when they're ready.</p>
+                  <Loader2 className="h-5 w-5 animate-spin mx-auto" style={{ color: BRAND_BLUE }} />
+                  <p>The AI assistant is processing this meeting…</p>
                 </div>
               ) : openNote.status === "failed" ? (
-                <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 space-y-2">
+                <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 space-y-2">
                   <div className="font-medium text-destructive">AI notes couldn't be generated</div>
-                  <p className="text-muted-foreground">
-                    Something went wrong while the AI assistant was processing this meeting's recording, so no
-                    transcript or notes were saved.
-                  </p>
-                  {openNote.error && (
-                    <p className="text-xs text-muted-foreground">
-                      <span className="font-medium">Technical detail:</span> {openNote.error}
-                    </p>
-                  )}
-                  <Button size="sm" onClick={retryNote} disabled={retryingNote} className="gap-1.5">
-                    {retryingNote ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Repeat className="h-3.5 w-3.5" />}
+                  <Button size="sm" onClick={retryNote} disabled={retryingNote} style={{ background: BRAND_BLUE, color: "#fff" }}>
+                    {retryingNote ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Repeat className="h-3.5 w-3.5 mr-1" />}
                     Retry AI notes
                   </Button>
-                  <p className="text-xs text-muted-foreground">
-                    If retrying keeps failing (or the recording wasn't stored), rejoin the meeting room and leave
-                    again so the recording re-uploads, or ask an administrator to check the AI provider configuration.
-                  </p>
                 </div>
               ) : (
                 <>
-                  {openNote.summary && (
-                    <div>
-                      <div className="font-medium mb-1">Summary</div>
-                      <p className="text-muted-foreground whitespace-pre-wrap">{openNote.summary}</p>
-                    </div>
-                  )}
+                  {openNote.summary && <div><div className="font-semibold mb-1">Summary</div><p className="text-muted-foreground whitespace-pre-wrap">{openNote.summary}</p></div>}
                   {!!openNote.actionItems?.length && (
                     <div>
-                      <div className="font-medium mb-1">Action Items</div>
+                      <div className="font-semibold mb-1">Action Items</div>
                       <div className="space-y-2">
                         {openNote.actionItems.map((item, i) => (
-                          <div key={i} className="rounded-md border p-2">
+                          <div key={i} className="rounded-xl border p-3">
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-medium">{item.title}</span>
                               <span className="flex items-center gap-1 shrink-0">
                                 {item.priority && <Badge variant="outline" className="text-xs">{item.priority}</Badge>}
-                                {item.taskId && <Badge variant="secondary" className="text-xs">Task created</Badge>}
+                                {item.taskId && <Badge className="text-xs" style={{ background: `${BRAND_BLUE}22`, color: BRAND_BLUE, border: "none" }}>Task created</Badge>}
                               </span>
                             </div>
                             <div className="text-xs text-muted-foreground mt-0.5">
@@ -1085,41 +1165,23 @@ export default function ChatPage() {
                             </div>
                             {!item.taskId && (
                               <div className="mt-2 max-w-[240px]">
-                                <Select
-                                  disabled={assigningIndex !== null}
-                                  onValueChange={(v) => assignActionItem(i, v)}
-                                >
-                                  <SelectTrigger className="h-8 text-xs">
-                                    <SelectValue placeholder={assigningIndex === i ? "Assigning..." : "Assign to employee..."} />
-                                  </SelectTrigger>
+                                <Select disabled={assigningIndex !== null} onValueChange={(v) => assignActionItem(i, v)}>
+                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={assigningIndex === i ? "Assigning…" : "Assign to employee…"} /></SelectTrigger>
                                   <SelectContent>
                                     {employeesData?.items?.map((e) => (
-                                      <SelectItem key={e.id} value={e.id.toString()} className="text-xs">
-                                        {e.firstName} {e.lastName}
-                                      </SelectItem>
+                                      <SelectItem key={e.id} value={e.id.toString()} className="text-xs">{e.firstName} {e.lastName}</SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>
                               </div>
                             )}
-                            {item.description && <div className="text-xs text-muted-foreground mt-1">{item.description}</div>}
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
-                  {openNote.notes && (
-                    <div>
-                      <div className="font-medium mb-1">Notes</div>
-                      <p className="text-muted-foreground whitespace-pre-wrap">{openNote.notes}</p>
-                    </div>
-                  )}
-                  {openNote.transcript && (
-                    <div>
-                      <div className="font-medium mb-1">Transcript</div>
-                      <p className="text-muted-foreground whitespace-pre-wrap text-xs">{openNote.transcript}</p>
-                    </div>
-                  )}
+                  {openNote.notes && <div><div className="font-semibold mb-1">Notes</div><p className="text-muted-foreground whitespace-pre-wrap">{openNote.notes}</p></div>}
+                  {openNote.transcript && <div><div className="font-semibold mb-1">Transcript</div><p className="text-muted-foreground whitespace-pre-wrap text-xs">{openNote.transcript}</p></div>}
                 </>
               )}
             </div>

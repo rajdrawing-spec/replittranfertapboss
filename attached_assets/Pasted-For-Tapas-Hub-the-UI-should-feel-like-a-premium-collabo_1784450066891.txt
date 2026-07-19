@@ -1,0 +1,516 @@
+For **Tapas Hub**, the UI should feel like a premium collaboration platform (Slack + Microsoft Teams + Discord + WhatsApp Business), while keeping your **black, white, and blue** brand identity.
+
+# Tapas Hub Design Guidelines
+
+## 1. Brand Identity
+
+**Primary Colors**
+
+* ⚫ Black: `#111111`
+* ⚪ White: `#FFFFFF`
+* 🔵 Primary Blue: `#2DA8FF`
+* 🔹 Light Blue: `#EAF6FF`
+* 🟢 Online: `#22C55E`
+* 🔴 Urgent: `#EF4444`
+* 🟡 Warning: `#FBBF24`
+
+Use blue only for actions and highlights.
+
+---
+
+# 2. Sidebar
+
+Use icons with labels.
+
+```
+🏠 Dashboard
+
+💬 Chats
+
+👥 Teams
+
+📹 Meetings
+
+📞 Calls
+
+📋 Tasks
+
+📅 Calendar
+
+📁 Files
+
+🤖 AI Assistant
+
+📊 Reports
+
+⚙ Settings
+```
+
+Current page gets
+
+* Blue background
+* White icon
+* Rounded 16px
+
+---
+
+# 3. Chat List
+
+Each row
+
+```
+Avatar
+
+Name
+
+Last Message
+
+Time
+
+Unread Badge
+
+Online Dot
+```
+
+Example
+
+```
+👤 Design Team
+
+Need logo update...
+
+2 min
+
+(5)
+
+🟢
+```
+
+Hover
+
+* light blue background
+
+Selected
+
+* Blue border
+* White card
+* Shadow
+
+---
+
+# 4. Chat Header
+
+```
+Avatar
+
+Team Name
+
+12 Members
+
+7 Online
+
+Search
+
+Voice
+
+Video
+
+Pin
+
+Files
+
+More
+```
+
+---
+
+# 5. Message Bubble
+
+Incoming
+
+```
+White
+
+Radius 20
+
+Shadow
+```
+
+Outgoing
+
+```
+Blue
+
+White Text
+
+Radius 20
+```
+
+Add
+
+✓ Sent
+
+✓✓ Delivered
+
+✓✓ Blue Read
+
+---
+
+# 6. Composer
+
+Instead of simple textbox
+
+```
+😊 Emoji
+
+📎 Attachment
+
+📷 Camera
+
+🎤 Voice
+
+GIF
+
+Poll
+
+AI
+
+Send
+```
+
+When typing
+
+AI button becomes
+
+✨ Rewrite
+
+---
+
+# 7. Emoji Picker
+
+Tabs
+
+😀 Smileys
+
+❤️ Favorites
+
+👍 Frequently Used
+
+🎉 Celebration
+
+🐶 Animals
+
+🚀 Work
+
+💼 Business
+
+⭐ Custom Company Emojis
+
+Recent
+
+Search
+
+---
+
+# 8. Custom Tapas Hub Emojis
+
+Design emoji pack matching your logo.
+
+```
+🔺 Tapas Logo
+
+🚀 Launch
+
+💡 Idea
+
+🔥 Trending
+
+⭐ Priority
+
+⚡ Urgent
+
+🎯 Goal
+
+🤝 Team
+
+📦 Product
+
+🛒 Sales
+
+📈 Growth
+
+💰 Revenue
+
+🧠 AI
+
+🏆 Achievement
+
+🎉 Success
+```
+
+Keep them flat, modern, and blue/black themed.
+
+---
+
+# 9. Reactions
+
+Instead of only 👍
+
+Support
+
+❤️
+
+👍
+
+👏
+
+🔥
+
+🎉
+
+😂
+
+😮
+
+🚀
+
+💯
+
+⭐
+
+Show count
+
+Click to see users
+
+---
+
+# 10. Attachments
+
+Beautiful cards
+
+```
+📄 Proposal.pdf
+
+2.4 MB
+
+Download
+
+Preview
+```
+
+Image preview
+
+Video preview
+
+Audio player
+
+---
+
+# 11. AI Assistant
+
+Floating button
+
+```
+✨ Ask AI
+```
+
+Capabilities
+
+* Summarize chat
+* Create task
+* Reply suggestion
+* Translate
+* Rewrite
+* Meeting minutes
+* Action items
+
+---
+
+# 12. Meeting UI
+
+Large participant cards
+
+```
+Mute
+
+Camera
+
+Raise Hand
+
+Share
+
+Chat
+
+Participants
+
+Recording
+
+AI Notes
+
+End Call
+```
+
+---
+
+# 13. Call Screen
+
+Show
+
+Profile
+
+Call timer
+
+Company number
+
+Transfer
+
+Hold
+
+Record
+
+Keypad
+
+Notes
+
+CRM panel
+
+---
+
+# 14. Notifications
+
+Glass effect
+
+Top Right
+
+```
+🔔
+
+New Message
+
+Design Team
+
+Now
+```
+
+Disappear after 4 seconds
+
+---
+
+# 15. Search
+
+Universal Search
+
+```
+Messages
+
+People
+
+Tasks
+
+Meetings
+
+Files
+
+Products
+
+Orders
+```
+
+---
+
+# 16. Animations
+
+Use smooth animations.
+
+* 250 ms duration
+* Scale on hover
+* Ripple on click
+* Fade for messages
+* Slide-in side panels
+
+Avoid flashy effects.
+
+---
+
+# 17. Cards
+
+Radius
+
+16–20 px
+
+Shadow
+
+```
+0 8 24 rgba(0,0,0,.08)
+```
+
+---
+
+# 18. Typography
+
+**Headings**
+
+* Inter Bold
+
+**Body**
+
+* Inter Medium
+
+**Numbers**
+
+* Inter SemiBold
+
+Sizes
+
+* 32 Hero
+* 24 Section
+* 18 Title
+* 16 Body
+* 14 Secondary
+* 12 Caption
+
+---
+
+# 19. Dark Mode
+
+Background
+
+```
+#0F1115
+```
+
+Cards
+
+```
+#1A1C21
+```
+
+Primary Blue remains unchanged.
+
+---
+
+# 20. Dashboard Widgets
+
+Include cards for:
+
+* 📞 Active Calls
+* 💬 Unread Messages
+* 📅 Today's Meetings
+* 📋 Pending Tasks
+* 👥 Online Employees
+* 📦 Recent Orders
+* 📈 Sales Overview
+* 🤖 AI Suggestions
+
+---
+
+# 21. Premium Details
+
+* Use your **Tapas Hub logo** as the default avatar for company groups.
+* Add a subtle **blue gradient** in headers and sidebars to match the logo.
+* Use **glassmorphism** only for popups and dialogs, not the main chat area.
+* Maintain **8px spacing** between related elements for a clean layout.
+* Ensure all components are **responsive** for desktop, tablet, and mobile.
+* Follow **WCAG AA** accessibility standards with proper contrast, keyboard navigation, and visible focus states.
+
+This design direction will give Tapas Hub a polished, enterprise-grade appearance while staying consistent with your brand colors and making the platform feel modern and professional.

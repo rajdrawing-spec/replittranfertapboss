@@ -12,6 +12,7 @@ import { Layout } from '@/components/layout';
 import { CompanyProvider } from '@/contexts/company-context';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { MeetingProvider } from '@/contexts/meeting-context';
+import { DmNotificationProvider } from '@/contexts/dm-notification-context';
 import { ClerkQueryClientCacheInvalidator } from '@/components/clerk-cache-invalidator';
 import { RouteErrorBoundary } from '@/components/error-boundary';
 
@@ -214,6 +215,7 @@ function AuthedApp() {
 
   return (
     <MeetingProvider>
+    <DmNotificationProvider>
     <CompanyProvider>
       <React.Suspense fallback={<PageFallback />}>
         <Switch>
@@ -272,6 +274,7 @@ function AuthedApp() {
         </Switch>
       </React.Suspense>
     </CompanyProvider>
+    </DmNotificationProvider>
     </MeetingProvider>
   );
 }

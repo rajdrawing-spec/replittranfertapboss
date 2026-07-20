@@ -8,6 +8,7 @@ import {
   listUpcomingMeetings,
   getMeeting,
   getMeetingByMeetingId,
+  getMeetingById,
   cancelMeeting,
   endMeeting,
   softDeleteMeeting,
@@ -39,24 +40,22 @@ router.get("/meetings/livekit-status", requirePermission("meetings.read"), (_req
 // ── LiveKit token endpoint ────────────────────────────────────────────────────
 router.get("/meetings/token", requirePermission("meetings.read"), async (req, res) => {
   try {
-    const { roomName, companyId: companyIdStr } = req.query;
-    const companyId = parseInt(companyIdStr as string);
+    const { roomName } = req.query;
     const userId = getLocalUserId(req);
     const displayName = (req as any).localUser?.name || "Guest";
 
-    if (!roomName || !companyId || !userId || !canAccessCompany(req, companyId)) {
+    if (!roomName || !userId) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
 
-    // Resolve the meeting by roomName (meetingId) and enforce tenant boundary
+    // Resolve the meeting by roomName (meetingId). The tenant boundary is
+    // enforced against the meeting's OWN companyId — never a client-supplied
+    // value, which proved fragile (a stale/missing companyId in the incoming
+    // call payload produced spurious "Forbidden" errors for invited users).
     const meeting = await getMeetingByMeetingId(String(roomName));
     if (!meeting) {
       res.status(404).json({ error: "Meeting not found" });
-      return;
-    }
-    if (meeting.companyId !== companyId) {
-      res.status(403).json({ error: "Forbidden" });
       return;
     }
     // Meetings that are cancelled or ended no longer accept participants
@@ -64,13 +63,18 @@ router.get("/meetings/token", requirePermission("meetings.read"), async (req, re
       res.status(410).json({ error: "Meeting has ended or been cancelled" });
       return;
     }
-    // Group calls: any company member may join a meeting in their workspace.
-    // Only users who have explicitly rejected an invitation are blocked.
-    const isRejected = meeting.participants.some(
-      (p) => p.userId === userId && p.status === "rejected",
-    );
-    if (isRejected) {
+    // Group calls: any company member may join a meeting in their workspace,
+    // and anyone explicitly invited (a participant row) may join even when the
+    // meeting's company is not in their assigned company list — they were
+    // invited by an organizer who IS in that company. Only users who have
+    // explicitly rejected the invitation are blocked.
+    const participantRow = meeting.participants.find((p) => p.userId === userId);
+    if (participantRow?.status === "rejected") {
       res.status(403).json({ error: "You are not a participant of this meeting" });
+      return;
+    }
+    if (!participantRow && !canAccessCompany(req, meeting.companyId)) {
+      res.status(403).json({ error: "Forbidden" });
       return;
     }
 
@@ -505,7 +509,14 @@ router.post("/meetings/join/:meetingId", requirePermission("meetings.read"), asy
     if (!userId) { res.status(401).json({ error: "Authentication required" }); return; }
     const meeting = await getMeetingByMeetingId(String(req.params.meetingId));
     if (!meeting) { res.status(404).json({ error: "Meeting not found" }); return; }
-    if (!canAccessCompany(req, meeting.companyId)) {
+    // Same policy as the token endpoint: company members OR explicitly
+    // invited participants (who haven't rejected) may join.
+    const joinParticipant = meeting.participants.find((p) => p.userId === userId);
+    if (joinParticipant?.status === "rejected") {
+      res.status(403).json({ error: "You are not a participant of this meeting" });
+      return;
+    }
+    if (!joinParticipant && !canAccessCompany(req, meeting.companyId)) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
@@ -540,6 +551,16 @@ router.post("/meetings/:id/accept", requirePermission("meetings.read"), async (r
     const id = parseInt(String(req.params.id), 10);
     const userId = getLocalUserId(req);
     if (!userId) { res.status(401).json({ error: "Authentication required" }); return; }
+    // Only genuinely invited users or company members may write a participant
+    // row — participant rows now grant join access, so unguarded upserts
+    // would be a cross-tenant escalation path.
+    const meeting = await getMeetingById(id);
+    if (!meeting) { res.status(404).json({ error: "Meeting not found" }); return; }
+    const isInvited = meeting.participants.some((p) => p.userId === userId);
+    if (!isInvited && !canAccessCompany(req, meeting.companyId)) {
+      res.status(404).json({ error: "Meeting not found" });
+      return;
+    }
     await acceptInvitation(id, userId);
     res.json({ ok: true });
   } catch (e) {
@@ -553,6 +574,14 @@ router.post("/meetings/:id/reject", requirePermission("meetings.read"), async (r
     const id = parseInt(String(req.params.id), 10);
     const userId = getLocalUserId(req);
     if (!userId) { res.status(401).json({ error: "Authentication required" }); return; }
+    // Same guard as /accept — see comment there.
+    const meeting = await getMeetingById(id);
+    if (!meeting) { res.status(404).json({ error: "Meeting not found" }); return; }
+    const isInvited = meeting.participants.some((p) => p.userId === userId);
+    if (!isInvited && !canAccessCompany(req, meeting.companyId)) {
+      res.status(404).json({ error: "Meeting not found" });
+      return;
+    }
     await rejectInvitation(id, userId);
     res.json({ ok: true });
   } catch (e) {

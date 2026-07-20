@@ -222,6 +222,12 @@ export async function getMeetingByMeetingId(meetingId: string) {
   return { ...meeting, participants: await getMeetingParticipants(meeting.id) };
 }
 
+export async function getMeetingById(id: number) {
+  const [meeting] = await db.select().from(meetingsTable).where(eq(meetingsTable.id, id)).limit(1);
+  if (!meeting) return null;
+  return { ...meeting, participants: await getMeetingParticipants(meeting.id) };
+}
+
 export async function getMeetingParticipants(meetingId: number) {
   return db.select().from(meetingParticipantsTable).where(eq(meetingParticipantsTable.meetingId, meetingId));
 }

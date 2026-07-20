@@ -10,6 +10,7 @@ export interface ActiveCompany {
   mode: CompanyMode
   industry?: string | null
   color?: string
+  logoUrl?: string | null
 }
 
 interface CompanyContextValue {
@@ -52,6 +53,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
           mode: c.type as CompanyMode,
           industry: c.industry,
           color: c.brandColor || DEFAULT_COLOR,
+          logoUrl: c.logoUrl,
         })),
     [rawCompanies]
   )

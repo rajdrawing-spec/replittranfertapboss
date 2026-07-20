@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button"
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "")
 import { useTheme } from "@/components/theme-provider"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { LazyImage } from "@/components/lazy-image"
 import { useUser } from "@clerk/react"
 import { useCompany } from "@/contexts/company-context"
 import type { ActiveCompany } from "@/contexts/company-context"
@@ -171,6 +172,47 @@ const bottomNavItems = [
   { href: "/ai-tasks", icon: Sparkles, label: "Tasks" },
 ]
 
+/** Resolve a stored logo path (object storage or external URL) into a usable URL. */
+function logoSrc(url?: string | null): string | undefined {
+  if (!url) return undefined
+  if (url.startsWith("/objects")) return `${basePath}/api/storage${url}`
+  return url
+}
+
+function CompanyLogo({ company, className }: { company: ActiveCompany | null; className?: string }) {
+  if (!company) {
+    return (
+      <div
+        className={cn("flex items-center justify-center text-white font-bold", className)}
+        style={{ background: "#2F80FF" }}
+      >
+        TH
+      </div>
+    )
+  }
+  const src = logoSrc(company.logoUrl)
+  if (src) {
+    return (
+      <div className={cn("relative overflow-hidden", className)}>
+        <LazyImage
+          src={src}
+          alt={company.name}
+          className="w-full h-full object-cover"
+          fallback={<span className="sr-only">Loading</span>}
+        />
+      </div>
+    )
+  }
+  return (
+    <div
+      className={cn("flex items-center justify-center text-white font-bold", className)}
+      style={{ background: company.color || "#2F80FF" }}
+    >
+      {company.name.substring(0, 2).toUpperCase()}
+    </div>
+  )
+}
+
 /* ─────────────────────────────────────────────────────────────
    Company Switcher
 ───────────────────────────────────────────────────────────── */
@@ -203,11 +245,11 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
         <button
           data-compact
           onClick={() => setOpen(!open)}
-          className="w-9 h-9 rounded-[10px] flex items-center justify-center text-white text-xs font-bold transition-opacity hover:opacity-80"
+          className="w-9 h-9 rounded-[10px] flex items-center justify-center text-white text-xs font-bold transition-opacity hover:opacity-80 overflow-hidden"
           style={{ background: color }}
           title={label}
         >
-          {initials}
+          {activeCompany ? <CompanyLogo company={activeCompany} className="w-full h-full rounded-[10px]" /> : initials}
         </button>
         {open && (
           <div className="absolute left-11 top-0 z-50 w-56 bg-popover border border-popover-border rounded-[14px] py-1.5 overflow-hidden">
@@ -224,12 +266,7 @@ function CompanySwitcher({ collapsed }: { collapsed: boolean }) {
         onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-[10px] border border-sidebar-border hover:bg-sidebar-accent transition-all duration-150"
       >
-        <div
-          className="w-6 h-6 rounded-[7px] flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-          style={{ background: color }}
-        >
-          {initials}
-        </div>
+        <CompanyLogo company={activeCompany} className="w-6 h-6 rounded-[7px] shrink-0 text-[10px]" />
         <div className="flex-1 text-left min-w-0">
           <div className="text-[13px] font-semibold truncate leading-none text-sidebar-foreground">{label}</div>
           <div className="text-[10px] text-muted-foreground leading-none mt-0.5">
@@ -271,9 +308,7 @@ function CompanyList({
         )}
         onClick={() => { setActiveCompanyId(null); setOpen(false) }}
       >
-        <div className="w-6 h-6 rounded-[7px] flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ background: "#2F80FF" }}>
-          TH
-        </div>
+        <CompanyLogo company={{ id: 0, name: "TapasHub", slug: "tapashub", mode: "parent", color: "#2F80FF", logoUrl: null }} className="w-6 h-6 rounded-[7px] shrink-0 text-[10px]" />
         <div className="text-left flex-1 min-w-0">
           <div className="font-medium leading-none truncate">TapasHub</div>
           <div className="text-[10px] text-muted-foreground mt-0.5">Portfolio View</div>
@@ -291,12 +326,7 @@ function CompanyList({
           )}
           onClick={() => { setActiveCompanyId(c.id); setOpen(false) }}
         >
-          <div
-            className="w-6 h-6 rounded-[7px] flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-            style={{ background: c.color }}
-          >
-            {c.name.substring(0, 2).toUpperCase()}
-          </div>
+          <CompanyLogo company={c} className="w-6 h-6 rounded-[7px] shrink-0 text-[10px]" />
           <div className="text-left flex-1 min-w-0">
             <div className="font-medium leading-none truncate">{c.name}</div>
             <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{c.industry ?? "Subsidiary"}</div>

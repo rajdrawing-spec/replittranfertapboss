@@ -15,7 +15,7 @@
 import { Router } from "express";
 import { db, treasuryEntriesTable, fundAllocationsTable, companiesTable, transactionsTable } from "@workspace/db";
 import type { User } from "@workspace/db";
-import { eq, and, ne, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, ne, desc, sql, inArray, not, like } from "drizzle-orm";
 import { requirePermission } from "../middleware/authz";
 import { writeAudit } from "../lib/audit";
 
@@ -124,10 +124,17 @@ router.get("/treasury/summary", requirePermission("treasury.view"), async (req, 
     }[] = [];
 
     if (parent) {
+      // Exclude legacy phantom auto-allocation rows (note LIKE '__auto_finance_%')
+      // that mirrored subsidiary expenses; they were removed by the startup migration
+      // but the filter stays as a safety net against any that survived.
       const allocRows = await db
         .select({ companyId: fundAllocationsTable.toCompanyId, total: sql<number>`coalesce(sum(amount), 0)` })
         .from(fundAllocationsTable)
-        .where(and(eq(fundAllocationsTable.fromCompanyId, parent.id), eq(fundAllocationsTable.status, "executed")))
+        .where(and(
+          eq(fundAllocationsTable.fromCompanyId, parent.id),
+          eq(fundAllocationsTable.status, "executed"),
+          not(like(fundAllocationsTable.note, "__auto_finance_%")),
+        ))
         .groupBy(fundAllocationsTable.toCompanyId);
       allocated = allocRows.reduce((s, r) => s + Number(r.total), 0);
 
@@ -271,13 +278,17 @@ router.get("/treasury/working-capital", requirePermission("treasury.view"), asyn
     const allCompanyIds = allCompanies.map(c => c.id);
     const subIds = subsidiaries.map(s => s.id);
 
-    // Budget allocations (reference only)
+    // Budget allocations (reference only) — real allocations only, no auto-rows.
     const allocMap: Record<number, number> = {};
     if (parent) {
       const allocRows = await db
         .select({ companyId: fundAllocationsTable.toCompanyId, total: sql<number>`coalesce(sum(amount), 0)` })
         .from(fundAllocationsTable)
-        .where(and(eq(fundAllocationsTable.fromCompanyId, parent.id), eq(fundAllocationsTable.status, "executed")))
+        .where(and(
+          eq(fundAllocationsTable.fromCompanyId, parent.id),
+          eq(fundAllocationsTable.status, "executed"),
+          not(like(fundAllocationsTable.note, "__auto_finance_%")),
+        ))
         .groupBy(fundAllocationsTable.toCompanyId);
       for (const r of allocRows) { allocMap[r.companyId] = Number(r.total); }
     }

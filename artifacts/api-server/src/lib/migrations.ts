@@ -698,6 +698,30 @@ export async function applyMigrations(): Promise<void> {
 }
 
 /**
+ * Remove phantom fund_allocation rows created by the old syncAutoAllocation
+ * feature. Those rows had note LIKE '__auto_finance_%' and were marked
+ * "executed" even though no real capital was transferred — they were just
+ * mirrors of subsidiary expense transactions and caused double-counting in
+ * every allocation summary and the Finance balance sheet.
+ *
+ * Safe to run multiple times (DELETE WHERE is a no-op when rows are gone).
+ */
+export async function removeAutoAllocationRows(): Promise<void> {
+  try {
+    const result = await db.execute(sql`
+      DELETE FROM fund_allocations
+      WHERE note LIKE '__auto_finance_%'
+    `);
+    const removed = result.rowCount ?? 0;
+    if (removed > 0) {
+      logger.info({ removed }, "Removed phantom auto-allocation rows from fund_allocations");
+    }
+  } catch (e) {
+    logger.error({ err: e }, "Auto-allocation cleanup failed (non-fatal)");
+  }
+}
+
+/**
  * Repair fund_allocations rows where from_company_id or to_company_id no longer
  * exists in the companies table (stale ID after company recreation).
  *

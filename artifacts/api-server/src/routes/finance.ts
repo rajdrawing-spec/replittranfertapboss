@@ -1,66 +1,20 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { transactionsTable, companiesTable, insertTransactionSchema, fundAllocationsTable } from "@workspace/db";
-import { eq, and, or, sql, desc, inArray, isNotNull } from "drizzle-orm";
+import { eq, and, or, sql, desc, inArray, not, like } from "drizzle-orm";
 import { emitNotification } from "../lib/notify";
 import { companyScope, canAccessCompany } from "../lib/company-scope";
 
-// ── Auto Fund Allocation helpers ──────────────────────────────────────────────
-// When a Finance expense is recorded for a subsidiary, an "executed" Fund
-// Allocation is auto-created so the Fund Allocations page always reflects
-// what has actually been spent — no manual entry needed.
-//
-// The link is stored as note = "__auto_finance_{transactionId}".
-// Only expense transactions for subsidiary (non-parent) companies trigger this.
-// Transfer / Capital Injection / income transactions are skipped to avoid loops.
-
-const autoNote = (txId: number) => `__auto_finance_${txId}`;
-
-async function syncAutoAllocation(
-  txCtx: typeof db,                   // pass db or tx (inside a transaction)
-  txId: number,
-  companyId: number,
-  type: string,
-  amount: number,
-  category: string,
-  requestedByName: string,
-) {
-  // Only expense transactions for subsidiaries trigger an auto-allocation
-  const [co] = await txCtx.select({ type: companiesTable.type })
-    .from(companiesTable).where(eq(companiesTable.id, companyId)).limit(1);
-  if (!co || co.type === "parent") return;   // parent spending doesn't auto-allocate
-  if (type !== "expense") {
-    // Type changed away from expense — clean up any existing auto-allocation
-    await txCtx.delete(fundAllocationsTable)
-      .where(eq(fundAllocationsTable.note, autoNote(txId)));
-    return;
-  }
-
-  const [parent] = await txCtx.select({ id: companiesTable.id, name: companiesTable.name })
-    .from(companiesTable).where(eq(companiesTable.type, "parent")).limit(1);
-  if (!parent) return;  // no parent company configured
-
-  const note = autoNote(txId);
-  const [existing] = await txCtx.select({ id: fundAllocationsTable.id })
-    .from(fundAllocationsTable).where(eq(fundAllocationsTable.note, note)).limit(1);
-
-  if (existing) {
-    await txCtx.update(fundAllocationsTable)
-      .set({ amount, purpose: category, updatedAt: new Date() })
-      .where(eq(fundAllocationsTable.id, existing.id));
-  } else {
-    await txCtx.insert(fundAllocationsTable).values({
-      fromCompanyId: parent.id,
-      toCompanyId: companyId,
-      amount,
-      purpose: category,
-      note,
-      status: "executed",
-      requestedByName,
-      executedAt: new Date(),
-    });
-  }
-}
+// NOTE: The "auto fund allocation" feature (which created phantom executed
+// fund_allocation rows whenever a subsidiary recorded an expense) has been
+// removed. It caused double-counting in every allocation summary because:
+//   1. Treasury already tracks spend directly from expense transactions.
+//   2. Real executed allocations (via approval workflow) already create
+//      paired transfer transactions and a proper fund_allocation row.
+//   3. Auto-rows polluted the Fund Allocations list and inflated
+//      allocIn/allocOut figures in the Finance balance endpoint.
+// Existing auto-rows (note LIKE '__auto_finance_%') are cleaned up by the
+// startup migration.
 
 const router = Router();
 
@@ -130,8 +84,6 @@ router.post("/finance/transactions", async (req, res) => {
         actionUrl: "/finance",
       });
     }
-    // Auto-create an executed Fund Allocation so treasury deployment stays in sync
-    void syncAutoAllocation(db, t.id, t.companyId, t.type, t.amount, t.category ?? t.type, c?.name ?? "Auto");
     res.status(201).json(formatTransaction(t, { [t.companyId]: c?.name ?? "Unknown" }));
   } catch (e) {
     req.log.error(e);
@@ -148,8 +100,15 @@ router.get("/finance/pnl-summary", async (req, res) => {
     else if (period === "quarter") startDate = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
     else startDate = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const conditions = [sql`created_at >= ${startDate}`];
+    // Filter by the `date` TEXT column (YYYY-MM-DD), not created_at.
+    // Using created_at caused backdated transactions to fall outside the
+    // period window even though their transaction date was within it.
+    const startStr = startDate.toLocaleDateString("en-CA"); // YYYY-MM-DD in local tz
+    const conditions = [sql`date >= ${startStr}`];
     if (companyId) conditions.push(eq(transactionsTable.companyId, parseInt(companyId)));
+    // Exclude transfer transactions (fund allocation flows) from P&L —
+    // they are capital movements, not operational revenue or expenses.
+    conditions.push(sql`type IN ('income', 'expense')`);
 
     const [stats] = await db
       .select({
@@ -195,8 +154,6 @@ router.patch("/finance/transactions/:txId", async (req, res) => {
     const [t] = await db.update(transactionsTable).set(req.body).where(eq(transactionsTable.id, id)).returning();
     if (!t) { res.status(404).json({ error: "Not found" }); return; }
     const [c] = await db.select({ name: companiesTable.name }).from(companiesTable).where(eq(companiesTable.id, t.companyId));
-    // Sync the auto-allocation to match the updated amount/type/category
-    void syncAutoAllocation(db, t.id, t.companyId, t.type, t.amount, t.category ?? t.type, c?.name ?? "Auto");
     res.json(formatTransaction(t, { [t.companyId]: c?.name ?? "Unknown" }));
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to update transaction" }); }
 });
@@ -216,10 +173,8 @@ router.delete("/finance/transactions/:txId", async (req, res) => {
     if (!canAccessCompany(req, existing.companyId)) { res.status(403).json({ error: "Access denied" }); return; }
 
     await db.transaction(async (tx) => {
-      // Remove the auto-allocation that was created when this expense was recorded
-      await tx.delete(fundAllocationsTable)
-        .where(eq(fundAllocationsTable.note, autoNote(id)));
-      // Null out manual fund_allocation rows that reference this transaction
+      // Null out fund_allocation rows that reference this transaction as a
+      // linked transfer so the allocation record doesn't hold a dangling pointer.
       await tx.update(fundAllocationsTable)
         .set({ fromTransactionId: null })
         .where(eq(fundAllocationsTable.fromTransactionId, id));
@@ -266,12 +221,20 @@ router.get("/finance/balance", async (req, res) => {
       .from(transactionsTable)
       .where(txWhere);
 
-    // Fund allocation totals.
-    // When a specific company is requested: in = allocations sent TO it, out = sent FROM it.
-    // When all companies are requested: aggregate all executed allocations (in = total received
-    // across all, out = total sent across all — these cancel out in consolidated view but
-    // are shown separately for transparency).
+    // ── Fund allocation totals ─────────────────────────────────────────────────
+    // Only count REAL allocations — those that went through the approval workflow.
+    // Auto-allocation rows (created by the old syncAutoAllocation feature, note
+    // LIKE '__auto_finance_%') are excluded because they were phantom entries that
+    // duplicated expense data without representing actual capital transfers.
+    // The startup migration removes all legacy auto-rows from the DB.
+    //
+    // For a specific company: in = capital received, out = capital sent.
+    // For all companies (consolidated): in = out = total executed (they net to 0
+    // for the cash position, but we still display them so the balance sheet shows
+    // how much capital has been deployed across the group, not just ₹0).
     let allocIn = 0, allocOut = 0;
+    const realAllocWhere = not(like(fundAllocationsTable.note, "__auto_finance_%"));
+
     if (cId) {
       const [aStats] = await db
         .select({
@@ -279,16 +242,21 @@ router.get("/finance/balance", async (req, res) => {
           sent:     sql<number>`coalesce(sum(case when from_company_id=${cId} and status='executed' then amount else 0 end),0)`,
         })
         .from(fundAllocationsTable)
-        .where(or(eq(fundAllocationsTable.toCompanyId, cId), eq(fundAllocationsTable.fromCompanyId, cId)));
+        .where(and(
+          or(eq(fundAllocationsTable.toCompanyId, cId), eq(fundAllocationsTable.fromCompanyId, cId)),
+          realAllocWhere,
+        ));
       allocIn  = Number(aStats?.received ?? 0);
       allocOut = Number(aStats?.sent     ?? 0);
     } else {
-      // All companies (consolidated view): internal transfers between subsidiaries
-      // net to exactly zero — showing equal in/out numbers is misleading and
-      // implies phantom external capital flows. Set both to 0 so the net cash
-      // position only reflects real income and expenses.
-      allocIn  = 0;
-      allocOut = 0;
+      // Consolidated view: show total capital deployed (in = out, net = 0)
+      const [aStats] = await db
+        .select({ total: sql<number>`coalesce(sum(case when status='executed' then amount else 0 end),0)` })
+        .from(fundAllocationsTable)
+        .where(realAllocWhere);
+      const total = Number(aStats?.total ?? 0);
+      allocIn  = total;  // same value — net cash impact = 0 (internal transfer)
+      allocOut = total;
     }
 
     const totalIncome   = Number(stats?.totalIncome   ?? 0);

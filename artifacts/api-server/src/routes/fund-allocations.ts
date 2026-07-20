@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, fundAllocationsTable, companiesTable, approvalsTable, usersTable, shareholdersTable, transactionsTable } from "@workspace/db";
 import type { User, RequiredApprover } from "@workspace/db";
-import { eq, and, or, inArray, desc, sql, isNotNull, ne } from "drizzle-orm";
+import { eq, and, or, inArray, desc, sql, isNotNull, ne, not, like } from "drizzle-orm";
 import { requirePermission } from "../middleware/authz";
 import { companyScope } from "../lib/company-scope";
 import { executeFundAllocation } from "../lib/fund-allocation";
@@ -26,7 +26,14 @@ router.get("/fund-allocations", requirePermission("funds.view"), async (req, res
       return;
     }
 
-    const conditions = [];
+    // Always exclude legacy phantom auto-allocation rows (created by the old
+    // syncAutoAllocation feature). These rows mirrored subsidiary expenses and
+    // caused double-counting; they are deleted by the startup migration but the
+    // filter stays as a safety net.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const conditions: any[] = [
+      not(like(fundAllocationsTable.note, "__auto_finance_%")),
+    ];
     if (status) conditions.push(eq(fundAllocationsTable.status, status));
     if (companyId) {
       const cid = parseInt(companyId);
@@ -35,7 +42,7 @@ router.get("/fund-allocations", requirePermission("funds.view"), async (req, res
     if (scope !== null) {
       conditions.push(or(inArray(fundAllocationsTable.fromCompanyId, scope), inArray(fundAllocationsTable.toCompanyId, scope)));
     }
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const where = and(...conditions);
 
     const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(fundAllocationsTable).where(where);
     const items = await db.select().from(fundAllocationsTable).where(where).orderBy(desc(fundAllocationsTable.createdAt)).limit(limitNum).offset(offset);

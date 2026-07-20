@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { requirePermission } from "../middleware/authz";
-import { canAccessCompany } from "../lib/company-scope";
+import { canAccessCompany, companyScope } from "../lib/company-scope";
 import {
   createMeeting,
   listCompanyMeetings,
@@ -144,13 +144,12 @@ router.patch("/meetings/settings", requirePermission("meetings.manage"), async (
 // ── Meeting listing ───────────────────────────────────────────────────────────
 router.get("/meetings", requirePermission("meetings.read"), async (req, res) => {
   try {
-    const companyId = parseInt(req.query.companyId as string);
     const userId = getLocalUserId(req);
-    if (!companyId || !userId || !canAccessCompany(req, companyId)) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
-    }
-    res.json(await listCompanyMeetings(companyId, userId));
+    if (!userId) { res.status(401).json({ error: "Authentication required" }); return; }
+    // Workspace view: show meetings in the user's accessible companies AND meetings
+    // they are explicitly invited to (even if the meeting's company is not in
+    // their assigned list). This matches the join/token policy.
+    res.json(await listCompanyMeetings(companyScope(req), userId));
   } catch (e) {
     req.log.error(e);
     res.status(500).json({ error: "Failed to list meetings" });
@@ -159,13 +158,9 @@ router.get("/meetings", requirePermission("meetings.read"), async (req, res) => 
 
 router.get("/meetings/upcoming", requirePermission("meetings.read"), async (req, res) => {
   try {
-    const companyId = parseInt(req.query.companyId as string);
     const userId = getLocalUserId(req);
-    if (!companyId || !userId || !canAccessCompany(req, companyId)) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
-    }
-    res.json(await listUpcomingMeetings(companyId, userId));
+    if (!userId) { res.status(401).json({ error: "Authentication required" }); return; }
+    res.json(await listUpcomingMeetings(companyScope(req), userId));
   } catch (e) {
     req.log.error(e);
     res.status(500).json({ error: "Failed to list upcoming meetings" });
@@ -174,13 +169,9 @@ router.get("/meetings/upcoming", requirePermission("meetings.read"), async (req,
 
 router.get("/meetings/my", requirePermission("meetings.read"), async (req, res) => {
   try {
-    const companyId = parseInt(req.query.companyId as string);
     const userId = getLocalUserId(req);
-    if (!companyId || !userId || !canAccessCompany(req, companyId)) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
-    }
-    res.json(await listMyMeetings(companyId, userId));
+    if (!userId) { res.status(401).json({ error: "Authentication required" }); return; }
+    res.json(await listMyMeetings(companyScope(req), userId));
   } catch (e) {
     req.log.error(e);
     res.status(500).json({ error: "Failed to list my meetings" });
@@ -433,13 +424,15 @@ router.patch("/meetings/:id", requirePermission("meetings.manage"), async (req, 
 router.get("/meetings/:id", requirePermission("meetings.read"), async (req, res) => {
   try {
     const id = parseInt(String(req.params.id), 10);
-    const companyId = parseInt(req.query.companyId as string);
-    if (!companyId || !canAccessCompany(req, companyId)) {
-      res.status(403).json({ error: "Forbidden" });
+    const userId = getLocalUserId(req);
+    if (!userId) { res.status(401).json({ error: "Authentication required" }); return; }
+    const meeting = await getMeetingById(id);
+    if (!meeting) {
+      res.status(404).json({ error: "Meeting not found" });
       return;
     }
-    const meeting = await getMeeting(id, companyId);
-    if (!meeting) {
+    const isInvited = meeting.participants.some((p) => p.userId === userId);
+    if (!isInvited && !canAccessCompany(req, meeting.companyId)) {
       res.status(404).json({ error: "Meeting not found" });
       return;
     }

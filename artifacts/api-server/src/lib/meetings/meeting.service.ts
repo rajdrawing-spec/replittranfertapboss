@@ -170,10 +170,33 @@ export async function updateMeeting(
   return { ...updated, participants: await getMeetingParticipants(updated.id) };
 }
 
-export async function listCompanyMeetings(companyId: number, userId?: number) {
-  const meetings = await db.select().from(meetingsTable).where(
-    and(eq(meetingsTable.companyId, companyId), isNull(meetingsTable.deletedAt))
-  ).orderBy(desc(meetingsTable.scheduledAt));
+/** Helper: fetch meetings that are either in one of the user's accessible
+ *  companies OR where the user has an explicit participant row (invited/accepted).
+ *  This lets invited users see a meeting even if they are not assigned to its
+ *  company — matching the join/token access policy. */
+async function listMeetingsForUser(
+  companyIds: number[] | null,
+  userId: number | undefined,
+  whereClause: any,
+  orderBy: any = desc(meetingsTable.scheduledAt),
+) {
+  const participantMeetingIds = userId
+    ? (await db.select({ meetingId: meetingParticipantsTable.meetingId }).from(meetingParticipantsTable).where(eq(meetingParticipantsTable.userId, userId))).map((p) => p.meetingId)
+    : [];
+  const conditions = [whereClause];
+  if (companyIds && companyIds.length > 0) {
+    if (participantMeetingIds.length > 0) {
+      conditions.push(or(inArray(meetingsTable.companyId, companyIds), inArray(meetingsTable.id, participantMeetingIds)));
+    } else {
+      conditions.push(inArray(meetingsTable.companyId, companyIds));
+    }
+  } else if (participantMeetingIds.length > 0) {
+    conditions.push(inArray(meetingsTable.id, participantMeetingIds));
+  } else {
+    // No accessible companies and no invitations → return empty.
+    return [];
+  }
+  const meetings = await db.select().from(meetingsTable).where(and(...conditions)).orderBy(orderBy);
   return Promise.all(meetings.map(async (m) => ({
     ...m,
     participants: await getMeetingParticipants(m.id),
@@ -181,39 +204,41 @@ export async function listCompanyMeetings(companyId: number, userId?: number) {
   })));
 }
 
-export async function listMyMeetings(companyId: number, userId: number) {
-  const participantRows = await db.select({ meetingId: meetingParticipantsTable.meetingId }).from(meetingParticipantsTable).where(eq(meetingParticipantsTable.userId, userId));
-  const meetingIds = participantRows.map((p) => p.meetingId);
-  if (meetingIds.length === 0) return [];
-  const meetings = await db.select().from(meetingsTable).where(and(eq(meetingsTable.companyId, companyId), inArray(meetingsTable.id, meetingIds))).orderBy(desc(meetingsTable.scheduledAt));
-  return Promise.all(meetings.map(async (m) => ({
-    ...m,
-    participants: await getMeetingParticipants(m.id),
-    myStatus: await getParticipantStatus(m.id, userId),
-  })));
+export async function listCompanyMeetings(companyIds: number[] | null, userId?: number) {
+  return listMeetingsForUser(companyIds, userId, isNull(meetingsTable.deletedAt));
 }
 
-export async function listUpcomingMeetings(companyId: number, userId?: number) {
+export async function listMyMeetings(companyIds: number[] | null, userId: number) {
+  return listMeetingsForUser(companyIds, userId, isNull(meetingsTable.deletedAt));
+}
+
+export async function listUpcomingMeetings(companyIds: number[] | null, userId?: number) {
   const now = new Date();
-  const meetings = await db.select().from(meetingsTable).where(
+  return listMeetingsForUser(
+    companyIds,
+    userId,
     and(
-      eq(meetingsTable.companyId, companyId),
       or(eq(meetingsTable.status, "scheduled"), eq(meetingsTable.status, "ongoing")),
       gte(meetingsTable.scheduledAt, now),
       isNull(meetingsTable.deletedAt),
     ),
-  ).orderBy(asc(meetingsTable.scheduledAt));
-  return Promise.all(meetings.map(async (m) => ({
-    ...m,
-    participants: await getMeetingParticipants(m.id),
-    myStatus: userId ? await getParticipantStatus(m.id, userId) : undefined,
-  })));
+    asc(meetingsTable.scheduledAt),
+  );
 }
 
 export async function getMeeting(id: number, companyId: number) {
   const [meeting] = await db.select().from(meetingsTable).where(and(eq(meetingsTable.id, id), eq(meetingsTable.companyId, companyId))).limit(1);
   if (!meeting) return null;
   return { ...meeting, participants: await getMeetingParticipants(meeting.id) };
+}
+
+export async function getMeetingIfAllowed(id: number, userId: number | undefined, companyIds: number[] | null) {
+  const meeting = await getMeetingById(id);
+  if (!meeting) return null;
+  const isInvited = userId ? meeting.participants.some((p) => p.userId === userId) : false;
+  const inCompany = companyIds === null || (companyIds.length > 0 && companyIds.includes(meeting.companyId));
+  if (!isInvited && !inCompany) return null;
+  return meeting;
 }
 
 export async function getMeetingByMeetingId(meetingId: string) {

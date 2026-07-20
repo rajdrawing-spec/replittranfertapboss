@@ -15,7 +15,7 @@
 import { Router } from "express";
 import { db, treasuryEntriesTable, fundAllocationsTable, companiesTable, transactionsTable } from "@workspace/db";
 import type { User } from "@workspace/db";
-import { eq, and, ne, desc, sql, inArray, not, like } from "drizzle-orm";
+import { eq, and, ne, desc, sql, inArray, not, like, isNull, or } from "drizzle-orm";
 import { requirePermission } from "../middleware/authz";
 import { writeAudit } from "../lib/audit";
 
@@ -124,16 +124,16 @@ router.get("/treasury/summary", requirePermission("treasury.view"), async (req, 
     }[] = [];
 
     if (parent) {
-      // Exclude legacy phantom auto-allocation rows (note LIKE '__auto_finance_%')
-      // that mirrored subsidiary expenses; they were removed by the startup migration
-      // but the filter stays as a safety net against any that survived.
+      // Exclude legacy phantom auto-allocation rows. NULL-safe: use
+      // OR(note IS NULL, note NOT LIKE …) so real allocations with no note
+      // are never dropped (SQL NULL NOT LIKE x = NULL = falsy).
       const allocRows = await db
         .select({ companyId: fundAllocationsTable.toCompanyId, total: sql<number>`coalesce(sum(amount), 0)` })
         .from(fundAllocationsTable)
         .where(and(
           eq(fundAllocationsTable.fromCompanyId, parent.id),
           eq(fundAllocationsTable.status, "executed"),
-          not(like(fundAllocationsTable.note, "__auto_finance_%")),
+          or(isNull(fundAllocationsTable.note), not(like(fundAllocationsTable.note, "__auto_finance_%"))),
         ))
         .groupBy(fundAllocationsTable.toCompanyId);
       allocated = allocRows.reduce((s, r) => s + Number(r.total), 0);
@@ -279,6 +279,7 @@ router.get("/treasury/working-capital", requirePermission("treasury.view"), asyn
     const subIds = subsidiaries.map(s => s.id);
 
     // Budget allocations (reference only) — real allocations only, no auto-rows.
+    // NULL-safe: OR(note IS NULL, note NOT LIKE …).
     const allocMap: Record<number, number> = {};
     if (parent) {
       const allocRows = await db
@@ -287,7 +288,7 @@ router.get("/treasury/working-capital", requirePermission("treasury.view"), asyn
         .where(and(
           eq(fundAllocationsTable.fromCompanyId, parent.id),
           eq(fundAllocationsTable.status, "executed"),
-          not(like(fundAllocationsTable.note, "__auto_finance_%")),
+          or(isNull(fundAllocationsTable.note), not(like(fundAllocationsTable.note, "__auto_finance_%"))),
         ))
         .groupBy(fundAllocationsTable.toCompanyId);
       for (const r of allocRows) { allocMap[r.companyId] = Number(r.total); }

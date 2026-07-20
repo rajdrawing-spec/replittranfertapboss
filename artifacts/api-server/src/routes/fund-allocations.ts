@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, fundAllocationsTable, companiesTable, approvalsTable, usersTable, shareholdersTable, transactionsTable } from "@workspace/db";
 import type { User, RequiredApprover } from "@workspace/db";
-import { eq, and, or, inArray, desc, sql, isNotNull, ne, not, like } from "drizzle-orm";
+import { eq, and, or, inArray, desc, sql, isNotNull, ne, not, like, isNull } from "drizzle-orm";
 import { requirePermission } from "../middleware/authz";
 import { companyScope } from "../lib/company-scope";
 import { executeFundAllocation } from "../lib/fund-allocation";
@@ -30,9 +30,12 @@ router.get("/fund-allocations", requirePermission("funds.view"), async (req, res
     // syncAutoAllocation feature). These rows mirrored subsidiary expenses and
     // caused double-counting; they are deleted by the startup migration but the
     // filter stays as a safety net.
+    // Exclude legacy phantom auto-allocation rows. NULL-safe: note IS NULL rows
+    // are real allocations and must never be filtered out by NOT LIKE alone
+    // (SQL: NULL NOT LIKE x = NULL, which is falsy and drops the row).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const conditions: any[] = [
-      not(like(fundAllocationsTable.note, "__auto_finance_%")),
+      or(isNull(fundAllocationsTable.note), not(like(fundAllocationsTable.note, "__auto_finance_%"))),
     ];
     if (status) conditions.push(eq(fundAllocationsTable.status, status));
     if (companyId) {

@@ -149,6 +149,12 @@ vi.mock("drizzle-orm", () => ({
   or: (...conds: any[]) => ({ op: "or", conds }),
   inArray: (col: string, vals: any[]) => ({ op: "inArray", col, vals }),
   isNull: (col: string) => ({ op: "isNull", col }),
+  isNotNull: (col: string) => ({ op: "isNotNull", col }),
+  // not/like/ne are used as a safety-net filter for phantom rows; in tests all
+  // seeded rows are real allocations so the filter should pass everything.
+  not: (_cond: any) => ({ op: "not_passthrough" }),
+  like: (_col: string, _pattern: string) => ({ op: "like_passthrough" }),
+  ne: (col: string, val: any) => ({ op: "ne", col, val }),
   desc: (col: string) => ({ op: "desc", col }),
   sql: (() => ({ op: "sql" })) as any,
 }));

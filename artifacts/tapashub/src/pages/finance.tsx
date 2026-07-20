@@ -47,10 +47,15 @@ interface TxForm {
   companyId: string; type: string; category: string; amount: string
   description: string; referenceNumber: string; paymentMethod: string; status: string; date: string
 }
+
+// Use the browser's local timezone so a transaction created at 11 PM IST
+// gets the correct local date, not a UTC date that may be a day off.
+const localDateInputValue = () => new Date().toLocaleDateString("en-CA")
+
 const emptyForm = (): TxForm => ({
   companyId: "", type: "income", category: "Sales Revenue", amount: "",
   description: "", referenceNumber: "", paymentMethod: "bank_transfer",
-  status: "completed", date: new Date().toISOString().slice(0, 10),
+  status: "completed", date: localDateInputValue(),
 })
 
 interface BalanceData {

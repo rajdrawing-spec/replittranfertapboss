@@ -142,21 +142,25 @@ router.get("/treasury/summary", requirePermission("treasury.view"), async (req, 
       const subIds = subsidiaries.map(s => s.id);
       const incomeMap = await subsidiaryIncomeMap(subIds);
 
-      allocationsBySubsidiary = allocRows.map(r => {
-        const co = cm[r.companyId];
-        const inc = incomeMap[r.companyId] ?? 0;
-        const spent = expenseByCompany[r.companyId] ?? 0;
-        const alloc = Number(r.total);
+      // Build from ALL subsidiaries so every company appears in the chart,
+      // even those with ₹0 allocation. Lookup allocation totals from allocRows.
+      const allocByCompany: Record<number, number> = {};
+      for (const r of allocRows) allocByCompany[r.companyId] = Number(r.total);
+
+      allocationsBySubsidiary = subsidiaries.map(c => {
+        const alloc = allocByCompany[c.id] ?? 0;
+        const inc = incomeMap[c.id] ?? 0;
+        const spent = expenseByCompany[c.id] ?? 0;
         return {
-          companyId: r.companyId,
-          companyName: co?.name ?? "Unknown",
-          color: co?.color ?? "#6366f1",
+          companyId: c.id,
+          companyName: c.name,
+          color: c.color ?? "#6366f1",
           allocated: alloc,
           spent,
           income: inc,
-          netPosition: alloc - spent, // remaining budget per subsidiary
+          netPosition: alloc - spent,
         };
-      });
+      }).sort((a, b) => (b.allocated + b.spent) - (a.allocated + a.spent));
     }
 
     const totalRaised = Number(raised?.total ?? 0);
@@ -303,11 +307,13 @@ router.get("/treasury/working-capital", requirePermission("treasury.view"), asyn
     const totalCapital = Number(raised?.total ?? 0);
     const totalAllocated = Object.values(allocMap).reduce((s, v) => s + v, 0);
 
+    // Include ALL subsidiaries so every company appears in the Capital
+    // Distribution grid — even ones with ₹0 allocated and ₹0 spent.
+    // Sort: allocated desc, then spent desc (so active subs rise to the top).
     const byCompany: {
       id: number; name: string; color: string;
       allocated: number; spent: number; income: number; isSelf: boolean;
     }[] = subsidiaries
-      .filter(c => (allocMap[c.id] ?? 0) > 0 || (expenseMap[c.id] ?? 0) > 0)
       .map(c => ({
         id: c.id,
         name: c.name,
@@ -317,7 +323,7 @@ router.get("/treasury/working-capital", requirePermission("treasury.view"), asyn
         income: incomeMap[c.id] ?? 0,
         isSelf: false,
       }))
-      .sort((a, b) => b.spent - a.spent);
+      .sort((a, b) => (b.allocated + b.spent) - (a.allocated + a.spent));
 
     // Include the parent's own operational expenses as a "Self" entry
     if (parent && (expenseMap[parent.id] ?? 0) > 0) {

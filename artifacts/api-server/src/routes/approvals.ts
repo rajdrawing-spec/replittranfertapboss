@@ -293,22 +293,42 @@ router.patch("/approvals/:approvalId/action", async (req, res) => {
         ...r,
         email: r.email.trim().toLowerCase(),
       }));
-      const anyRequiredRejected = normalizedRequired.some(
-        (r) => voteByEmail.get(r.email) === "rejected",
+
+      // ── Super-admin override ──────────────────────────────────────────────
+      // If the voter is a super-admin AND they are not listed as a required
+      // approver, treat their vote as an authoritative admin override that
+      // immediately finalises the approval (bypassing the normal vote count).
+      // This prevents the frustrating UX where clicking Approve/Reject appears
+      // to do nothing because the super-admin is not on the approver list.
+      const isOnRequiredList = normalizedRequired.some(
+        (r) => r.email === normalizedVoterEmail,
       );
-      const allRequiredApproved = normalizedRequired.every(
-        (r) => voteByEmail.get(r.email) === "approved",
-      );
-      if (anyRequiredRejected) {
-        newStatus = "rejected";
-      } else if (allRequiredApproved) {
-        newStatus = "approved";
+      if (isSuperAdmin && !isOnRequiredList) {
+        newStatus = decision === "approved" ? "approved" : "rejected";
       } else {
-        // Still pending — update step counter to reflect progress.
-        const approvedSoFar = normalizedRequired.filter(
-          (r) => voteByEmail.get(r.email) === "approved",
-        ).length;
-        newStep = Math.min(approvedSoFar + 1, existing.totalSteps);
+        // ── Normal vote counting ────────────────────────────────────────────
+        const requiredVotes = normalizedRequired.map(
+          (r) => voteByEmail.get(r.email) ?? "pending",
+        );
+        const approvedCount = requiredVotes.filter((v) => v === "approved").length;
+        const rejectedCount = requiredVotes.filter((v) => v === "rejected").length;
+
+        // Approved: every required approver has voted "approved" (unanimous).
+        const allApproved = approvedCount === normalizedRequired.length;
+
+        // Rejected: strict majority (more than half) of required approvers have
+        // voted "rejected". A single rejection no longer kills the allocation —
+        // it takes >50% rejections to block the motion.
+        const majorityRejected = rejectedCount > Math.floor(normalizedRequired.length / 2);
+
+        if (majorityRejected) {
+          newStatus = "rejected";
+        } else if (allApproved) {
+          newStatus = "approved";
+        } else {
+          // Still pending — advance step counter to reflect progress.
+          newStep = Math.min(approvedCount + 1, existing.totalSteps);
+        }
       }
     }
 

@@ -335,7 +335,7 @@ router.post("/meetings/audio/:meetingId", requirePermission("meetings.read"), as
 });
 
 // ── Create meeting ────────────────────────────────────────────────────────────
-router.post("/meetings", requirePermission("meetings.manage"), async (req, res) => {
+router.post("/meetings", requirePermission("meetings.create"), async (req, res) => {
   try {
     const companyId = parseInt(req.body.companyId as string);
     const userId = getLocalUserId(req);

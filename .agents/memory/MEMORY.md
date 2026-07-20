@@ -47,6 +47,7 @@
 - [TBOS JaaS JWT integration](tbos-jaas-jwt.md) — store `vpaas-magic-cookie-<apiKey>/<appId>` as `JITSIAAS_MAGIC_COOKIE`; backend signs HS256 JWT with `Buffer.from(apiKey,"hex")`; room URL becomes `https://8x8.vc/<appId>/<roomName>?jwt=<token>`; frontend SDK gets `jwt` prop and parses JaaS server URL into `domain=8x8.vc` + `roomName=<appId>/<roomName>`.
 - [TBOS granular RBAC](tbos-rbac-permissions.md) — treasury/funds use permission keys not requireSuperAdmin; RequestAccessGate flow; fake-DB tests must mock authz middleware.
 - [TBOS AI meeting assistant](tbos-ai-meeting-notes.md) — recorder chunks survive token remounts via module map; finishRecording from every leave path; failed note rows are reclaimable.
-- [TBOS group-call join policy](tbos-group-call-policy.md) — any company member may join a meeting in their workspace; only explicitly rejected invitees are blocked.
+- [TBOS group-call join policy](tbos-group-call-policy.md) — any company member may join a meeting in their workspace; only explicitly rejected invitees are blocked; every system role needs meetings.read or join 403s.
+- [Vite manualChunks TDZ crash](vite-manual-chunks-tdz.md) — manual vendor chunking caused circular chunks and a prod-only blank-screen crash; treat "Circular chunk" warnings as release blockers.
 - [Gemini model deprecation](gemini-model-deprecation.md) — "gemini-2.5-flash" 404s for new API keys; use the "gemini-flash-latest" alias; models can appear in models.list yet still be rejected at generateContent.
 - [TBOS fake DB query-builder methods](tbos-fake-db-methods.md) — copy the full QB chain (returning/for/onConflictDoNothing) when reusing the fake DB, or insert paths fail with 'not a function'.

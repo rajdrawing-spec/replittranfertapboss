@@ -84,4 +84,22 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
   { key: "director", name: "Director", description: "Company oversight: dashboard, finance, approvals and shareholder cap table.", permissions: ["dashboard.view", "finance.view", "treasury.view", "funds.view", "approvals.view", "approvals.manage", "shareholders.view", "documents.view", "chat.read", "chat.write", "chat.manage", "meetings.read", "meetings.create", "meetings.manage", "director.view"] },
   { key: "investor", name: "Investor", description: "Read-only high-level financial view.", permissions: ["dashboard.view", "finance.view", "meetings.read"] },
   { key: "shareholder", name: "Shareholder", description: "Views their own equity, cap table and investment history.", permissions: ["dashboard.view", "shareholders.view", "meetings.read"] },
+  {
+    key: "staff",
+    name: "Staff / Employee",
+    description: "General employee — can use AI products, AI intelligence, marketing/ads and inventory tools.",
+    permissions: [
+      "dashboard.view",
+      "inventory.view", "inventory.manage",
+      "ai.read", "ai.reports",
+      "ai_tasks.read", "ai_tasks.manage",
+      "marketing.view", "marketing.manage",
+      "orders.view",
+      "crm.view",
+      "chat.read", "chat.write",
+      "meetings.read", "meetings.create",
+      "documents.view",
+      "directory.view",
+    ],
+  },
 ];

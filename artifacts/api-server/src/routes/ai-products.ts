@@ -35,7 +35,7 @@ function ensureCompany(req: any, res: any, companyId?: number) {
   return true;
 }
 
-router.post("/ai-products/:productId/analyze-images", requirePermission("inventory.read"), async (req: any, res: any) => {
+router.post("/ai-products/:productId/analyze-images", requirePermission("inventory.view"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { productId } = IdParam.parse(parseParams(req.params));
@@ -98,7 +98,7 @@ router.post("/ai-products/:productId/analyze-images", requirePermission("invento
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Image analysis failed" }); }
 });
 
-router.post("/ai-products/:productId/generate-content", requirePermission("inventory.write"), async (req: any, res: any) => {
+router.post("/ai-products/:productId/generate-content", requirePermission("inventory.manage"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { productId } = IdParam.parse(parseParams(req.params));
@@ -110,7 +110,7 @@ router.post("/ai-products/:productId/generate-content", requirePermission("inven
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Content generation failed" }); }
 });
 
-router.post("/ai-products/:productId/apply-content", requirePermission("inventory.write"), async (req: any, res: any) => {
+router.post("/ai-products/:productId/apply-content", requirePermission("inventory.manage"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { productId } = IdParam.parse(parseParams(req.params));
@@ -141,7 +141,7 @@ router.post("/ai-products/:productId/apply-content", requirePermission("inventor
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to apply content" }); }
 });
 
-router.post("/ai-products/:productId/generate-sku", requirePermission("inventory.write"), async (req: any, res: any) => {
+router.post("/ai-products/:productId/generate-sku", requirePermission("inventory.manage"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { productId } = IdParam.parse(parseParams(req.params));
@@ -159,7 +159,7 @@ router.post("/ai-products/:productId/generate-sku", requirePermission("inventory
   } catch (e) { req.log.error(e); res.status(500).json({ error: "SKU generation failed" }); }
 });
 
-router.post("/ai-products/:productId/generate-barcode", requirePermission("inventory.write"), async (req: any, res: any) => {
+router.post("/ai-products/:productId/generate-barcode", requirePermission("inventory.manage"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { productId } = IdParam.parse(parseParams(req.params));
@@ -169,7 +169,7 @@ router.post("/ai-products/:productId/generate-barcode", requirePermission("inven
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Barcode generation failed" }); }
 });
 
-router.post("/ai-products/:productId/marketplace/:marketplace", requirePermission("inventory.read"), async (req: any, res: any) => {
+router.post("/ai-products/:productId/marketplace/:marketplace", requirePermission("inventory.view"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { productId, marketplace } = MarketplaceParam.parse(parseParams(req.params));
@@ -180,7 +180,7 @@ router.post("/ai-products/:productId/marketplace/:marketplace", requirePermissio
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Marketplace template generation failed" }); }
 });
 
-router.post("/ai-products/:productId/images/:imageIndex/resize", requirePermission("inventory.write"), async (req: any, res: any) => {
+router.post("/ai-products/:productId/images/:imageIndex/resize", requirePermission("inventory.manage"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { productId, imageIndex } = z.object({ productId: z.coerce.number(), imageIndex: z.coerce.number() }).parse(req.params);
@@ -196,7 +196,7 @@ router.post("/ai-products/:productId/images/:imageIndex/resize", requirePermissi
   } catch (e) { req.log.error(e); res.status(500).json({ error: (e as Error).message }); }
 });
 
-router.post("/ai-products/:productId/images/:imageIndex/remove-background", requirePermission("inventory.write"), async (req: any, res: any) => {
+router.post("/ai-products/:productId/images/:imageIndex/remove-background", requirePermission("inventory.manage"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { productId, imageIndex } = z.object({ productId: z.coerce.number(), imageIndex: z.coerce.number() }).parse(req.params);
@@ -211,7 +211,7 @@ router.post("/ai-products/:productId/images/:imageIndex/remove-background", requ
   } catch (e) { req.log.error(e); res.status(500).json({ error: (e as Error).message }); }
 });
 
-router.post("/ai-products/:productId/health-score", requirePermission("inventory.read"), async (req: any, res: any) => {
+router.post("/ai-products/:productId/health-score", requirePermission("inventory.view"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { productId } = IdParam.parse(parseParams(req.params));
@@ -223,7 +223,7 @@ router.post("/ai-products/:productId/health-score", requirePermission("inventory
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Health score failed" }); }
 });
 
-router.get("/ai-products/:productId/ai-metadata", requirePermission("inventory.read"), async (req: any, res: any) => {
+router.get("/ai-products/:productId/ai-metadata", requirePermission("inventory.view"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { productId } = IdParam.parse(parseParams(req.params));
@@ -236,7 +236,7 @@ router.get("/ai-products/:productId/ai-metadata", requirePermission("inventory.r
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to load metadata" }); }
 });
 
-router.post("/products/:productId/variants", requirePermission("inventory.write"), async (req, res) => {
+router.post("/products/:productId/variants", requirePermission("inventory.manage"), async (req, res) => {
   try {
     const { productId } = IdParam.parse(parseParams(req.params));
     const [product] = await db.select({ companyId: productsTable.companyId }).from(productsTable).where(eq(productsTable.id, productId));
@@ -249,7 +249,7 @@ router.post("/products/:productId/variants", requirePermission("inventory.write"
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to create variant" }); }
 });
 
-router.delete("/products/:productId/variants/:variantId", requirePermission("inventory.write"), async (req, res) => {
+router.delete("/products/:productId/variants/:variantId", requirePermission("inventory.manage"), async (req, res) => {
   try {
     const variantId = parseInt(String(req.params.variantId));
     const [variant] = await db.delete(productVariantsTable).where(eq(productVariantsTable.id, variantId)).returning();
@@ -258,7 +258,7 @@ router.delete("/products/:productId/variants/:variantId", requirePermission("inv
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to delete variant" }); }
 });
 
-router.post("/products/:productId/images", requirePermission("inventory.write"), async (req, res) => {
+router.post("/products/:productId/images", requirePermission("inventory.manage"), async (req, res) => {
   try {
     const { productId } = IdParam.parse(parseParams(req.params));
     const [product] = await db.select({ companyId: productsTable.companyId }).from(productsTable).where(eq(productsTable.id, productId));
@@ -270,7 +270,7 @@ router.post("/products/:productId/images", requirePermission("inventory.write"),
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to add image" }); }
 });
 
-router.delete("/products/:productId/images/:imageId", requirePermission("inventory.write"), async (req, res) => {
+router.delete("/products/:productId/images/:imageId", requirePermission("inventory.manage"), async (req, res) => {
   try {
     const imageId = parseInt(String(req.params.imageId));
     const [img] = await db.delete(productImagesTable).where(eq(productImagesTable.id, imageId)).returning();
@@ -279,7 +279,7 @@ router.delete("/products/:productId/images/:imageId", requirePermission("invento
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to delete image" }); }
 });
 
-router.post("/ai-products/:productId/import-csv", requirePermission("inventory.write"), async (req: any, res: any) => {
+router.post("/ai-products/:productId/import-csv", requirePermission("inventory.manage"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { productId } = IdParam.parse(parseParams(req.params));
@@ -291,7 +291,7 @@ router.post("/ai-products/:productId/import-csv", requirePermission("inventory.w
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Import failed" }); }
 });
 
-router.post("/ai-products/import-csv", requirePermission("inventory.write"), async (req: any, res: any) => {
+router.post("/ai-products/import-csv", requirePermission("inventory.manage"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { companyId, objectPath, csv } = z.object({
@@ -369,7 +369,7 @@ function cleanInteger(value: string | undefined): number {
   return Number.isFinite(num) ? num : 0;
 }
 
-router.post("/ai-products/import-jobs/:jobId/process", requirePermission("inventory.write"), async (req, res) => {
+router.post("/ai-products/import-jobs/:jobId/process", requirePermission("inventory.manage"), async (req, res) => {
   if (!gate(req, res)) return;
   try {
     const jobId = parseInt(String(req.params.jobId));
@@ -448,7 +448,7 @@ router.post("/ai-products/import-jobs/:jobId/process", requirePermission("invent
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Import processing failed" }); }
 });
 
-router.post("/ai-products/export-csv", requirePermission("inventory.read"), async (req, res) => {
+router.post("/ai-products/export-csv", requirePermission("inventory.view"), async (req, res) => {
   if (!gate(req, res)) return;
   try {
     const { companyId } = z.object({ companyId: z.number() }).parse(req.body);
@@ -469,7 +469,7 @@ router.post("/ai-products/export-csv", requirePermission("inventory.read"), asyn
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Export failed" }); }
 });
 
-router.get("/ai-products/import-jobs", requirePermission("inventory.read"), async (req, res) => {
+router.get("/ai-products/import-jobs", requirePermission("inventory.view"), async (req, res) => {
   if (!gate(req, res)) return;
   try {
     const companyId = req.query.companyId ? parseInt(req.query.companyId as string) : undefined;
@@ -481,7 +481,7 @@ router.get("/ai-products/import-jobs", requirePermission("inventory.read"), asyn
 });
 
 // ── Barcode image (bwip-js) ─────────────────────────────────────────────────
-router.post("/ai-products/:productId/barcode-image", requirePermission("inventory.write"), async (req: any, res: any) => {
+router.post("/ai-products/:productId/barcode-image", requirePermission("inventory.manage"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { productId } = IdParam.parse(parseParams(req.params));
@@ -495,7 +495,7 @@ router.post("/ai-products/:productId/barcode-image", requirePermission("inventor
 });
 
 // ── Marketplace image variants (auto-resize for Amazon, Flipkart, etc.) ──────
-router.post("/ai-products/:productId/generate-marketplace-images", requirePermission("inventory.write"), async (req: any, res: any) => {
+router.post("/ai-products/:productId/generate-marketplace-images", requirePermission("inventory.manage"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { productId } = IdParam.parse(parseParams(req.params));
@@ -518,7 +518,7 @@ router.post("/ai-products/:productId/generate-marketplace-images", requirePermis
 const MAX_QUICK_IMAGE_BYTES = 8 * 1024 * 1024;   // per image (decoded)
 const MAX_QUICK_TOTAL_BYTES = 40 * 1024 * 1024;  // whole request (decoded)
 
-router.post("/ai-products/quick-create", requirePermission("inventory.write"), async (req: any, res: any) => {
+router.post("/ai-products/quick-create", requirePermission("inventory.manage"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const parsed = z.object({
@@ -602,7 +602,7 @@ router.post("/ai-products/quick-create", requirePermission("inventory.write"), a
 });
 
 // ── Excel import/export ─────────────────────────────────────────────────────
-router.post("/ai-products/import-xlsx", requirePermission("inventory.write"), async (req: any, res: any) => {
+router.post("/ai-products/import-xlsx", requirePermission("inventory.manage"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { companyId, base64 } = z.object({ companyId: z.number(), base64: z.string() }).parse(req.body);
@@ -613,7 +613,7 @@ router.post("/ai-products/import-xlsx", requirePermission("inventory.write"), as
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Excel import failed" }); }
 });
 
-router.post("/ai-products/export-xlsx", requirePermission("inventory.read"), async (req: any, res: any) => {
+router.post("/ai-products/export-xlsx", requirePermission("inventory.view"), async (req: any, res: any) => {
   if (!gate(req, res)) return;
   try {
     const { companyId } = z.object({ companyId: z.number() }).parse(req.body);

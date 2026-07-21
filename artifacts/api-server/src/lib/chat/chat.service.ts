@@ -96,21 +96,45 @@ export async function getChannelById(channelId: number) {
 export async function listChannels(companyId: number, userId: number) {
   await ensureCompanyChannels(companyId);
 
-  const channels = await db
+  // Group/team channels are company-scoped (filter by companyId).
+  const groupChannels = await db
     .select()
     .from(chatChannelsTable)
-    .where(and(eq(chatChannelsTable.companyId, companyId), eq(chatChannelsTable.isActive, true)))
+    .where(
+      and(
+        eq(chatChannelsTable.companyId, companyId),
+        eq(chatChannelsTable.isActive, true),
+        sql`${chatChannelsTable.type} <> 'direct'`,
+      ),
+    )
     .orderBy(asc(chatChannelsTable.name));
 
-  // For direct channels, only include if user is a member
-  const visible = [];
-  for (const c of channels) {
-    if (c.type === "direct") {
-      const member = await isChannelMember(c.id, userId);
-      if (!member) continue;
-    }
-    visible.push(c);
-  }
+  // Direct-message channels are workspace-level — they belong to whoever started
+  // them (possibly from a different company context) but should be visible in
+  // every company view.  Fetch them by membership, not by companyId.
+  const memberRows = await db
+    .select({ channelId: chatChannelMembersTable.channelId })
+    .from(chatChannelMembersTable)
+    .where(eq(chatChannelMembersTable.userId, userId));
+
+  const memberChannelIds = memberRows.map((r) => r.channelId);
+
+  const directChannels =
+    memberChannelIds.length > 0
+      ? await db
+          .select()
+          .from(chatChannelsTable)
+          .where(
+            and(
+              inArray(chatChannelsTable.id, memberChannelIds),
+              eq(chatChannelsTable.type, "direct"),
+              eq(chatChannelsTable.isActive, true),
+            ),
+          )
+          .orderBy(asc(chatChannelsTable.name))
+      : [];
+
+  const visible = [...groupChannels, ...directChannels];
 
   // Unread counts per channel
   const counts: { channelId: number; unread: number }[] = [];

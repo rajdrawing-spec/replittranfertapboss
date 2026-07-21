@@ -107,7 +107,14 @@ router.post("/ai-products/:productId/generate-content", requirePermission("inven
     const { hint } = z.object({ hint: z.string().optional() }).parse(req.body);
     const result = await generateProductContent(productId, hint);
     res.json(result);
-  } catch (e) { req.log.error(e); res.status(500).json({ error: "Content generation failed" }); }
+  } catch (e: any) {
+    req.log.error(e);
+    const msg = String(e?.message || "");
+    const isRateLimit = msg.includes("429") || msg.includes("Quota exceeded") || msg.includes("rate limit") || msg.includes("rate-limit");
+    res.status(500).json({
+      error: isRateLimit ? "AI service is temporarily rate-limited. Please wait a few seconds and try again." : "Content generation failed",
+    });
+  }
 });
 
 router.post("/ai-products/:productId/apply-content", requirePermission("inventory.manage"), async (req: any, res: any) => {

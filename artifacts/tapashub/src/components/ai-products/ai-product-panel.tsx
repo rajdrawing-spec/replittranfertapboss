@@ -105,10 +105,13 @@ export default function AiProductPanel({ product, onChange }: { product: Product
       const res = await fetch(`${basePath}/api/ai-products/${product.id}/generate-content`, {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ hint }),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || "Could not generate content")
+      }
       setGenerated(await res.json())
-    } catch {
-      toast({ title: "Error", description: "Could not generate content", variant: "destructive" })
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Could not generate content", variant: "destructive" })
     } finally { setLoading(null) }
   }
 

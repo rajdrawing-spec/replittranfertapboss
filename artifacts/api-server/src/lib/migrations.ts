@@ -761,4 +761,11 @@ export async function repairOrphanedAllocations(): Promise<void> {
   } catch (e) {
     logger.error({ err: e }, "Orphan allocation repair failed (non-fatal)");
   }
+
+  // Add source_link column to products
+  try {
+    await db.execute(sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS source_link TEXT`);
+  } catch (e) {
+    logger.error({ err: e }, "Failed to add source_link to products (non-fatal)");
+  }
 }

@@ -24,6 +24,7 @@ export const productsTable = pgTable("products", {
   reorderLevel: integer("reorder_level").notNull().default(10),
   warehouseLocation: text("warehouse_location"),
   imageUrl: text("image_url"),
+  sourceLink: text("source_link"),
   status: text("status").notNull().default("active"), // active|discontinued|draft
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

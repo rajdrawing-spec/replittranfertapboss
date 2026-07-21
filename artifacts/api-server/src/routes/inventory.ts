@@ -183,6 +183,7 @@ function formatProduct(p: typeof productsTable.$inferSelect, companyMap: Record<
     reorderLevel: p.reorderLevel,
     warehouseLocation: p.warehouseLocation,
     imageUrl: p.imageUrl,
+    sourceLink: p.sourceLink,
     status: p.status,
     createdAt: p.createdAt.toISOString(),
   };

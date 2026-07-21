@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Search, Plus, Pencil, Trash2, PackageSearch, AlertTriangle, Sparkles, Upload, Download, Wand2, ScanBarcode, ImagePlus, Loader2, FileSpreadsheet, Check } from "lucide-react"
+import { Search, Plus, Pencil, Trash2, PackageSearch, AlertTriangle, Sparkles, Upload, Download, Wand2, ScanBarcode, ImagePlus, Loader2, FileSpreadsheet, Check, Link, RefreshCw } from "lucide-react"
 import { useCompany } from "@/contexts/company-context"
 import { useToast } from "@/hooks/use-toast"
 import { useUpload } from "@workspace/object-storage-web"
@@ -38,6 +38,7 @@ interface ProductForm {
   hsn: string
   status: string
   imageUrl: string
+  sourceLink: string
 }
 
 interface ProductVariant {
@@ -79,8 +80,17 @@ const emptyForm = (): ProductForm => ({
   companyId: "", name: "", sku: "", brand: "", category: "", subcategory: "",
   description: "", shortDescription: "", price: "", mrp: "", costPrice: "", gst: "",
   stockQuantity: "0", reorderLevel: "10", warehouseLocation: "", weight: "", dimensions: "", hsn: "",
-  status: "active", imageUrl: "",
+  status: "active", imageUrl: "", sourceLink: "",
 })
+
+function toSlug(text: string) {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+}
+
+function autoGenerateSourceLink(name: string, sku: string): string {
+  const slug = toSlug(name) || toSlug(sku) || "product"
+  return `https://store.example.com/products/${slug}`
+}
 
 export default function Inventory() {
   const { activeCompany } = useCompany()
@@ -196,7 +206,7 @@ export default function Inventory() {
       price: String(p.price), mrp: String(p.mrp ?? ""), costPrice: String(p.costPrice ?? ""),
       gst: String(p.gst ?? ""), stockQuantity: String(p.stockQuantity), reorderLevel: String(p.reorderLevel),
       warehouseLocation: p.warehouseLocation ?? "", weight: p.weight ?? "", dimensions: p.dimensions ?? "", hsn: p.hsn ?? "",
-      status: p.status, imageUrl: p.imageUrl ?? "",
+      status: p.status, imageUrl: p.imageUrl ?? "", sourceLink: p.sourceLink ?? "",
     })
     setPendingImages([])
     setAutoFill(null)
@@ -221,6 +231,7 @@ export default function Inventory() {
         warehouseLocation: form.warehouseLocation || undefined, weight: form.weight || undefined,
         dimensions: form.dimensions || undefined, hsn: form.hsn || undefined, status: form.status,
         imageUrl: form.imageUrl || undefined,
+        sourceLink: form.sourceLink || undefined,
       }
       const url = editing ? `${API_BASE}/api/products/${editing.id}` : `${API_BASE}/api/products`
       const res = await fetch(url, {
@@ -563,15 +574,16 @@ export default function Inventory() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-14" />
                   <TableHead>Product</TableHead><TableHead>SKU</TableHead><TableHead>Category</TableHead>
                   <TableHead>Price</TableHead><TableHead>Stock</TableHead><TableHead>Status</TableHead><TableHead className="w-20" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? Array.from({ length: 8 }).map((_, i) => (
-                  <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
+                  <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
                 )) : data?.items?.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="h-32 text-center">
+                  <TableRow><TableCell colSpan={8} className="h-32 text-center">
                     <PackageSearch className="mx-auto h-8 w-8 opacity-20 mb-2" />
                     <p className="text-muted-foreground">No products found</p>
                   </TableCell></TableRow>
@@ -579,9 +591,30 @@ export default function Inventory() {
                   const lowStock = p.stockQuantity <= p.reorderLevel
                   return (
                     <TableRow key={p.id} className="hover:bg-muted/30">
+                      <TableCell className="pr-0">
+                        {p.imageUrl ? (
+                          <img
+                            src={p.imageUrl}
+                            alt={p.name}
+                            className="w-10 h-10 rounded-md object-cover border border-border/50 bg-muted"
+                            onError={e => { (e.target as HTMLImageElement).style.display = "none" }}
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-md border border-border/50 bg-muted flex items-center justify-center">
+                            <PackageSearch className="w-4 h-4 text-muted-foreground/40" />
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <div className="font-medium">{p.name}</div>
-                        <div className="text-xs text-muted-foreground">{p.companyName}</div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                          <span>{p.companyName}</span>
+                          {p.sourceLink && (
+                            <a href={p.sourceLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-blue-400 hover:text-blue-300" onClick={e => e.stopPropagation()}>
+                              <Link className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="font-mono text-xs">{p.sku ?? "—"}</TableCell>
                       <TableCell className="text-sm">{p.category ?? "—"}{p.subcategory ? ` · ${p.subcategory}` : ""}</TableCell>
@@ -655,6 +688,27 @@ export default function Inventory() {
             <div className="space-y-1.5"><Label>Dimensions</Label><Input value={form.dimensions} onChange={e => f("dimensions", e.target.value)} placeholder="L x W x H cm" /></div>
             <div className="space-y-1.5"><Label>HSN Code</Label><Input value={form.hsn} onChange={e => f("hsn", e.target.value)} placeholder="HSN" /></div>
             <div className="col-span-3 space-y-1.5"><Label>Warehouse Location</Label><Input value={form.warehouseLocation} onChange={e => f("warehouseLocation", e.target.value)} placeholder="e.g. Warehouse A, Rack 3" /></div>
+            <div className="col-span-3 space-y-1.5">
+              <Label className="flex items-center gap-1.5"><Link className="w-3.5 h-3.5" />Source / Product URL</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={form.sourceLink}
+                  onChange={e => f("sourceLink", e.target.value)}
+                  placeholder="https://store.example.com/products/…"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  title="Auto-generate link from product name"
+                  onClick={() => f("sourceLink", autoGenerateSourceLink(form.name, form.sku))}
+                  disabled={!form.name && !form.sku}
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Public link to this product. Click ↺ to auto-generate from the product name.</p>
+            </div>
             <div className="col-span-3 space-y-1.5"><Label>Short Description</Label><Input value={form.shortDescription} onChange={e => f("shortDescription", e.target.value)} placeholder="30-50 word description" /></div>
             <div className="col-span-3 space-y-1.5"><Label>Description</Label><Input value={form.description} onChange={e => f("description", e.target.value)} placeholder="Full product description" /></div>
             <div className="space-y-1.5">

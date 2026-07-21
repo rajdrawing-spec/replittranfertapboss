@@ -178,8 +178,13 @@ export default function Inventory() {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error || "AI could not create the product")
       }
-      const { product, healthScore } = await res.json()
-      toast({ title: "Product created by AI", description: `${product.name} · ${product.category} · health ${healthScore}/100` })
+      const data = await res.json()
+      const { product, healthScore, warning } = data
+      if (warning) {
+        toast({ title: "Product created (edit to complete)", description: warning })
+      } else {
+        toast({ title: "Product created by AI", description: `${product.name} · ${product.category} · health score ${healthScore}/100` })
+      }
       setQuickOpen(false)
       setQuickImages([])
       refetch()

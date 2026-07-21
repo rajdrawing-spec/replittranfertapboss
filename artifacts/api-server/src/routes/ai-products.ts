@@ -543,18 +543,27 @@ router.post("/ai-products/quick-create", requirePermission("inventory.manage"), 
     if (total > MAX_QUICK_TOTAL_BYTES) { res.status(413).json({ error: "Photos are too large altogether — please upload fewer or smaller images" }); return; }
     if (!ensureCompany(req, res, companyId)) return;
 
-    // 1. AI vision analysis of the uploaded images
-    const result = await analyzeProductImages(images);
-    const name = result.suggestedName || "New Product";
-    const category = result.category || "Uncategorized";
-    const brand = result.attributes?.Brand || "";
-    const color = result.attributes?.Color || "";
-    const description = [
+    // 1. AI vision analysis of the uploaded images — non-fatal; if it fails
+    //    we still create a draft product so the employee doesn't lose their photos.
+    let result: Awaited<ReturnType<typeof analyzeProductImages>> | null = null;
+    let aiError: string | null = null;
+    try {
+      result = await analyzeProductImages(images);
+    } catch (e: any) {
+      req.log.warn({ err: e }, "AI vision analysis failed during quick-create — creating draft product");
+      aiError = e?.message || "AI analysis unavailable";
+    }
+
+    const name = result?.suggestedName || "New Product (Edit Me)";
+    const category = result?.category || "Uncategorized";
+    const brand = result?.attributes?.Brand || "";
+    const color = result?.attributes?.Color || "";
+    const description = result ? [
       result.attributes?.Material, result.attributes?.["Sleeve Type"], result.attributes?.["Neck Type"],
       result.attributes?.Pattern, result.attributes?.Occasion, result.attributes?.Fit,
-    ].filter(Boolean).join(". ");
+    ].filter(Boolean).join(". ") : "";
 
-    // 2. Create the product with AI-detected fields
+    // 2. Create the product (with or without AI-detected fields)
     const sku = await ensureUniqueSku(companyId, name, category, brand || undefined);
     const [product] = await db.insert(productsTable).values({
       companyId,
@@ -562,7 +571,7 @@ router.post("/ai-products/quick-create", requirePermission("inventory.manage"), 
       sku,
       barcode: generateBarcode(),
       category,
-      subcategory: result.subcategory || null,
+      subcategory: result?.subcategory || null,
       description: description || null,
       brand: brand || null,
       price: price ?? 0,
@@ -578,26 +587,34 @@ router.post("/ai-products/quick-create", requirePermission("inventory.manage"), 
         productId: product.id,
         companyId,
         objectPath,
-        aiTags: result.tags,
+        aiTags: result?.tags ?? [],
         altText: generateImageName(name, brand, category, color, angle, i),
         isPrimary: i === 0,
       });
     }));
 
-    // 4. Persist AI metadata + health score
-    await saveAiMetadata(product.id, {
-      keywords: result.keywords,
-      seoTags: result.seoTags,
-      attributes: result.attributes,
-      aiAnalysis: result as any,
-    });
-    const score = await computeHealthScore(product.id);
-    await saveAiMetadata(product.id, { healthScore: score });
+    // 4. Persist AI metadata + health score (skipped if AI analysis failed)
+    let score = 0;
+    if (result) {
+      await saveAiMetadata(product.id, {
+        keywords: result.keywords,
+        seoTags: result.seoTags,
+        attributes: result.attributes,
+        aiAnalysis: result as any,
+      });
+      score = await computeHealthScore(product.id);
+      await saveAiMetadata(product.id, { healthScore: score });
+    }
 
-    res.status(201).json({ product, analysis: result, healthScore: score });
+    res.status(201).json({
+      product,
+      analysis: result,
+      healthScore: score,
+      ...(aiError ? { warning: `Product created but AI analysis failed: ${aiError}. Open the product to fill in details.` } : {}),
+    });
   } catch (e) {
     req.log.error(e);
-    res.status(500).json({ error: "AI could not create the product. Please try again or add it manually." });
+    res.status(500).json({ error: "Could not create the product. Please try again or add it manually." });
   }
 });
 

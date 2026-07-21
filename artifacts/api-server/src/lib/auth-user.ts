@@ -14,6 +14,27 @@ export interface LocalUserResult {
 }
 
 /**
+ * Extracts a stable browser fingerprint from a user-agent string: just the
+ * browser family + OS family. Ignores version numbers so Chrome 125→126 or a
+ * minor Clerk fetch-client variation never triggers a false "new device" alarm.
+ */
+function browserFingerprint(ua: string): string {
+  const os = /Windows/.test(ua) ? "Win"
+    : /Macintosh|Mac OS X/.test(ua) ? "Mac"
+    : /Android/.test(ua) ? "Android"
+    : /iPhone|iPad/.test(ua) ? "iOS"
+    : /Linux/.test(ua) ? "Linux"
+    : "?";
+  const browser = /Edg\//.test(ua) ? "Edge"
+    : /OPR\/|Opera/.test(ua) ? "Opera"
+    : /Chrome\//.test(ua) ? "Chrome"
+    : /Firefox\//.test(ua) ? "Firefox"
+    : /Safari\//.test(ua) ? "Safari"
+    : "?";
+  return `${browser}/${os}`;
+}
+
+/**
  * Resolve the local users row for a Clerk session, provisioning/activating it
  * on first sign-in. Enforces invite-only access: unknown emails without a
  * pending invitation are rejected. The single Super Admin (SUPER_ADMIN_EMAIL)
@@ -27,22 +48,28 @@ export async function getOrProvisionLocalUser(clerkUserId: string | null | undef
   if (linked[0]) {
     if (linked[0].status === "disabled") return { error: "disabled" };
     let user = linked[0];
-    // New-device / new-browser login detection. Only fires when a previous
-    // user agent was recorded (so first sign-in never alarms), and only writes
-    // when the agent actually changes to avoid churn on frequent /auth/me calls.
-    if (userAgent && user.lastUserAgent !== userAgent) {
-      if (user.lastUserAgent) {
-        void emitNotification({
-          type: "security", severity: "warning",
-          companyId: (user.companyIds as number[])[0] ?? null,
-          title: "Login From New Device",
-          message: `${user.name} signed in from a new device or browser.`,
-          actionUrl: "/settings",
-        });
+    // New-device detection: compare browser family + OS only (not full UA
+    // string) so browser version bumps or Clerk fetch-client variations never
+    // generate false "Login From New Device" spam.
+    if (userAgent) {
+      const newFp = browserFingerprint(userAgent);
+      const oldFp = user.lastUserAgent ? browserFingerprint(user.lastUserAgent) : null;
+      if (newFp !== oldFp) {
+        if (oldFp) {
+          // Genuine new browser or OS — notify.
+          void emitNotification({
+            type: "security", severity: "warning",
+            companyId: (user.companyIds as number[])[0] ?? null,
+            title: "Login From New Device",
+            message: `${user.name} signed in from a new device or browser (${newFp}).`,
+            actionUrl: "/settings",
+          });
+        }
+        // Store fingerprint (not full UA) so comparison is version-stable.
+        [user] = await db.update(usersTable)
+          .set({ lastUserAgent: newFp, lastLoginAt: new Date() })
+          .where(eq(usersTable.id, user.id)).returning();
       }
-      [user] = await db.update(usersTable)
-        .set({ lastUserAgent: userAgent, lastLoginAt: new Date() })
-        .where(eq(usersTable.id, user.id)).returning();
     }
     return { user };
   }

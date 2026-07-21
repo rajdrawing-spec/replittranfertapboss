@@ -551,7 +551,7 @@ router.post("/ai-products/quick-create", requirePermission("inventory.manage"), 
       result = await analyzeProductImages(images);
     } catch (e: any) {
       req.log.warn({ err: e }, "AI vision analysis failed during quick-create — creating draft product");
-      aiError = e?.message || "AI analysis unavailable";
+      aiError = "AI analysis unavailable — please edit the product to complete the details";
     }
 
     const name = result?.suggestedName || "New Product (Edit Me)";

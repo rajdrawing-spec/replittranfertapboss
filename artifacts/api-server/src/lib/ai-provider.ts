@@ -130,6 +130,25 @@ const ollamaProvider: AiProvider = {
 
 // ── Gemini provider (Replit AI integrations proxy — no key needed) ────────────
 
+async function generateGeminiContent(params: any) {
+  // Retry on 429 rate-limit / quota errors with short exponential backoff.
+  // The free tier is heavily throttled; a few retries often lets the call through.
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await geminiAi.models.generateContent(params);
+    } catch (e: any) {
+      const status = e?.status || e?.code || e?.response?.status;
+      const message = String(e?.message || "");
+      const isRateLimit = status === 429 || message.includes("429") || message.includes("Quota exceeded") || message.includes("rate limit");
+      if (!isRateLimit || attempt === maxRetries) throw e;
+      const delay = Math.min(1000 * 2 ** (attempt - 1), 8000);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw new Error("Gemini request failed after retries");
+}
+
 export const geminiProvider: AiProvider = {
   name: "gemini",
   async chat(messages, systemPrompt) {
@@ -137,7 +156,7 @@ export const geminiProvider: AiProvider = {
       role: m.role === "assistant" ? ("model" as const) : ("user" as const),
       parts: [{ text: m.content }],
     }));
-    const response = await geminiAi.models.generateContent({
+    const response = await generateGeminiContent({
       model: "gemini-flash-latest",
       contents,
       config: {
@@ -160,7 +179,7 @@ export const geminiProvider: AiProvider = {
         ],
       },
     ];
-    const response = await geminiAi.models.generateContent({
+    const response = await generateGeminiContent({
       model: "gemini-flash-latest",
       contents,
       config: {

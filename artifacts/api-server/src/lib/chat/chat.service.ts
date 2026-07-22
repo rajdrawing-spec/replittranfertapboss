@@ -134,7 +134,15 @@ export async function listChannels(companyId: number, userId: number) {
           .orderBy(asc(chatChannelsTable.name))
       : [];
 
-  const visible = [...groupChannels, ...directChannels];
+  // Deduplicate by channel id in case the DB already has duplicate DM channels
+  // created by the old race-prone ensureDirectChannel. Group channels are unique
+  // by company/type constraints, so this is a safety net for direct channels.
+  const seen = new Set<number>();
+  const visible = [...groupChannels, ...directChannels].filter((c) => {
+    if (seen.has(c.id)) return false;
+    seen.add(c.id);
+    return true;
+  });
 
   // Unread counts per channel
   const counts: { channelId: number; unread: number }[] = [];
@@ -354,14 +362,24 @@ export async function getUserDisplayName(userId: number): Promise<string> {
 }
 
 export async function ensureDirectChannel(companyId: number, userIdA: number, userIdB: number): Promise<number> {
-  const members = await db.select().from(chatChannelMembersTable);
-  const channelsA = members.filter((m) => m.userId === userIdA).map((m) => m.channelId);
-  const channelsB = members.filter((m) => m.userId === userIdB).map((m) => m.channelId);
-  const common = channelsA.find((id) => channelsB.includes(id));
-  if (common) {
-    const [channel] = await db.select().from(chatChannelsTable).where(eq(chatChannelsTable.id, common)).limit(1);
-    if (channel && channel.type === "direct") return channel.id;
-  }
+  // Look for an existing direct channel where both users are members, using a
+  // single atomic SQL query. This prevents the race condition where two
+  // overlapping calls both loaded the full members table into memory, saw no
+  // common channel, and created duplicates.
+  const [existing] = await db
+    .select({ channelId: chatChannelsTable.id })
+    .from(chatChannelsTable)
+    .where(
+      and(
+        eq(chatChannelsTable.type, "direct"),
+        eq(chatChannelsTable.isActive, true),
+        sql`EXISTS (SELECT 1 FROM chat_channel_members a WHERE a.channel_id = ${chatChannelsTable.id} AND a.user_id = ${userIdA})`,
+        sql`EXISTS (SELECT 1 FROM chat_channel_members b WHERE b.channel_id = ${chatChannelsTable.id} AND b.user_id = ${userIdB})`,
+      ),
+    )
+    .limit(1);
+
+  if (existing) return existing.channelId;
 
   const nameA = await getUserDisplayName(userIdA);
   const nameB = await getUserDisplayName(userIdB);

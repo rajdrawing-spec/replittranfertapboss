@@ -160,9 +160,6 @@ export const geminiProvider: AiProvider = {
       model: "gemini-flash-latest",
       contents,
       config: {
-        // Disable thinking for structured JSON tasks — thinking tokens consume
-        // output budget and cause the JSON to be truncated mid-response.
-        thinkingConfig: { thinkingBudget: 0 },
         maxOutputTokens: 16384,
         systemInstruction: systemPrompt,
       },
@@ -183,7 +180,6 @@ export const geminiProvider: AiProvider = {
       model: "gemini-flash-latest",
       contents,
       config: {
-        thinkingConfig: { thinkingBudget: 0 },
         maxOutputTokens: 4096,
         systemInstruction: systemPrompt,
       },

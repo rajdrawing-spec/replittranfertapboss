@@ -80,3 +80,15 @@ APP_URL = "https://tapboss.tapashub.com"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-8067da3a-3800-4a0f-8aa6-026d2343b53d"
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 80
+
+[[ports]]
+localPort = 21792
+externalPort = 3000

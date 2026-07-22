@@ -8,9 +8,12 @@ export const chatChannelsTable = pgTable(
   {
     id: serial("id").primaryKey(),
     companyId: integer("company_id").notNull(),
-    type: text("type").notNull().default("team"), // team | department | direct
+    type: text("type").notNull().default("team"), // team | department | direct | group
     name: text("name").notNull(),
     department: text("department"), // for department channels
+    iconUrl: text("icon_url"),       // for group chats
+    description: text("description"), // for group chats
+    isGroup: boolean("is_group").notNull().default(false),
     createdBy: integer("created_by"),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -32,6 +35,7 @@ export const chatChannelMembersTable = pgTable(
     id: serial("id").primaryKey(),
     channelId: integer("channel_id").notNull(),
     userId: integer("user_id").notNull(),
+    isAdmin: boolean("is_admin").notNull().default(false),
     lastReadAt: timestamp("last_read_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },

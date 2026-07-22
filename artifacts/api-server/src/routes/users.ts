@@ -23,6 +23,37 @@ router.get("/users/me", async (req, res) => {
   }
 });
 
+// POST /users/me/avatar — set profile photo (objectPath from presigned upload)
+router.post("/users/me/avatar", async (req, res) => {
+  try {
+    const u = (req as any).localUser as User;
+    const { objectPath } = req.body as { objectPath?: string };
+    if (!objectPath || typeof objectPath !== "string") {
+      res.status(400).json({ error: "objectPath required" });
+      return;
+    }
+    // Store as a URL we can serve
+    const avatarUrl = objectPath.startsWith("/api/") ? objectPath : `/api/storage/objects${objectPath.startsWith("/") ? "" : "/"}${objectPath}`;
+    const [updated] = await db.update(usersTable).set({ avatarUrl, updatedAt: new Date() }).where(eq(usersTable.id, u.id)).returning();
+    res.json({ avatarUrl: updated.avatarUrl });
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to update avatar" });
+  }
+});
+
+// DELETE /users/me/avatar — remove profile photo
+router.delete("/users/me/avatar", async (req, res) => {
+  try {
+    const u = (req as any).localUser as User;
+    await db.update(usersTable).set({ avatarUrl: null, updatedAt: new Date() }).where(eq(usersTable.id, u.id));
+    res.json({ ok: true });
+  } catch (e) {
+    req.log.error(e);
+    res.status(500).json({ error: "Failed to remove avatar" });
+  }
+});
+
 // GET /users — list all users (Super Admin only).
 router.get("/users", requireSuperAdmin, async (req, res) => {
   try {

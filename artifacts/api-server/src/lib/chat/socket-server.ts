@@ -7,7 +7,11 @@ import {
   createMessage,
   getChannel,
   getChannelById,
+  getMessageById,
   isChannelMember,
+  canAccessChannel,
+  userCanAccessCompany,
+  getUserCompanyIds,
   addChannelMember,
   markChannelRead,
   addReaction,
@@ -128,14 +132,46 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
 
     if (!presenceMap.has(userId)) presenceMap.set(userId, new Set());
     presenceMap.get(userId)!.add(socket.id);
-    socket.broadcast.emit("presence:online", { userId });
+    // Emit presence:online only to company rooms the user belongs to.
+    // Looked up asynchronously so we don't block the connection setup.
+    getUserCompanyIds(userId).then((cids) => {
+      for (const cid of cids) {
+        socket.to(`company:${cid}`).emit("presence:online", { userId });
+      }
+    }).catch(() => {/* non-fatal */});
 
-    socket.on("join", async ({ companyId }: { companyId: number }, callback: (res: any) => void) => {
+    socket.on("join", async ({ companyId }: { companyId?: number }, callback: (res: any) => void) => {
       try {
-        socket.data.companyId = companyId;
-        await ensureCompanyChannels(companyId);
-        socket.join(`company:${companyId}`);
-        const users = await getCompanyUsers(companyId);
+        if (companyId) {
+          // Validate user actually belongs to this company (super admins bypass)
+          if (!(await userCanAccessCompany(userId, companyId))) {
+            return callback?.({ ok: false, error: "Not a member of this company" });
+          }
+          socket.data.companyId = companyId;
+          await ensureCompanyChannels(companyId);
+          socket.join(`company:${companyId}`);
+        }
+        // Return presence for company members only. If no companyId was provided,
+        // return presence for users in all the caller's companies (not all workspace users).
+        const resolvedCompanyId = companyId ?? 0;
+        let users: { id: number }[];
+        if (resolvedCompanyId) {
+          users = await getCompanyUsers(resolvedCompanyId);
+        } else {
+          // No company context — return presence for users sharing at least one company with the caller
+          const callerCompanyIds = await getUserCompanyIds(userId);
+          if (callerCompanyIds.length > 0) {
+            const perCompany = await Promise.all(callerCompanyIds.map((cid: number) => getCompanyUsers(cid)));
+            const seen = new Set<number>();
+            users = perCompany.flat().filter((u: { id: number }) => {
+              if (seen.has(u.id)) return false;
+              seen.add(u.id);
+              return true;
+            });
+          } else {
+            users = []; // no company membership — no presence data
+          }
+        }
         const online = users.map((u) => ({ userId: u.id, online: presenceMap.has(u.id) && presenceMap.get(u.id)!.size > 0 }));
         callback?.({ ok: true, users: online });
       } catch (e) {
@@ -146,24 +182,14 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
 
     socket.on("join:channel", async ({ channelId }: { channelId: number }, callback: (res: any) => void) => {
       try {
-        const companyId = socket.data.companyId as number;
-        let channel = await getChannel(channelId, companyId);
-        // Direct channels may have been created under a different company than the
-        // socket currently claims (e.g., parent vs subsidiary switch). Fall back to
-        // a membership check so legitimate participants can still open the DM.
-        if (!channel) {
-          const byId = await getChannelById(channelId);
-          if (byId && byId.type === "direct" && (await isChannelMember(channelId, userId))) {
-            channel = byId;
-            socket.data.companyId = channel.companyId;
-          }
+        // Single authoritative access check: covers team/dept (company membership)
+        // and direct/group (explicit membership)
+        if (!(await canAccessChannel(channelId, userId))) {
+          return callback?.({ ok: false, error: "Access denied" });
         }
+        const channel = await getChannelById(channelId);
         if (!channel) return callback?.({ ok: false, error: "Channel not found" });
-        if (channel.type === "direct" && !(await isChannelMember(channelId, userId))) {
-          return callback?.({ ok: false, error: "Not a member" });
-        }
         socket.join(`channel:${channelId}`);
-        await addChannelMember(channelId, userId);
         await markChannelRead(channelId, userId);
         callback?.({ ok: true });
       } catch (e) {
@@ -181,19 +207,12 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
         if (!content || content.length > MESSAGE_MAX_LENGTH) {
           return callback?.({ ok: false, error: "Invalid message" });
         }
-        const companyId = socket.data.companyId as number;
-        let channel = await getChannel(payload.channelId, companyId);
-        if (!channel) {
-          const byId = await getChannelById(payload.channelId);
-          if (byId && byId.type === "direct" && (await isChannelMember(payload.channelId, userId))) {
-            channel = byId;
-            socket.data.companyId = channel.companyId;
-          }
+        // Single authoritative access check for all channel types
+        if (!(await canAccessChannel(payload.channelId, userId))) {
+          return callback?.({ ok: false, error: "Access denied" });
         }
+        const channel = await getChannelById(payload.channelId);
         if (!channel) return callback?.({ ok: false, error: "Channel not found" });
-        if (channel.type === "direct" && !(await isChannelMember(payload.channelId, userId))) {
-          return callback?.({ ok: false, error: "Not a member" });
-        }
 
         const displayName = await getUserDisplayName(userId);
         const message = await createMessage({
@@ -208,7 +227,14 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
         });
 
         io.to(`channel:${payload.channelId}`).emit("message:new", message);
-        io.to(`company:${channel.companyId}`).emit("channel:update", { channelId: payload.channelId, lastMessageAt: message.createdAt });
+        // Scope channel:update by type:
+        // - team/dept → company room (all company members need sidebar update)
+        // - direct/group → channel room only (non-members must not see DM/group metadata)
+        const isTeamChannel = channel.type !== "direct" && channel.type !== "group";
+        if (isTeamChannel && channel.companyId) {
+          io.to(`company:${channel.companyId}`).emit("channel:update", { channelId: payload.channelId, lastMessageAt: message.createdAt });
+        }
+        io.to(`channel:${payload.channelId}`).emit("channel:update", { channelId: payload.channelId, lastMessageAt: message.createdAt });
 
         // Notify mentioned users
         if (payload.mentions && payload.mentions.length > 0) {
@@ -235,25 +261,33 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
       }
     });
 
-    socket.on("typing:start", ({ channelId }: { channelId: number }) => {
+    socket.on("typing:start", async ({ channelId }: { channelId: number }) => {
+      if (!(await canAccessChannel(channelId, userId))) return;
       const key = `${userId}-${channelId}`;
       typingMap.set(key, { userId, channelId, ts: Date.now() });
       socket.to(`channel:${channelId}`).emit("typing", { userId, channelId, typing: true });
     });
 
-    socket.on("typing:stop", ({ channelId }: { channelId: number }) => {
+    socket.on("typing:stop", async ({ channelId }: { channelId: number }) => {
+      if (!(await canAccessChannel(channelId, userId))) return;
       const key = `${userId}-${channelId}`;
       typingMap.delete(key);
       socket.to(`channel:${channelId}`).emit("typing", { userId, channelId, typing: false });
     });
 
     socket.on("message:read", async ({ channelId }: { channelId: number }) => {
+      // Verify access before creating membership side-effects
+      if (!(await canAccessChannel(channelId, userId))) return;
       await markChannelRead(channelId, userId);
       socket.to(`channel:${channelId}`).emit("message:read", { channelId, userId });
     });
 
     socket.on("reaction:add", async ({ messageId, emoji }: { messageId: number; emoji: string }, callback: (res: any) => void) => {
       try {
+        // Verify caller has access to the message's channel before mutating reactions
+        const msg = await getMessageById(messageId);
+        if (!msg) return callback?.({ ok: false, error: "Message not found" });
+        if (!(await canAccessChannel(msg.channelId, userId))) return callback?.({ ok: false, error: "Access denied" });
         const updated = await addReaction(messageId, userId, emoji);
         if (updated) io.to(`channel:${updated.channelId}`).emit("message:reaction", updated);
         callback?.({ ok: true });
@@ -264,6 +298,10 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
 
     socket.on("reaction:remove", async ({ messageId, emoji }: { messageId: number; emoji: string }, callback: (res: any) => void) => {
       try {
+        // Verify caller has access to the message's channel before mutating reactions
+        const msg = await getMessageById(messageId);
+        if (!msg) return callback?.({ ok: false, error: "Message not found" });
+        if (!(await canAccessChannel(msg.channelId, userId))) return callback?.({ ok: false, error: "Access denied" });
         const updated = await removeReaction(messageId, userId, emoji);
         if (updated) io.to(`channel:${updated.channelId}`).emit("message:reaction", updated);
         callback?.({ ok: true });
@@ -274,6 +312,10 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
 
     socket.on("presence:get", async ({ companyId }: { companyId: number }, callback: (res: any) => void) => {
       try {
+        // Validate the requesting user actually belongs to this company (super admins bypass)
+        if (!(await userCanAccessCompany(userId, companyId))) {
+          return callback?.({ ok: false, error: "Not a member of this company" });
+        }
         const users = await getCompanyUsers(companyId);
         const online = users.map((u) => ({ userId: u.id, online: presenceMap.has(u.id) && presenceMap.get(u.id)!.size > 0 }));
         callback?.({ ok: true, users: online });
@@ -303,7 +345,12 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
         set.delete(socket.id);
         if (set.size === 0) {
           presenceMap.delete(userId);
-          socket.broadcast.emit("presence:offline", { userId });
+          // Emit presence:offline only to company rooms the user belonged to.
+          getUserCompanyIds(userId).then((cids) => {
+            for (const cid of cids) {
+              io.to(`company:${cid}`).emit("presence:offline", { userId });
+            }
+          }).catch(() => {/* non-fatal */});
         }
       }
       logger.info({ userId, socketId: socket.id }, "Chat socket disconnected");

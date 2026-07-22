@@ -689,6 +689,12 @@ export async function applyMigrations(): Promise<void> {
       )
     `);
 
+    // ── Chat redesign fields (Google Chat style, July 2026) ──────────────────
+    await db.execute(sql`ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS icon_url TEXT`);
+    await db.execute(sql`ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS description TEXT`);
+    await db.execute(sql`ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS is_group BOOLEAN NOT NULL DEFAULT false`);
+    await db.execute(sql`ALTER TABLE chat_channel_members ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false`);
+
     logger.info("Startup migrations applied (schema)");
   } catch (e) {
     // Log but never crash the server — missing tables are better discovered

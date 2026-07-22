@@ -156,7 +156,7 @@ export async function updateChannelInfo(
 /* ─────────────────── Workspace-level channel listing ───────────────────── */
 
 export async function listChannels(userId: number): Promise<ChannelWithMeta[]> {
-  // Get user's company IDs and role
+  // Single query: user companies + role
   const [user] = await db
     .select({ companyIds: usersTable.companyIds, role: usersTable.role })
     .from(usersTable)
@@ -166,44 +166,39 @@ export async function listChannels(userId: number): Promise<ChannelWithMeta[]> {
   const isSA = user?.role === "super_admin";
   const companyIds: number[] = (user?.companyIds as number[] | null) ?? [];
 
-  // Bootstrap team/dept channels for each company (idempotent)
-  for (const cid of companyIds) {
-    await ensureCompanyChannels(cid);
-  }
-
-  // Fetch team/department channels for all user companies
-  // Super admins see ALL active team/dept channels regardless of company membership
-  const teamChannels = isSA
-    ? await db
-        .select()
-        .from(chatChannelsTable)
-        .where(and(eq(chatChannelsTable.isActive, true), sql`${chatChannelsTable.type} NOT IN ('direct', 'group')`))
-        .orderBy(asc(chatChannelsTable.name))
-    : companyIds.length > 0
-      ? await db
+  // Run team-channel fetch and DM/group membership fetch in parallel
+  const [teamChannels, memberRows] = await Promise.all([
+    // Team/dept channels scoped to user's companies (or all for SA)
+    isSA
+      ? db
           .select()
           .from(chatChannelsTable)
-          .where(
-            and(
-              inArray(chatChannelsTable.companyId, companyIds),
-              eq(chatChannelsTable.isActive, true),
-              sql`${chatChannelsTable.type} NOT IN ('direct', 'group')`,
-            ),
-          )
+          .where(and(eq(chatChannelsTable.isActive, true), sql`${chatChannelsTable.type} NOT IN ('direct', 'group')`))
           .orderBy(asc(chatChannelsTable.name))
-      : [];
-
-  // Fetch channels the user is explicitly a member of (DMs, groups)
-  const memberRows = await db
-    .select({ channelId: chatChannelMembersTable.channelId })
-    .from(chatChannelMembersTable)
-    .where(eq(chatChannelMembersTable.userId, userId));
+      : companyIds.length > 0
+        ? db
+            .select()
+            .from(chatChannelsTable)
+            .where(
+              and(
+                inArray(chatChannelsTable.companyId, companyIds),
+                eq(chatChannelsTable.isActive, true),
+                sql`${chatChannelsTable.type} NOT IN ('direct', 'group')`,
+              ),
+            )
+            .orderBy(asc(chatChannelsTable.name))
+        : Promise.resolve([]),
+    // Membership rows for DM/group channels (index on user_id makes this fast)
+    db
+      .select({ channelId: chatChannelMembersTable.channelId })
+      .from(chatChannelMembersTable)
+      .where(eq(chatChannelMembersTable.userId, userId)),
+  ]);
 
   const memberChannelIds = memberRows.map((r) => r.channelId);
 
-  // Only include DM/group channels from membership rows.
-  // Team/dept channels are already covered by teamChannels (company-scoped above);
-  // including them here via stale membership rows would expose out-of-scope channels.
+  // Fetch DM/group channel details — restrict to DM/group to prevent stale rows
+  // from exposing team/dept channels the user no longer belongs to
   const memberChannels =
     memberChannelIds.length > 0
       ? await db
@@ -229,14 +224,36 @@ export async function listChannels(userId: number): Promise<ChannelWithMeta[]> {
 
   if (visible.length === 0) return [];
 
-  // Batch-fetch last messages using DISTINCT ON
   const channelIds = visible.map((c) => c.id);
-  const lastMsgRows = await db.execute(sql`
-    SELECT DISTINCT ON (channel_id) channel_id, content, display_name, created_at
-    FROM chat_messages
-    WHERE channel_id = ANY(${channelIds})
-    ORDER BY channel_id, created_at DESC
-  `);
+
+  // Batch both expensive queries in parallel:
+  // 1) last messages via DISTINCT ON
+  // 2) unread counts via a single aggregated query (eliminates N+1)
+  // Build a safe raw PostgreSQL integer array literal (values come from DB, not user input).
+  // Drizzle's sql.join wraps in extra parens, causing "ANY requires array on right side".
+  // Using sql.raw for the literal avoids that issue entirely.
+  const idsLiteral = sql.raw(`'{${channelIds.join(",")}}'::int[]`);
+  const [lastMsgRows, unreadRows] = await Promise.all([
+    db.execute(sql`
+      SELECT DISTINCT ON (channel_id) channel_id, content, display_name, created_at
+      FROM chat_messages
+      WHERE channel_id = ANY(${idsLiteral})
+      ORDER BY channel_id, created_at DESC
+    `),
+    db.execute(sql`
+      SELECT
+        m.channel_id,
+        COUNT(*)::int AS unread
+      FROM chat_messages m
+      JOIN chat_channel_members r
+        ON r.channel_id = m.channel_id AND r.user_id = ${userId}
+      WHERE m.channel_id = ANY(${idsLiteral})
+        AND m.user_id <> ${userId}
+        AND (r.last_read_at IS NULL OR m.created_at > r.last_read_at)
+      GROUP BY m.channel_id
+    `),
+  ]);
+
   const lastMsgMap = new Map<number, { content: string; displayName: string; createdAt: string }>();
   for (const row of lastMsgRows.rows as any[]) {
     lastMsgMap.set(row.channel_id, {
@@ -246,21 +263,19 @@ export async function listChannels(userId: number): Promise<ChannelWithMeta[]> {
     });
   }
 
-  // Get unread counts per channel
-  const results: ChannelWithMeta[] = [];
-  for (const c of visible) {
-    const unread = await getUnreadCount(c.id, userId);
-    results.push({
-      ...c,
-      iconUrl: (c as any).iconUrl ?? null,
-      description: (c as any).description ?? null,
-      isGroup: (c as any).isGroup ?? false,
-      unread,
-      lastMessage: lastMsgMap.get(c.id) ?? null,
-    });
+  const unreadMap = new Map<number, number>();
+  for (const row of unreadRows.rows as any[]) {
+    unreadMap.set(Number(row.channel_id), Number(row.unread ?? 0));
   }
 
-  return results;
+  return visible.map((c) => ({
+    ...c,
+    iconUrl: (c as any).iconUrl ?? null,
+    description: (c as any).description ?? null,
+    isGroup: (c as any).isGroup ?? false,
+    unread: unreadMap.get(c.id) ?? 0,
+    lastMessage: lastMsgMap.get(c.id) ?? null,
+  }));
 }
 
 /* ─────────────────── Membership ───────────────────────────────────────── */

@@ -292,6 +292,13 @@ export default function ChatPage() {
     return groups
   }, [messages])
 
+  /* ── Auto-select first channel once list loads ── */
+  React.useEffect(() => {
+    if (!selectedChannel && channels && channels.length > 0) {
+      setSelectedChannel(channels[0])
+    }
+  }, [channels, selectedChannel])
+
   /* ── DM notification context ── */
   React.useEffect(() => {
     setActiveChannelId(selectedChannel?.id ?? null)

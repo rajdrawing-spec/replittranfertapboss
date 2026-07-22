@@ -774,4 +774,24 @@ export async function repairOrphanedAllocations(): Promise<void> {
   } catch (e) {
     logger.error({ err: e }, "Failed to add source_link to products (non-fatal)");
   }
+
+  // Performance: index on chat_channel_members(user_id) for fast per-user channel listing
+  try {
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS chat_channel_members_user_id_idx
+      ON chat_channel_members(user_id)
+    `);
+  } catch (e) {
+    logger.error({ err: e }, "Failed to add chat_channel_members user_id index (non-fatal)");
+  }
+
+  // Performance: index on chat_messages(channel_id, created_at) for fast unread counts
+  try {
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS chat_messages_channel_created_idx
+      ON chat_messages(channel_id, created_at DESC)
+    `);
+  } catch (e) {
+    logger.error({ err: e }, "Failed to add chat_messages channel/created index (non-fatal)");
+  }
 }

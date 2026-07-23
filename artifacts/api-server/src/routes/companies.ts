@@ -1,15 +1,57 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { companiesTable, insertCompanySchema } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import {
+  companiesTable, insertCompanySchema,
+  employeesTable, ordersTable, transactionsTable,
+} from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
 import { requireSuperAdmin } from "../middleware/authz";
 
 const router = Router();
 
 router.get("/companies", async (req, res) => {
   try {
-    const companies = await db.select().from(companiesTable).orderBy(companiesTable.id);
-    res.json(companies.map(formatCompany));
+    // Batch all three queries in parallel for speed
+    const [companies, empRows, revRows] = await Promise.all([
+      db.select().from(companiesTable).orderBy(companiesTable.id),
+
+      // Active employee count per company
+      db
+        .select({
+          companyId: employeesTable.companyId,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(employeesTable)
+        .where(eq(employeesTable.status, "active"))
+        .groupBy(employeesTable.companyId),
+
+      // Revenue = orders revenue + income transactions, both per company
+      db.execute(sql`
+        SELECT company_id,
+               coalesce(sum(amount), 0)::numeric AS total_revenue
+        FROM (
+          SELECT company_id, total_amount AS amount FROM orders
+          UNION ALL
+          SELECT company_id, amount       AS amount FROM transactions WHERE type = 'income'
+        ) src
+        GROUP BY company_id
+      `),
+    ]);
+
+    // Build lookup maps
+    const empMap = new Map<number, number>(empRows.map((r) => [r.companyId, r.count]));
+    const revMap = new Map<number, number>(
+      (revRows.rows as { company_id: number; total_revenue: string }[]).map((r) => [
+        Number(r.company_id),
+        Number(r.total_revenue),
+      ])
+    );
+
+    res.json(
+      companies.map((c) =>
+        formatCompany(c, empMap.get(c.id) ?? 0, revMap.get(c.id) ?? 0)
+      )
+    );
   } catch (e) {
     req.log.error(e);
     res.status(500).json({ error: "Failed to list companies" });
@@ -85,7 +127,11 @@ router.delete("/companies/:companyId", requireSuperAdmin, async (req, res) => {
   }
 });
 
-function formatCompany(c: typeof companiesTable.$inferSelect) {
+function formatCompany(
+  c: typeof companiesTable.$inferSelect,
+  employeeCount?: number,
+  totalRevenue?: number,
+) {
   return {
     id: c.id,
     name: c.name,
@@ -108,8 +154,10 @@ function formatCompany(c: typeof companiesTable.$inferSelect) {
     currency: c.currency,
     timezone: c.timezone,
     brandColor: c.brandColor,
-    employeeCount: c.employeeCount,
-    totalRevenue: c.totalRevenue,
+    // Use live-computed values when provided (list endpoint), else fall back
+    // to the stored column (single-company GET, create, patch, delete).
+    employeeCount: employeeCount ?? c.employeeCount,
+    totalRevenue: totalRevenue ?? c.totalRevenue,
     createdAt: c.createdAt.toISOString(),
   };
 }

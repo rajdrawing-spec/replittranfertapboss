@@ -13,8 +13,6 @@ import { ThemeProvider } from '@/components/theme-provider';
 const Layout = React.lazy(() => import('@/components/layout').then((m) => ({ default: m.Layout })));
 import { CompanyProvider } from '@/contexts/company-context';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
-import { MeetingProvider } from '@/contexts/meeting-context';
-import { DmNotificationProvider } from '@/contexts/dm-notification-context';
 import { AiTaskRealtimeProvider } from '@/contexts/ai-task-realtime-context';
 import { ClerkQueryClientCacheInvalidator } from '@/components/clerk-cache-invalidator';
 import { RouteErrorBoundary } from '@/components/error-boundary';
@@ -48,9 +46,6 @@ const AdminDashboard = React.lazy(() => import('@/pages/admin/dashboard'));
 const Treasury = React.lazy(() => import('@/pages/treasury'));
 const AiReports = React.lazy(() => import('@/pages/ai-reports'));
 const AiTasks = React.lazy(() => import('@/pages/ai-tasks'));
-const Chat = React.lazy(() => import('@/pages/chat'));
-const Meetings = React.lazy(() => import('@/pages/meetings'));
-const CallCenter = React.lazy(() => import('@/pages/call-center'));
 const Planner = React.lazy(() => import('@/pages/planner'));
 // Lazy-load the sign-in shell so the public landing page does not pay for the
 // entire signed-in app bundle on first paint.
@@ -217,8 +212,6 @@ function AuthedApp() {
   if (!user) return <LoadingScreen />;
 
   return (
-    <MeetingProvider>
-    <DmNotificationProvider>
     <CompanyProvider>
     <AiTaskRealtimeProvider>
       <React.Suspense fallback={<PageFallback />}>
@@ -256,9 +249,6 @@ function AuthedApp() {
                   <Route path="/admin/dashboard" component={AdminDashboard} />
                   <Route path="/ai-reports" component={AiReports} />
                   <Route path="/ai-tasks" component={AiTasks} />
-                  <Route path="/chat" component={Chat} />
-                  <Route path="/meetings" component={Meetings} />
-                  <Route path="/call-center" component={CallCenter} />
                   <Route path="/planner" component={Planner} />
                   <Route path="/analytics" component={Analytics} />
                   <Route component={NotFound} />
@@ -271,8 +261,6 @@ function AuthedApp() {
       </React.Suspense>
     </AiTaskRealtimeProvider>
     </CompanyProvider>
-    </DmNotificationProvider>
-    </MeetingProvider>
   );
 }
 

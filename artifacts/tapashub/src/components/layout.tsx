@@ -4,7 +4,7 @@ import {
   Building2, PackageSearch, ShoppingCart, Wallet, Users, UsersRound,
   CheckSquare, Bell, Bot, Globe2, Settings, Menu, Moon, Sun, ChevronDown,
   TrendingUp, FileText, Megaphone, LayoutDashboard, PieChart, LogOut, Contact,
-  Headset, Truck, ShieldCheck, ScrollText, Landmark, MessageSquare, Video,
+  Headset, Truck, ShieldCheck, ScrollText, Landmark,
   CalendarDays, ChevronRight, Home, Phone, MoreHorizontal, X, Plus,
   Sparkles, Briefcase,
 } from "lucide-react"
@@ -52,13 +52,6 @@ const parentGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Workspace",
-    items: [
-      { name: "Team Chat", href: "/chat", icon: MessageSquare, perm: "chat.read" },
-      { name: "Meetings", href: "/meetings", icon: Video },
-    ],
-  },
-  {
     label: "Companies",
     items: [
       { name: "Companies", href: "/companies", icon: Building2, perm: "platform.companies" },
@@ -98,9 +91,6 @@ const subsidiaryGroups: NavGroup[] = [
     label: "Workspace",
     items: [
       { name: "Dashboard", href: "/", icon: LayoutDashboard },
-      { name: "Team Chat", href: "/chat", icon: MessageSquare, perm: "chat.read" },
-      { name: "Meetings", href: "/meetings", icon: Video },
-      { name: "Call Center", href: "/call-center", icon: Headset, perm: "callcenter.view" },
       { name: "Planner", href: "/planner", icon: CalendarDays },
     ],
   },
@@ -151,7 +141,6 @@ function getNavGroups(company: ActiveCompany | null, isSuperAdmin: boolean, isPa
         label: "Super Admin",
         items: [
           ...(!isParentView ? [{ name: "Team & Roles", href: "/admin/access", icon: ShieldCheck }] : []),
-          ...(isParentView ? [{ name: "Team Chat", href: "/chat", icon: MessageSquare }] : []),
           { name: "Audit Logs", href: "/admin/audit", icon: ScrollText },
           { name: "Admin Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
         ],
@@ -167,8 +156,7 @@ function getNavGroups(company: ActiveCompany | null, isSuperAdmin: boolean, isPa
 ───────────────────────────────────────────────────────────── */
 const bottomNavItems = [
   { href: "/", icon: Home, label: "Home" },
-  { href: "/chat", icon: MessageSquare, label: "Chat" },
-  { href: "/meetings", icon: Video, label: "Meetings" },
+  { href: "/planner", icon: CalendarDays, label: "Planner" },
   { href: "/ai-tasks", icon: Sparkles, label: "Tasks" },
 ]
 
@@ -837,10 +825,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 ───────────────────────────────────────────────────────────── */
 function MobileFab({ location, workspaceColor, hidden }: { location: string; workspaceColor: string; hidden?: boolean }) {
   const fab = React.useMemo(() => {
-    if (location === "/chat") return null // Chat has its own composer
-    if (location.startsWith("/meetings")) return { icon: Video, title: "New Meeting" }
     if (location.startsWith("/ai-tasks")) return { icon: Sparkles, title: "New AI Task" }
-    if (location.startsWith("/call-center")) return { icon: Phone, title: "New Call" }
     if (location.startsWith("/inventory")) return { icon: Plus, title: "Add Product" }
     if (location.startsWith("/orders")) return { icon: Plus, title: "New Order" }
     if (location.startsWith("/crm")) return { icon: Plus, title: "New Contact" }

@@ -102,7 +102,7 @@ export default function CompanyDetail() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{summary?.revenue ? `₹${summary.revenue.toLocaleString('en-IN')}` : <NoData />}</div>
+            <div className="text-2xl font-bold">{summary?.revenue != null ? `₹${summary.revenue.toLocaleString('en-IN')}` : <NoData />}</div>
           </CardContent>
         </Card>
         <Card className="bg-card/50">
@@ -110,7 +110,7 @@ export default function CompanyDetail() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{summary?.orders ? summary.orders.toLocaleString() : <NoData />}</div>
+            <div className="text-2xl font-bold">{summary?.orders != null ? summary.orders.toLocaleString() : <NoData />}</div>
           </CardContent>
         </Card>
         <Card className="bg-card/50">

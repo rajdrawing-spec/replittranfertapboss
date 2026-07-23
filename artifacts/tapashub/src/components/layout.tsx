@@ -513,24 +513,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
         "h-14 flex items-center border-b border-sidebar-border shrink-0",
         collapsed ? "px-3 justify-center" : "px-4 gap-2.5"
       )}>
-        <div
-          className="w-7 h-7 rounded-[8px] shrink-0 flex items-center justify-center"
-          style={{ background: "#2F80FF" }}
-        >
-          <img
-            src={`${basePath}/tapashub-logo.png`}
-            alt="TapasHub"
-            className="w-5 h-5 object-contain brightness-0 invert"
-            loading="eager"
-            decoding="sync"
-          />
-        </div>
-        {!collapsed && (
-          <div className="min-w-0">
-            <div className="font-bold text-[13px] leading-none tracking-wide text-foreground">TAPBOSS</div>
-            <div className="text-[10px] text-muted-foreground leading-none mt-0.5">Business OS</div>
-          </div>
-        )}
+        <img
+          src={`${basePath}/tapashub-logo.png`}
+          alt="TapasHub"
+          className={cn(
+            "object-contain shrink-0",
+            collapsed ? "h-8 w-8" : "h-9 w-auto max-w-[120px]"
+          )}
+          loading="eager"
+          decoding="sync"
+        />
       </div>
 
       {/* Company Switcher */}

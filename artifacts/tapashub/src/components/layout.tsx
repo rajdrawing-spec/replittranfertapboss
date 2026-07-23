@@ -518,7 +518,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           style={{ background: "#2F80FF" }}
         >
           <img
-            src="/tapashub-logo.png"
+            src={`${basePath}/tapashub-logo.png`}
             alt="TapasHub"
             className="w-5 h-5 object-contain brightness-0 invert"
             loading="eager"

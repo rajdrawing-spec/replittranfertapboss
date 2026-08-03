@@ -22,7 +22,7 @@ interface Summary {
     revenueGrowth: number | null; profitGrowth: number | null; marketShare: number | null
   }
   totals: { revenue: number; expenses: number; profit: number }
-  equity: { valuation: number; capitalInvested: number; shareholderCount: number }
+  equity: { valuation: number; capitalInvested: number; shareholderCount: number; uniqueShareholders: number }
   series: SeriesRow[]
   insights: string[]
 }
@@ -193,8 +193,9 @@ export default function Analytics() {
               <Kpi icon={Percent} label={`Market Share (this ${periodWord})`} value={cur.marketShare != null ? `${cur.marketShare.toFixed(1)}%` : "—"}
                 tone="bg-purple-500/10 text-purple-400" sub={<span className="text-muted-foreground">of group revenue</span>} />
             ) : (
-              <Kpi icon={PieChart} label="Shareholders" value={String(summary!.equity.shareholderCount)}
-                tone="bg-purple-500/10 text-purple-400" sub={<span className="text-muted-foreground">across portfolio</span>} />
+              <Kpi icon={PieChart} label="Unique Shareholders" value={String(summary!.equity.uniqueShareholders)}
+                tone="bg-purple-500/10 text-purple-400"
+                sub={<span className="text-muted-foreground">{summary!.equity.shareholderCount} holding record{summary!.equity.shareholderCount !== 1 ? "s" : ""} across portfolio</span>} />
             )}
           </div>
 

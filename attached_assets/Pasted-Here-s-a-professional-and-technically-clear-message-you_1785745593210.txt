@@ -1,0 +1,116 @@
+Here's a professional and technically clear message you can send to Replit:
+
+---
+
+**Critical Concern: Shareholder Access & Share Calculation Logic**
+
+I've identified a major security and data architecture issue in the Shareholder module.
+
+### 1. Company Isolation (Multi-Tenant Security)
+
+Currently, if I create a **Shareholder** from the **Super Admin**, that shareholder appears to have access to **all companies**.
+
+This should **never** happen.
+
+A shareholder belongs to **only one company (subdomain)**, so how can they view data from every company?
+
+The system must enforce strict tenant isolation.
+
+**Expected behavior:**
+
+* Every shareholder must be linked to a single `company_id`.
+* After login, they should only access their assigned company's workspace.
+* They must never see:
+
+  * Other companies
+  * Other companies' shareholders
+  * Other companies' valuation
+  * Other companies' reports
+  * Other companies' financial data
+
+Only the **Super Admin** should have permission to view data across all companies.
+
+---
+
+### 2. Incorrect Shareholder Count
+
+Looking at the Analytics page, it shows:
+
+**Shareholders: 37 across portfolio**
+
+This logic also appears incorrect.
+
+One person may own shares in **multiple companies**.
+
+For example:
+
+* Raj Kumar owns shares in Company A
+* Raj Kumar also owns shares in Company B
+* Raj Kumar also owns shares in Company C
+
+This is **one shareholder**, not three different shareholders.
+
+The system must distinguish between:
+
+* **Unique Shareholders** (unique people)
+* **Shareholder Records** (ownership entries per company)
+
+Example:
+
+| Person    | Company   |
+| --------- | --------- |
+| Raj Kumar | Company A |
+| Raj Kumar | Company B |
+| Raj Kumar | Company C |
+| John      | Company A |
+
+Results should be:
+
+* Unique Shareholders = **2**
+* Shareholding Records = **4**
+
+If the dashboard shows **37**, please clarify whether this is:
+
+* 37 unique people, or
+* 37 shareholder records across all companies.
+
+---
+
+### 3. Analytics Filter
+
+When **"All Companies"** is selected, show:
+
+* Total unique shareholders
+* Total investment
+* Portfolio valuation
+
+When a **single company** is selected, show only:
+
+* That company's shareholders
+* That company's valuation
+* That company's investment
+* That company's reports
+
+---
+
+### 4. Database Design
+
+Please review the database structure.
+
+Suggested tables:
+
+* `users`
+* `companies`
+* `company_shareholders`
+
+  * `company_id`
+  * `user_id`
+  * `shares`
+  * `ownership_percentage`
+  * `investment_amount`
+
+Do **not** duplicate shareholder profiles for every company. A single user can have multiple shareholding records across different companies.
+
+---
+
+This is a **critical security and data integrity issue**. The application must function as a true **multi-tenant SaaS platform**, where every company is completely isolated, and shareholder statistics correctly distinguish between **unique people** and **shareholding records**.

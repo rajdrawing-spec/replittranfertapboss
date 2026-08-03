@@ -80,25 +80,45 @@ async function revenueExpenses(ids: number[] | null, start: Date, end: Date) {
 
 /** Equity snapshot (valuation, capital invested, holder count) for a company set. */
 async function equitySnapshot(ids: number[] | null) {
+  const scopeFilter = and(
+    eq(shareholdersTable.status, "active"),
+    ids ? inArray(shareholdersTable.companyId, ids) : undefined,
+  );
+
+  // Per-company aggregates for valuation math (still needs GROUP BY).
   const grouped = await db
     .select({
       companyId: shareholdersTable.companyId,
       totalShares: sql<number>`coalesce(sum(shares), 0)`,
       maxPrice: sql<number>`coalesce(max(share_price), 0)`,
       invested: sql<number>`coalesce(sum(investment_amount), 0)`,
-      holders: sql<number>`count(*)`,
     })
     .from(shareholdersTable)
-    .where(and(eq(shareholdersTable.status, "active"), ids ? inArray(shareholdersTable.companyId, ids) : undefined))
+    .where(scopeFilter)
     .groupBy(shareholdersTable.companyId);
 
-  let valuation = 0, capitalInvested = 0, shareholderCount = 0;
+  // Unique people: count distinct non-empty emails; anonymous entries (no email)
+  // each count once via their record id so they're not collapsed together.
+  const [uniqueRow] = await db
+    .select({
+      uniquePeople: sql<number>`count(DISTINCT COALESCE(NULLIF(TRIM(email), ''), 'anon-' || id::text))`,
+      totalRecords: sql<number>`count(*)`,
+    })
+    .from(shareholdersTable)
+    .where(scopeFilter);
+
+  let valuation = 0, capitalInvested = 0;
   for (const g of grouped) {
     valuation += Number(g.totalShares) * Number(g.maxPrice);
     capitalInvested += Number(g.invested);
-    shareholderCount += Number(g.holders);
   }
-  return { valuation, capitalInvested, shareholderCount };
+  return {
+    valuation,
+    capitalInvested,
+    // uniqueShareholders = distinct people; shareholderCount = total holding records
+    uniqueShareholders: Number(uniqueRow?.uniquePeople ?? 0),
+    shareholderCount: Number(uniqueRow?.totalRecords ?? 0),
+  };
 }
 
 const pct = (cur: number, prev: number): number | null =>
@@ -186,7 +206,7 @@ router.get("/analytics/summary", requirePermission("finance.view"), async (req, 
       );
     }
     if (marketShare != null) insights.push(`This company holds ${marketShare.toFixed(1)}% of group revenue this ${periodWord}.`);
-    if (equity.valuation > 0) insights.push(`Book valuation stands at ₹${Math.round(equity.valuation).toLocaleString("en-IN")} across ${equity.shareholderCount} shareholder(s).`);
+    if (equity.valuation > 0) insights.push(`Book valuation stands at ₹${Math.round(equity.valuation).toLocaleString("en-IN")} across ${equity.uniqueShareholders} unique shareholder(s) (${equity.shareholderCount} holding record(s)).`);
     if (insights.length === 0) insights.push("Not enough activity yet to generate insights.");
 
     res.json({

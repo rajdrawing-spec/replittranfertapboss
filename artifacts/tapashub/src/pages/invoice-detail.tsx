@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { useLocation } from "wouter"
-import { ArrowLeft, Printer, Pencil, CheckCircle2, Trash2 } from "lucide-react"
+import { ArrowLeft, Printer, Pencil, CheckCircle2, Trash2, Copy as CopyIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -369,9 +369,14 @@ export default function InvoiceDetailPage() {
               <CheckCircle2 className="w-4 h-4 mr-1.5" /> Update Status
             </Button>
           )}
-          {canManage && inv.status === "draft" && (
+          {canManage && inv.status !== "paid" && inv.status !== "cancelled" && (
             <Link href={`/invoices/${id}/edit`}>
               <Button variant="outline"><Pencil className="w-4 h-4 mr-1.5" /> Edit</Button>
+            </Link>
+          )}
+          {canManage && (
+            <Link href={`/invoices/${id}/duplicate`}>
+              <Button variant="outline"><CopyIcon className="w-4 h-4 mr-1.5" /> Duplicate</Button>
             </Link>
           )}
           <Button onClick={handlePrint} variant="outline">

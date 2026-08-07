@@ -257,6 +257,7 @@ function AuthedApp() {
                   <Route path="/analytics" component={Analytics} />
                   <Route path="/invoices/new" component={InvoiceForm} />
                   <Route path="/invoices/:id/edit" component={InvoiceForm} />
+                  <Route path="/invoices/:id/duplicate" component={InvoiceForm} />
                   <Route path="/invoices/:id" component={InvoiceDetail} />
                   <Route path="/invoices" component={Invoices} />
                   <Route path="/invoice-customers" component={InvoiceCustomers} />

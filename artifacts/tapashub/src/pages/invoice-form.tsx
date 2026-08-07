@@ -110,12 +110,16 @@ export default function InvoiceForm() {
   const [, navigate] = useLocation()
   const [matchNew] = useRoute("/invoices/new")
   const [matchEdit, editParams] = useRoute("/invoices/:id/edit")
+  const [matchDup, dupParams] = useRoute("/invoices/:id/duplicate")
   const { activeCompany } = useCompany()
   const { toast } = useToast()
   const qc = useQueryClient()
 
   const editId = matchEdit ? parseInt(editParams?.id ?? "0") : null
+  const dupId = matchDup ? parseInt(dupParams?.id ?? "0") : null
   const isEdit = !!editId
+  const isDup = !!dupId
+  const sourceId = editId ?? dupId
 
   // Doc type from URL ?type=
   const urlType = new URLSearchParams(window.location.search).get("type") ?? "invoice"
@@ -171,40 +175,53 @@ export default function InvoiceForm() {
     enabled: !!activeCompany,
   })
 
-  const { isLoading: loadingEdit } = useQuery<Invoice>({
-    queryKey: ["/api/invoices", activeCompany?.id, editId],
-    queryFn: () => adminApi.get(`/invoices/${editId}`),
-    enabled: isEdit,
-    onSuccess: (inv: Invoice) => {
-      setDocType(inv.type)
-      setCurrency(inv.currency)
+  const { data: sourceInv, isLoading: loadingEdit } = useQuery<Invoice & Record<string, any>>({
+    queryKey: ["/api/invoices", activeCompany?.id, sourceId],
+    queryFn: () => adminApi.get(`/invoices/${sourceId}`),
+    enabled: !!sourceId && !!activeCompany,
+  })
+
+  // Prefill the form from the loaded invoice (edit) or source invoice (duplicate).
+  // Keyed by company + source id so switching company re-applies fresh data.
+  const prefilledRef = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    const key = `${activeCompany?.id ?? ""}:${sourceId ?? ""}`
+    if (!sourceInv || !sourceId || prefilledRef.current === key) return
+    prefilledRef.current = key
+    const inv = sourceInv as any
+    setDocType(inv.type)
+    setCurrency(inv.currency)
+    if (isEdit) {
+      // Duplicates get fresh dates (today, defaults) and a new number on save.
       setIssueDate(inv.issueDate)
       setDueDate(inv.dueDate ?? "")
-      setPaymentTerms(inv.paymentTerms ?? "30 days")
-      setReference(inv.reference ?? "")
-      setNotes(inv.notes ?? "")
-      setTerms(inv.terms ?? "")
-      setPlaceOfSupply(inv.placeOfSupply ?? "")
-      setCustomerId(inv.id)
-      setCustomerName(inv.customerName)
-      setCustomerEmail(inv.customerEmail ?? "")
-      setCustomerPhone(inv.customerPhone ?? "")
-      setCustomerGstin(inv.customerGstin ?? "")
-      setCustomerPan(inv.customerPan ?? "")
-      setBillingAddress(inv.billingAddress ?? "")
-      setShippingAddress(inv.shippingAddress ?? "")
-      setItems((inv.items ?? []).map((it: any) => ({ ...it, _id: Math.random().toString(36).slice(2) })))
-    },
-  } as any)
+    }
+    setPaymentTerms(inv.paymentTerms ?? "30 days")
+    setReference(inv.reference ?? "")
+    setNotes(inv.notes ?? "")
+    setTerms(inv.terms ?? "")
+    setPlaceOfSupply(inv.placeOfSupply ?? "")
+    setCustomerId(inv.customerId ?? undefined)
+    setCustomerName(inv.customerName)
+    setCustomerEmail(inv.customerEmail ?? "")
+    setCustomerPhone(inv.customerPhone ?? "")
+    setCustomerGstin(inv.customerGstin ?? "")
+    setCustomerPan(inv.customerPan ?? "")
+    setBillingAddress(inv.billingAddress ?? "")
+    setShippingAddress(inv.shippingAddress ?? "")
+    setItems((inv.items ?? []).map((it: any) => calcItem({ ...it, id: undefined, _id: Math.random().toString(36).slice(2) })))
+  }, [sourceInv, sourceId, isEdit, activeCompany?.id])
 
   // Pre-fill defaults from settings
   React.useEffect(() => {
-    if (settings && !isEdit) {
+    // Only apply company defaults on a genuinely new document — duplicates
+    // must keep the copied terms/notes from the source invoice.
+    if (settings && matchNew) {
       if (settings.defaultTerms) setTerms(settings.defaultTerms)
       if (settings.defaultNotes) setNotes(settings.defaultNotes)
       if (settings.defaultPaymentTerms) setPaymentTerms(settings.defaultPaymentTerms + " days")
     }
-  }, [settings, isEdit])
+  }, [settings, matchNew])
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   const createMut = useMutation({
@@ -329,7 +346,7 @@ export default function InvoiceForm() {
 
   const isSaving = createMut.isPending || updateMut.isPending
 
-  if (isEdit && loadingEdit) {
+  if (!!sourceId && loadingEdit) {
     return <div className="space-y-4 p-6">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
   }
 
@@ -342,7 +359,7 @@ export default function InvoiceForm() {
             <Button variant="ghost" size="icon"><ArrowLeft className="w-4 h-4" /></Button>
           </Link>
           <div>
-            <h1 className="text-xl font-bold">{isEdit ? "Edit Document" : "New Document"}</h1>
+            <h1 className="text-xl font-bold">{isEdit ? "Edit Document" : isDup ? "Duplicate Document" : "New Document"}</h1>
             <p className="text-xs text-muted-foreground">{activeCompany?.name}</p>
           </div>
         </div>

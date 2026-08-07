@@ -461,6 +461,9 @@ router.patch("/invoices/:id", requirePermission("finance.manage"), async (req, r
     for (const f of INV_UPDATABLE) {
       if (f in body) updates[f] = body[f] ?? null;
     }
+    if ("customerId" in body) {
+      updates.customerId = await checkCustomerOwnership(db, body.customerId, existing.companyId);
+    }
 
     const items: any[] | undefined = Array.isArray(body.items) ? body.items : undefined;
 

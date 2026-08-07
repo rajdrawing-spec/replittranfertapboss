@@ -315,21 +315,29 @@ export default function InvoiceDetailPage() {
     if (!printContent) return
     const win = window.open("", "_blank")
     if (!win) return
+    // Copy the app's stylesheets (Tailwind) into the print window — without
+    // them all utility classes are ignored and the layout collapses.
+    const styleTags = Array.from(document.querySelectorAll("style"))
+      .map((s) => s.outerHTML).join("")
+    const linkTags = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+      .map((l) => (l as HTMLLinkElement).outerHTML).join("")
     win.document.write(`
       <html><head><title>${inv?.invoiceNumber ?? "Invoice"}</title>
+      ${linkTags}${styleTags}
       <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: Arial, sans-serif; font-size: 13px; color: #111; }
+        html, body { background: #fff !important; }
+        body { font-family: Arial, sans-serif; font-size: 13px; color: #111; margin: 0; }
+        #invoice-print { padding: 10mm 12mm !important; min-height: auto !important; }
+        #invoice-print img { max-height: 56px !important; max-width: 220px !important; width: auto !important; object-fit: contain; }
         table { border-collapse: collapse; width: 100%; }
-        th, td { padding: 6px 8px; }
-        @page { margin: 10mm; size: A4; }
+        @page { margin: 8mm; size: A4; }
         @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
       </style></head><body>`)
     win.document.write(printContent.outerHTML)
     win.document.write("</body></html>")
     win.document.close()
-    win.focus()
-    setTimeout(() => { win.print(); win.close() }, 300)
+    // Wait for stylesheets/images to load before printing.
+    setTimeout(() => { win.focus(); win.print(); win.close() }, 700)
   }
 
   if (isLoading) {

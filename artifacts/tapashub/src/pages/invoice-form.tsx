@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface LineItem {
+export interface LineItem {
   _id: string
   productId?: number
   description: string
@@ -83,7 +83,7 @@ const PAYMENT_TERMS = ["Immediate","7 days","15 days","30 days","45 days","60 da
 
 // ── Line item helpers ─────────────────────────────────────────────────────────
 
-function calcItem(it: LineItem): LineItem {
+export function calcItem(it: LineItem): LineItem {
   const base = it.quantity * it.rate
   const disc = base * it.discountPercent / 100
   const amt = base - disc
@@ -100,7 +100,7 @@ function newItem(): LineItem {
   }
 }
 
-function round2(n: number) { return Math.round(n * 100) / 100 }
+export function round2(n: number) { return Math.round(n * 100) / 100 }
 
 const fmtINR = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 

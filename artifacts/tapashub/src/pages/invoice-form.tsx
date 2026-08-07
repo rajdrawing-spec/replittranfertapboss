@@ -157,8 +157,11 @@ export default function InvoiceForm() {
   })
 
   const { data: products = [] } = useQuery<Product[]>({
-    queryKey: ["/api/inventory", activeCompany?.id],
-    queryFn: () => adminApi.get(`/inventory${companyQs}`),
+    queryKey: ["/api/products", activeCompany?.id],
+    queryFn: async () => {
+      const resp = await adminApi.get(`/products?companyId=${activeCompany!.id}&limit=200`)
+      return resp?.items ?? []
+    },
     enabled: !!activeCompany,
   })
 

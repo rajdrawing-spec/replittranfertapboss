@@ -13,8 +13,13 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
-import { ArrowLeft, Printer, Pencil, CheckCircle2, Clock, XCircle } from "lucide-react"
+import { useLocation } from "wouter"
+import { ArrowLeft, Printer, Pencil, CheckCircle2, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -264,7 +269,9 @@ export default function InvoiceDetailPage() {
   const { hasPermission } = useAuth()
   const { toast } = useToast()
   const qc = useQueryClient()
+  const [, navigate] = useLocation()
   const [showStatusModal, setShowStatusModal] = React.useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false)
   const [newStatus, setNewStatus] = React.useState("")
   const [paidAmount, setPaidAmount] = React.useState("")
 
@@ -275,6 +282,17 @@ export default function InvoiceDetailPage() {
     queryKey: ["/api/invoices", id],
     queryFn: () => adminApi.get(`/invoices/${id}`),
     enabled: !!id,
+  })
+
+  const deleteMut = useMutation({
+    mutationFn: () => adminApi.del(`/invoices/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/invoices"] })
+      qc.invalidateQueries({ queryKey: ["/api/invoices/dashboard"] })
+      toast({ title: "Deleted", description: "Invoice removed." })
+      navigate("/invoices")
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   })
 
   const statusMut = useMutation({
@@ -345,9 +363,14 @@ export default function InvoiceDetailPage() {
               <Button variant="outline"><Pencil className="w-4 h-4 mr-1.5" /> Edit</Button>
             </Link>
           )}
-          <Button onClick={handlePrint}>
+          <Button onClick={handlePrint} variant="outline">
             <Printer className="w-4 h-4 mr-1.5" /> Print / PDF
           </Button>
+          {canManage && (
+            <Button variant="destructive" onClick={() => setShowDeleteConfirm(true)}>
+              <Trash2 className="w-4 h-4 mr-1.5" /> Delete
+            </Button>
+          )}
         </div>
       </div>
 
@@ -390,6 +413,28 @@ export default function InvoiceDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirm */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {inv.invoiceNumber}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove this {inv.type.replace("_", " ")}. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteMut.mutate()}
+              disabled={deleteMut.isPending}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

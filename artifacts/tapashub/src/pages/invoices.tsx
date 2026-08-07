@@ -297,7 +297,7 @@ export default function InvoicesPage() {
                               <DropdownMenuItem><Pencil className="w-4 h-4 mr-2" /> Edit</DropdownMenuItem>
                             </Link>
                           )}
-                          {canManage && ["draft", "cancelled"].includes(inv.status) && (
+                          {canManage && (
                             <>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(inv)}>

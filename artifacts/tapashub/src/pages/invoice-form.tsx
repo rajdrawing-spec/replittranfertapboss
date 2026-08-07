@@ -492,45 +492,72 @@ export default function InvoiceForm() {
 
               {items.map((it, idx) => (
                 <div key={it._id} className="border border-border rounded-lg p-3 space-y-3 md:space-y-0 relative">
-                  {/* Product search */}
-                  <div className="relative md:hidden mb-2">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                    <Input
-                      placeholder="Search products…"
-                      className="pl-8 h-8 text-sm"
-                      onFocus={() => setActiveItemIdx(idx)}
-                      onChange={(e) => { setProductSearch(e.target.value); setActiveItemIdx(idx) }}
-                    />
+                  {/* Mobile product picker button */}
+                  <div className="md:hidden mb-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => { setActiveItemIdx(activeItemIdx === idx ? null : idx); setProductSearch("") }}
+                      className="h-7 px-2.5 flex items-center gap-1.5 rounded-md border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    >
+                      <Search className="w-3 h-3" /> Pick from inventory
+                    </button>
+                    {activeItemIdx === idx && (
+                      <div className="absolute top-12 right-3 left-3 z-50 bg-card border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                        <div className="p-1.5 border-b border-border">
+                          <Input autoFocus placeholder="Search inventory…" value={productSearch}
+                            onChange={(e) => setProductSearch(e.target.value)} className="h-7 text-xs" />
+                        </div>
+                        {filteredProducts.length === 0 ? (
+                          <p className="text-xs text-muted-foreground px-3 py-3 text-center">No products in inventory</p>
+                        ) : filteredProducts.slice(0, 8).map((p) => (
+                          <button key={p.id} className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors"
+                            onMouseDown={() => selectProduct(idx, p)}>
+                            <div className="font-medium">{p.name}</div>
+                            {p.sku && <span className="text-muted-foreground">SKU: {p.sku}</span>}
+                            {p.price && <span className="ml-2 text-muted-foreground">₹{p.price}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Desktop row */}
                   <div className="hidden md:grid items-start gap-1"
                     style={{ gridTemplateColumns: "1fr 80px 90px 80px 100px 60px 90px 80px" }}>
-                    <div className="relative">
+                    <div className="relative flex gap-1">
                       <Input
                         value={it.description}
                         onChange={(e) => updateItem(idx, { description: e.target.value })}
-                        placeholder="Item description"
-                        className="h-8 text-sm pr-7"
-                        onFocus={() => { setActiveItemIdx(idx); setProductSearch(it.description) }}
+                        placeholder="Type item description…"
+                        className="h-8 text-sm flex-1"
                       />
-                      <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground cursor-pointer"
-                        onClick={() => setActiveItemIdx(activeItemIdx === idx ? null : idx)} />
+                      {/* Product picker — only opens on explicit icon click */}
+                      <button
+                        type="button"
+                        title="Pick from inventory"
+                        onClick={() => { setActiveItemIdx(activeItemIdx === idx ? null : idx); setProductSearch("") }}
+                        className="h-8 w-8 shrink-0 flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      >
+                        <Search className="w-3.5 h-3.5" />
+                      </button>
                       {activeItemIdx === idx && (
-                        <div className="absolute top-full left-0 z-50 w-64 mt-1 bg-card border border-border rounded-md shadow-lg max-h-40 overflow-y-auto">
-                          <div className="p-1">
-                            <Input autoFocus placeholder="Search products…" value={productSearch}
+                        <div className="absolute top-full right-0 z-50 w-64 mt-1 bg-card border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                          <div className="p-1.5 border-b border-border">
+                            <Input autoFocus placeholder="Search inventory…" value={productSearch}
                               onChange={(e) => setProductSearch(e.target.value)} className="h-7 text-xs" />
                           </div>
-                          {filteredProducts.slice(0, 8).map((p) => (
-                            <button key={p.id} className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+                          {filteredProducts.length === 0 ? (
+                            <p className="text-xs text-muted-foreground px-3 py-3 text-center">No products in inventory</p>
+                          ) : filteredProducts.slice(0, 10).map((p) => (
+                            <button key={p.id} className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors"
                               onMouseDown={() => selectProduct(idx, p)}>
                               <div className="font-medium">{p.name}</div>
-                              {p.sku && <span className="text-muted-foreground">SKU: {p.sku}</span>}
-                              {p.price && <span className="ml-2 text-muted-foreground">₹{p.price}</span>}
+                              <div className="flex gap-2 text-muted-foreground mt-0.5">
+                                {p.sku && <span>SKU: {p.sku}</span>}
+                                {p.price && <span>₹{p.price}</span>}
+                              </div>
                             </button>
                           ))}
-                          {filteredProducts.length === 0 && <p className="text-xs text-muted-foreground px-3 py-2">No products found</p>}
                         </div>
                       )}
                     </div>

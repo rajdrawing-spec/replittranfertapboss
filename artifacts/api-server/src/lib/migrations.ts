@@ -794,4 +794,112 @@ export async function repairOrphanedAllocations(): Promise<void> {
   } catch (e) {
     logger.error({ err: e }, "Failed to add chat_messages channel/created index (non-fatal)");
   }
+
+  // ── Invoice & Billing module ──────────────────────────────────────────────
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS invoice_settings (
+      id                    SERIAL PRIMARY KEY,
+      company_id            INTEGER NOT NULL UNIQUE,
+      prefix                TEXT    NOT NULL DEFAULT 'INV',
+      next_number           INTEGER NOT NULL DEFAULT 1,
+      bank_name             TEXT,
+      bank_account          TEXT,
+      bank_ifsc             TEXT,
+      bank_branch           TEXT,
+      upi_id                TEXT,
+      default_payment_terms TEXT DEFAULT '30',
+      default_notes         TEXT,
+      default_terms         TEXT,
+      signature_url         TEXT,
+      created_at            TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at            TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS invoice_customers (
+      id               SERIAL PRIMARY KEY,
+      company_id       INTEGER NOT NULL,
+      name             TEXT    NOT NULL,
+      email            TEXT,
+      phone            TEXT,
+      gstin            TEXT,
+      pan              TEXT,
+      billing_address  TEXT,
+      shipping_address TEXT,
+      state            TEXT,
+      credit_limit     REAL    NOT NULL DEFAULT 0,
+      outstanding      REAL    NOT NULL DEFAULT 0,
+      created_at       TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at       TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS invoice_customers_company_idx ON invoice_customers(company_id)
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS invoices (
+      id               SERIAL PRIMARY KEY,
+      company_id       INTEGER NOT NULL,
+      invoice_number   TEXT    NOT NULL,
+      type             TEXT    NOT NULL DEFAULT 'invoice',
+      status           TEXT    NOT NULL DEFAULT 'draft',
+      customer_id      INTEGER,
+      customer_name    TEXT    NOT NULL,
+      customer_email   TEXT,
+      customer_phone   TEXT,
+      customer_gstin   TEXT,
+      customer_pan     TEXT,
+      billing_address  TEXT,
+      shipping_address TEXT,
+      place_of_supply  TEXT,
+      currency         TEXT    NOT NULL DEFAULT 'INR',
+      subtotal         REAL    NOT NULL DEFAULT 0,
+      discount_total   REAL    NOT NULL DEFAULT 0,
+      tax_total        REAL    NOT NULL DEFAULT 0,
+      total            REAL    NOT NULL DEFAULT 0,
+      paid_amount      REAL    NOT NULL DEFAULT 0,
+      issue_date       TEXT    NOT NULL,
+      due_date         TEXT,
+      payment_terms    TEXT,
+      reference        TEXT,
+      notes            TEXT,
+      terms            TEXT,
+      created_by       INTEGER,
+      created_at       TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at       TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS invoices_company_idx  ON invoices(company_id)
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS invoices_type_status_idx ON invoices(type, status)
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS invoice_items (
+      id               SERIAL PRIMARY KEY,
+      invoice_id       INTEGER NOT NULL,
+      product_id       INTEGER,
+      description      TEXT    NOT NULL,
+      hsn_code         TEXT,
+      quantity         REAL    NOT NULL DEFAULT 1,
+      rate             REAL    NOT NULL DEFAULT 0,
+      discount_percent REAL    NOT NULL DEFAULT 0,
+      tax_type         TEXT    NOT NULL DEFAULT 'gst',
+      tax_rate         REAL    NOT NULL DEFAULT 0,
+      amount           REAL    NOT NULL DEFAULT 0,
+      tax_amount       REAL    NOT NULL DEFAULT 0,
+      line_total       REAL    NOT NULL DEFAULT 0,
+      sort_order       INTEGER NOT NULL DEFAULT 0,
+      created_at       TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS invoice_items_invoice_idx ON invoice_items(invoice_id)
+  `);
+
+  logger.info("Invoice & Billing tables ensured");
 }

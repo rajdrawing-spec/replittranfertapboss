@@ -62,6 +62,8 @@ const parentGroups: NavGroup[] = [
   {
     label: "Finance",
     items: [
+      { name: "Invoices", href: "/invoices", icon: FileText, perm: "finance.view" },
+      { name: "Customers", href: "/invoice-customers", icon: UsersRound, perm: "finance.view" },
       { name: "Finance", href: "/finance", icon: Wallet, perm: "finance.view" },
       { name: "Treasury", href: "/treasury", icon: Landmark, perm: "treasury.view" },
       { name: "Fund Allocation", href: "/fund-allocation", icon: Landmark, perm: "funds.view" },
@@ -107,6 +109,8 @@ const subsidiaryGroups: NavGroup[] = [
   {
     label: "Finance",
     items: [
+      { name: "Invoices", href: "/invoices", icon: FileText, perm: "finance.view" },
+      { name: "Customers", href: "/invoice-customers", icon: UsersRound, perm: "finance.view" },
       { name: "Finance", href: "/finance", icon: Wallet, perm: "finance.view" },
     ],
   },

@@ -47,6 +47,10 @@ const Treasury = React.lazy(() => import('@/pages/treasury'));
 const AiReports = React.lazy(() => import('@/pages/ai-reports'));
 const AiTasks = React.lazy(() => import('@/pages/ai-tasks'));
 const Planner = React.lazy(() => import('@/pages/planner'));
+const Invoices = React.lazy(() => import('@/pages/invoices'));
+const InvoiceForm = React.lazy(() => import('@/pages/invoice-form'));
+const InvoiceDetail = React.lazy(() => import('@/pages/invoice-detail'));
+const InvoiceCustomers = React.lazy(() => import('@/pages/invoice-customers'));
 // Lazy-load the sign-in shell so the public landing page does not pay for the
 // entire signed-in app bundle on first paint.
 const SignInPage = React.lazy(() => import('@/pages/sign-in'));
@@ -251,6 +255,11 @@ function AuthedApp() {
                   <Route path="/ai-tasks" component={AiTasks} />
                   <Route path="/planner" component={Planner} />
                   <Route path="/analytics" component={Analytics} />
+                  <Route path="/invoices/new" component={InvoiceForm} />
+                  <Route path="/invoices/:id/edit" component={InvoiceForm} />
+                  <Route path="/invoices/:id" component={InvoiceDetail} />
+                  <Route path="/invoices" component={Invoices} />
+                  <Route path="/invoice-customers" component={InvoiceCustomers} />
                   <Route component={NotFound} />
                 </Switch>
               </React.Suspense>

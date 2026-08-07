@@ -1,0 +1,649 @@
+# Product Requirements Document (PRD)
+
+# Tapashub Invoice & Billing Management System
+
+**Version:** 1.0
+**Product:** Tapashub ERP
+**Module:** Invoice, Billing & Financial Documents
+**Platform:** Web + Mobile
+**Multi-Tenant:** Yes
+
+---
+
+# 1. Objective
+
+Create a professional **Invoice & Billing module** inside Tapashub where every company under Tapashub can generate invoices, quotations, purchase orders, proforma invoices, credit notes, debit notes, receipts, and downloadable PDFs from one centralized platform.
+
+The system must support **multiple companies**, **multiple brands**, **GST**, **international invoices**, **digital signatures**, and **professional PDF generation**.
+
+---
+
+# 2. Companies Using This Module
+
+Every company should have its own branding, invoice numbering, GST details, logo, and templates.
+
+Examples
+
+* Tapashub Pvt Ltd
+* Hugfab
+* Undertree Games
+* Pepalworks
+* Targetgum
+* Tottotoy
+* Sanchikart
+* Tikkatails
+* Throttle Diaries
+* Throttle Verse
+
+Each company should generate invoices independently.
+
+---
+
+# 3. Main Menu
+
+```
+Finance
+
+├── Dashboard
+├── Invoices
+├── Quotations
+├── Proforma Invoice
+├── Purchase Orders
+├── Sales Orders
+├── Delivery Challan
+├── Credit Notes
+├── Debit Notes
+├── Receipts
+├── Expenses
+├── Payments
+├── Customers
+├── Vendors
+├── Taxes
+├── Reports
+├── PDF Templates
+└── Settings
+```
+
+---
+
+# 4. Dashboard
+
+Show
+
+Total Revenue
+
+Pending Payments
+
+Paid Invoices
+
+Overdue
+
+Today's Sales
+
+Monthly Sales
+
+GST Payable
+
+Outstanding Amount
+
+Top Customers
+
+Recent Invoices
+
+---
+
+# 5. Invoice Creation
+
+Fields
+
+Invoice Number
+
+Invoice Date
+
+Due Date
+
+Company
+
+Customer
+
+Billing Address
+
+Shipping Address
+
+GST Number
+
+PAN
+
+Email
+
+Phone
+
+Currency
+
+Items
+
+Description
+
+Quantity
+
+Rate
+
+Discount
+
+GST
+
+HSN
+
+Total
+
+Payment Terms
+
+Notes
+
+Terms & Conditions
+
+Attachments
+
+Digital Signature
+
+Company Seal
+
+---
+
+# 6. Auto Invoice Number
+
+Example
+
+```
+HUG-2026-00001
+
+TTT-2026-00012
+
+UTG-2026-00100
+
+PH-2026-00009
+```
+
+Each company should have its own numbering sequence.
+
+---
+
+# 7. Company Selector
+
+Top-right dropdown:
+
+```
+Select Company
+
+Tapashub
+
+Hugfab
+
+Undertree Games
+
+Pepalworks
+
+Targetgum
+
+Tottotoy
+
+Sanchikart
+
+Tikkatails
+
+Throttle Diaries
+
+Throttle Verse
+```
+
+After selecting a company:
+
+* Logo changes
+* GST changes
+* Address changes
+* Invoice numbering changes
+* Signature changes
+* Bank details change
+* Brand colors change
+
+---
+
+# 8. Customer Management
+
+Store:
+
+Customer Name
+
+Company
+
+GSTIN
+
+Email
+
+Phone
+
+Shipping Address
+
+Billing Address
+
+Credit Limit
+
+Outstanding
+
+Previous Orders
+
+Documents
+
+---
+
+# 9. Product Selection
+
+Select products directly from Inventory.
+
+Auto-fill:
+
+Price
+
+GST
+
+HSN
+
+Weight
+
+SKU
+
+Description
+
+Stock
+
+---
+
+# 10. Invoice Templates
+
+Professional Themes
+
+Modern
+
+Corporate
+
+Minimal
+
+Retail
+
+Luxury
+
+Gaming
+
+Fashion
+
+Electronics
+
+Dark Theme
+
+Light Theme
+
+Each company can choose its own default template.
+
+---
+
+# 11. PDF Generator
+
+One-click PDF generation.
+
+Include:
+
+Company Logo
+
+Invoice
+
+QR Code
+
+Barcode
+
+Digital Signature
+
+GST Details
+
+Payment Instructions
+
+Terms & Conditions
+
+Footer
+
+Watermark (PAID/DRAFT/CANCELLED)
+
+Download
+
+Print
+
+Share
+
+---
+
+# 12. Email Invoice
+
+Send directly from Tapashub.
+
+Include:
+
+PDF attachment
+
+Payment link
+
+Company branding
+
+Tracking (Opened / Delivered)
+
+---
+
+# 13. Payment Gateway
+
+Support:
+
+Razorpay
+
+Stripe
+
+PayPal
+
+UPI
+
+Bank Transfer
+
+Cash
+
+Cheque
+
+---
+
+# 14. Invoice Status
+
+Draft
+
+Sent
+
+Viewed
+
+Partially Paid
+
+Paid
+
+Overdue
+
+Cancelled
+
+Refunded
+
+---
+
+# 15. Reports
+
+Sales Report
+
+GST Report
+
+Revenue
+
+Profit
+
+Outstanding
+
+Tax Summary
+
+Company Comparison
+
+Monthly Report
+
+Yearly Report
+
+Customer Report
+
+Product Report
+
+Export:
+
+PDF
+
+Excel
+
+CSV
+
+---
+
+# 16. Multi-Currency
+
+INR
+
+USD
+
+EUR
+
+GBP
+
+AUD
+
+CAD
+
+AED
+
+Automatically format currency based on company settings.
+
+---
+
+# 17. Tax Engine
+
+GST
+
+CGST
+
+SGST
+
+IGST
+
+VAT
+
+International Tax
+
+TDS
+
+Custom tax rules
+
+---
+
+# 18. Digital Signature
+
+Upload signature.
+
+Draw signature.
+
+Company stamp.
+
+Auto-apply to PDFs.
+
+---
+
+# 19. Branding
+
+Each company stores:
+
+Logo
+
+Primary Color
+
+Secondary Color
+
+Footer
+
+Email Signature
+
+GST
+
+PAN
+
+Address
+
+Phone
+
+Website
+
+Bank Details
+
+UPI QR Code
+
+Social Links
+
+---
+
+# 20. Roles & Permissions
+
+Super Admin
+
+Company Admin
+
+Finance Manager
+
+Accountant
+
+Sales
+
+Operations
+
+Auditor
+
+Shareholder (Read Only)
+
+Permissions:
+
+Create Invoice
+
+Edit
+
+Delete
+
+Approve
+
+Export
+
+Download PDF
+
+Send Email
+
+View Reports
+
+---
+
+# 21. AI Features
+
+Generate invoice description using AI.
+
+Auto-detect GST.
+
+Suggest HSN code.
+
+Detect duplicate invoices.
+
+Payment reminders.
+
+Late payment prediction.
+
+OCR scanning of bills.
+
+Convert uploaded bill images into invoice entries.
+
+---
+
+# 22. Automation
+
+Recurring invoices.
+
+Auto email reminders.
+
+Auto overdue reminders.
+
+Monthly subscriptions.
+
+Renewal invoices.
+
+Automatic invoice numbering.
+
+---
+
+# 23. Mobile Features
+
+Create invoice from phone.
+
+Camera scan bills.
+
+Digital signature.
+
+WhatsApp invoice.
+
+Print via Bluetooth printer.
+
+---
+
+# 24. Security
+
+Company-level data isolation (`company_id`).
+
+Separate invoice numbering per company.
+
+Role-based permissions.
+
+Audit logs.
+
+Version history.
+
+Encrypted PDFs (optional).
+
+---
+
+# 25. Integrations
+
+Inventory
+
+CRM
+
+HR
+
+Payroll
+
+Projects
+
+Analytics
+
+Bank Reconciliation
+
+Accounting
+
+Purchase Management
+
+Sales Management
+
+Exotel
+
+WhatsApp
+
+Email
+
+Google Drive
+
+---
+
+# 26. Future Enhancements
+
+* E-invoicing integration
+* E-way Bill generation
+* Zoho Books import/export
+* Tally import/export
+* QuickBooks integration
+* Xero integration
+* Barcode/QR payment support
+* Customer self-service invoice portal
+* Vendor invoice approvals
+* Subscription billing
+* Expense claim workflows
+
+## Expected Outcome
+
+This module will provide a **centralized invoicing and financial document system** for every company under Tapashub while maintaining strict **company-level data isolation**. Each brand will have its own identity, numbering, tax settings, and templates, while finance teams can efficiently create, manage, download, email, and report on invoices from a single platform. It will integrate seamlessly with Inventory, CRM, Accounting, HR, and Analytics, making Tapashub a complete multi-company ERP solution.

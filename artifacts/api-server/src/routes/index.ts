@@ -34,6 +34,7 @@ import aiTasksRouter from "./ai-tasks";
 import adminRouter from "./admin";
 import aiProductsRouter from "./ai-products";
 import connectRouter from "./connect";
+import invoicesRouter from "./invoices";
 
 const router: IRouter = Router();
 
@@ -75,5 +76,6 @@ router.use(aiTasksRouter);
 router.use(adminRouter);
 router.use(aiProductsRouter);
 router.use(connectRouter);
+router.use(invoicesRouter);
 
 export default router;

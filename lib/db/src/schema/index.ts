@@ -35,3 +35,4 @@ export * from "./meetings";
 export * from "./call-center";
 export * from "./conversations";
 export * from "./messages";
+export * from "./invoices";

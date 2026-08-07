@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useRoute, Link } from "wouter"
 import { adminApi } from "@/lib/admin-api"
 import { useAuth } from "@/contexts/auth-context"
+import { useCompany } from "@/contexts/company-context"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -278,10 +279,12 @@ export default function InvoiceDetailPage() {
   const id = parseInt(params?.id ?? "0")
   const canManage = hasPermission("finance.manage")
 
+  const { activeCompany } = useCompany()
+
   const { data: inv, isLoading } = useQuery<InvoiceDetail>({
-    queryKey: ["/api/invoices", id],
+    queryKey: ["/api/invoices", activeCompany?.id, id],
     queryFn: () => adminApi.get(`/invoices/${id}`),
-    enabled: !!id,
+    enabled: !!id && !!activeCompany,
   })
 
   const deleteMut = useMutation({
@@ -298,7 +301,7 @@ export default function InvoiceDetailPage() {
   const statusMut = useMutation({
     mutationFn: (data: { status: string; paidAmount?: number }) => adminApi.post(`/invoices/${id}/status`, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/invoices", id] })
+      qc.invalidateQueries({ queryKey: ["/api/invoices", activeCompany?.id, id] })
       qc.invalidateQueries({ queryKey: ["/api/invoices"] })
       qc.invalidateQueries({ queryKey: ["/api/invoices/dashboard"] })
       setShowStatusModal(false)

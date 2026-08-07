@@ -169,7 +169,7 @@ export default function InvoiceForm() {
   })
 
   const { isLoading: loadingEdit } = useQuery<Invoice>({
-    queryKey: ["/api/invoices", editId],
+    queryKey: ["/api/invoices", activeCompany?.id, editId],
     queryFn: () => adminApi.get(`/invoices/${editId}`),
     enabled: isEdit,
     onSuccess: (inv: Invoice) => {

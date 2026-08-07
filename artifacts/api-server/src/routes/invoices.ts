@@ -41,6 +41,50 @@ async function recalcInvoice(tx: any, invoiceId: number) {
   return { subtotal, discountTotal, taxTotal, total };
 }
 
+/** Parse a finite, non-negative number; returns def when invalid. */
+function safeNum(v: unknown, def: number): number {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : def;
+}
+
+const VALID_TAX_TYPES = ["gst", "igst", "none"];
+
+/** Sanitize a raw line item into validated numeric fields. */
+function sanitizeItem(it: any) {
+  const qty = safeNum(it.quantity, 1);
+  const rate = safeNum(it.rate, 0);
+  const discPct = Math.max(0, Math.min(100, safeNum(it.discountPercent, 0)));
+  const taxType = VALID_TAX_TYPES.includes(String(it.taxType)) ? String(it.taxType) : "gst";
+  const taxRate = taxType === "none" ? 0 : Math.max(0, Math.min(100, safeNum(it.taxRate, 0)));
+  const base = qty * rate;
+  const disc = base * discPct / 100;
+  const amt = base - disc;
+  const taxAmt = amt * taxRate / 100;
+  return { qty, rate, discPct, taxType, taxRate, amt, taxAmt };
+}
+
+/** Verify optional customerId belongs to companyId; returns validated id or undefined. Throws on mismatch. */
+async function checkCustomerOwnership(tx: any, customerId: unknown, companyId: number): Promise<number | undefined> {
+  if (!customerId) return undefined;
+  const id = parseInt(String(customerId));
+  if (!Number.isFinite(id)) return undefined;
+  const [row] = await tx.select({ id: invoiceCustomersTable.id }).from(invoiceCustomersTable)
+    .where(and(eq(invoiceCustomersTable.id, id), eq(invoiceCustomersTable.companyId, companyId)));
+  if (!row) throw Object.assign(new Error("Customer not found in this company"), { statusCode: 400 });
+  return id;
+}
+
+/** Verify optional productId belongs to companyId; returns validated id or undefined. Throws on mismatch. */
+async function checkProductOwnership(tx: any, productId: unknown, companyId: number): Promise<number | undefined> {
+  if (!productId) return undefined;
+  const id = parseInt(String(productId));
+  if (!Number.isFinite(id)) return undefined;
+  const [row] = await tx.select({ id: productsTable.id }).from(productsTable)
+    .where(and(eq(productsTable.id, id), eq(productsTable.companyId, companyId)));
+  if (!row) throw Object.assign(new Error("Product not found in this company"), { statusCode: 400 });
+  return id;
+}
+
 /** Get-or-create invoice settings for a company. */
 async function getSettings(companyId: number) {
   const [existing] = await db.select().from(invoiceSettingsTable).where(eq(invoiceSettingsTable.companyId, companyId));
@@ -299,12 +343,13 @@ router.post("/invoices", requirePermission("finance.manage"), async (req, res) =
 
     const created = await db.transaction(async (tx) => {
       const invoiceNumber = await claimInvoiceNumber(tx, companyId, docType);
+      const validCustomerId = await checkCustomerOwnership(tx, body.customerId, companyId);
       const [inv] = await tx.insert(invoicesTable).values({
         companyId,
         invoiceNumber,
         type: docType,
         status: String(body.status ?? "draft"),
-        customerId: body.customerId ? parseInt(String(body.customerId)) : undefined,
+        customerId: validCustomerId,
         customerName: String(body.customerName),
         customerEmail: body.customerEmail ? String(body.customerEmail) : undefined,
         customerPhone: body.customerPhone ? String(body.customerPhone) : undefined,
@@ -326,27 +371,21 @@ router.post("/invoices", requirePermission("finance.manage"), async (req, res) =
       // Insert line items
       for (let i = 0; i < items.length; i++) {
         const it = items[i];
-        const qty = Number(it.quantity ?? 1);
-        const rate = Number(it.rate ?? 0);
-        const discPct = Math.max(0, Math.min(100, Number(it.discountPercent ?? 0)));
-        const taxRate = Number(it.taxRate ?? 0);
-        const base = qty * rate;
-        const disc = base * discPct / 100;
-        const amt = base - disc;
-        const taxAmt = amt * taxRate / 100;
+        const s = sanitizeItem(it);
+        const validProductId = await checkProductOwnership(tx, it.productId, companyId);
         await tx.insert(invoiceItemsTable).values({
           invoiceId: inv.id,
-          productId: it.productId ? parseInt(String(it.productId)) : undefined,
+          productId: validProductId,
           description: String(it.description ?? ""),
           hsnCode: it.hsnCode ? String(it.hsnCode) : undefined,
-          quantity: qty,
-          rate,
-          discountPercent: discPct,
-          taxType: String(it.taxType ?? "gst"),
-          taxRate,
-          amount: Math.round(amt * 100) / 100,
-          taxAmount: Math.round(taxAmt * 100) / 100,
-          lineTotal: Math.round((amt + taxAmt) * 100) / 100,
+          quantity: s.qty,
+          rate: s.rate,
+          discountPercent: s.discPct,
+          taxType: s.taxType,
+          taxRate: s.taxRate,
+          amount: Math.round(s.amt * 100) / 100,
+          taxAmount: Math.round(s.taxAmt * 100) / 100,
+          lineTotal: Math.round((s.amt + s.taxAmt) * 100) / 100,
           sortOrder: i,
         });
       }
@@ -362,6 +401,8 @@ router.post("/invoices", requirePermission("finance.manage"), async (req, res) =
     res.status(201).json({ ...fmtInvoice(created.invoice), items: created.items.map(fmtItem) });
   } catch (e) {
     req.log.error(e);
+    const sc = (e as any)?.statusCode;
+    if (sc === 400) { res.status(400).json({ error: (e as Error).message }); return; }
     res.status(500).json({ error: "Failed to create invoice" });
   }
 });
@@ -432,24 +473,18 @@ router.patch("/invoices/:id", requirePermission("finance.manage"), async (req, r
         await tx.delete(invoiceItemsTable).where(eq(invoiceItemsTable.invoiceId, id));
         for (let i = 0; i < items.length; i++) {
           const it = items[i];
-          const qty = Number(it.quantity ?? 1);
-          const rate = Number(it.rate ?? 0);
-          const discPct = Math.max(0, Math.min(100, Number(it.discountPercent ?? 0)));
-          const taxRate = Number(it.taxRate ?? 0);
-          const base = qty * rate;
-          const disc = base * discPct / 100;
-          const amt = base - disc;
-          const taxAmt = amt * taxRate / 100;
+          const s = sanitizeItem(it);
+          const validProductId = await checkProductOwnership(tx, it.productId, existing.companyId);
           await tx.insert(invoiceItemsTable).values({
             invoiceId: id,
-            productId: it.productId ? parseInt(String(it.productId)) : undefined,
+            productId: validProductId,
             description: String(it.description ?? ""),
             hsnCode: it.hsnCode ? String(it.hsnCode) : undefined,
-            quantity: qty, rate, discountPercent: discPct,
-            taxType: String(it.taxType ?? "gst"), taxRate,
-            amount: Math.round(amt * 100) / 100,
-            taxAmount: Math.round(taxAmt * 100) / 100,
-            lineTotal: Math.round((amt + taxAmt) * 100) / 100,
+            quantity: s.qty, rate: s.rate, discountPercent: s.discPct,
+            taxType: s.taxType, taxRate: s.taxRate,
+            amount: Math.round(s.amt * 100) / 100,
+            taxAmount: Math.round(s.taxAmt * 100) / 100,
+            lineTotal: Math.round((s.amt + s.taxAmt) * 100) / 100,
             sortOrder: i,
           });
         }
@@ -465,6 +500,8 @@ router.patch("/invoices/:id", requirePermission("finance.manage"), async (req, r
     res.json({ ...fmtInvoice(result.invoice), items: result.items.map(fmtItem) });
   } catch (e) {
     req.log.error(e);
+    const sc = (e as any)?.statusCode;
+    if (sc === 400) { res.status(400).json({ error: (e as Error).message }); return; }
     res.status(500).json({ error: "Failed to update invoice" });
   }
 });
@@ -484,7 +521,7 @@ router.post("/invoices/:id/status", requirePermission("finance.manage"), async (
     if (status === "paid") {
       updates.paidAmount = existing.total;
     } else if (req.body?.paidAmount !== undefined) {
-      updates.paidAmount = Math.max(0, Number(req.body.paidAmount));
+      updates.paidAmount = Math.min(safeNum(req.body.paidAmount, 0), Number(existing.total ?? 0));
     }
 
     const [updated] = await db.update(invoicesTable).set(updates).where(eq(invoicesTable.id, id)).returning();

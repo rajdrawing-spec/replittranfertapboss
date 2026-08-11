@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query"
 import { adminApi, type AdminUser } from "@/lib/admin-api"
 import { useCompany } from "@/contexts/company-context"
 import { Button } from "@/components/ui/button"
@@ -16,7 +16,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, Trash2, UserPlus, X, Briefcase, Eye, Sparkles, ScrollText } from "lucide-react"
+import { Plus, Trash2, UserPlus, X, Briefcase, Eye, Sparkles, ScrollText, Share2 } from "lucide-react"
 
 interface ProjectMember {
   id: number
@@ -249,12 +249,108 @@ function ProjectCard({ project, users, companyName, onDelete, onAddMember, onRem
           </Button>
         </div>
         <div className="flex flex-wrap gap-2 pt-1">
+          <ShareRecordsDialog projectId={project.id} companyId={project.companyId} />
           <VisibilityDialog projectId={project.id} />
           <AiPlansDialog projectId={project.id} />
           <AuditDialog projectId={project.id} />
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+/* ------------------- Share marketing records with client ------------------- */
+
+interface LinkableRecord {
+  id: number
+  name?: string
+  title?: string
+  channel?: string | null
+  status?: string | null
+  projectId: number | null
+  clientVisible: boolean
+}
+
+const SHARE_KINDS: { kind: "campaigns" | "creatives" | "leads"; label: string; path: string }[] = [
+  { kind: "campaigns", label: "Campaigns", path: "/campaigns?status=all" },
+  { kind: "creatives", label: "Creatives", path: "/marketing/creatives?status=all" },
+  { kind: "leads", label: "Leads", path: "/marketing/leads?status=all" },
+]
+
+function ShareRecordsDialog({ projectId, companyId }: { projectId: number; companyId: number }) {
+  const { toast } = useToast()
+  const qc = useQueryClient()
+  const [open, setOpen] = React.useState(false)
+
+  const results = useQueries({
+    queries: SHARE_KINDS.map((k) => ({
+      queryKey: ["/api/marketing-share", k.kind, companyId],
+      queryFn: () => adminApi.get(`${k.path}&companyId=${companyId}`) as Promise<LinkableRecord[]>,
+      enabled: open,
+    })),
+  })
+  const queries = SHARE_KINDS.map((k, i) => ({ ...k, query: results[i] }))
+
+  const linkMut = useMutation({
+    mutationFn: (v: { kind: string; recordId: number; share: boolean }) =>
+      adminApi.patch(`/marketing-projects/link/${v.kind}/${v.recordId}`,
+        v.share ? { projectId, clientVisible: true } : { projectId: null }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["/api/marketing-share", v.kind, companyId] })
+      toast({ title: v.share ? "Shared with client portal" : "Removed from client portal" })
+    },
+    onError: (e: Error) => toast({ title: "Failed to update sharing", description: e.message, variant: "destructive" }),
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm"><Share2 className="mr-1.5 h-3.5 w-3.5" />Share with client</Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] max-w-xl overflow-y-auto">
+        <DialogHeader><DialogTitle>Share with client portal</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Only records you turn on here appear in the client portal for this project.
+        </p>
+        {queries.map(({ kind, label, query }) => (
+          <div key={kind} className="space-y-1.5">
+            <p className="text-sm font-medium">{label}</p>
+            {query.isLoading ? (
+              <div className="flex h-16 items-center justify-center"><div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-primary" /></div>
+            ) : query.isError ? (
+              <div className="flex items-center justify-between rounded-md border border-destructive/40 px-3 py-2">
+                <p className="text-xs text-destructive">Failed to load {label.toLowerCase()}.</p>
+                <Button size="sm" variant="outline" onClick={() => query.refetch()}>Retry</Button>
+              </div>
+            ) : !query.data || query.data.length === 0 ? (
+              <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">No {label.toLowerCase()} for this company yet.</p>
+            ) : (
+              query.data.map((r) => {
+                const linkedElsewhere = r.projectId !== null && r.projectId !== projectId
+                const shared = r.projectId === projectId && r.clientVisible
+                return (
+                  <div key={r.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                    <div className="min-w-0 text-sm">
+                      <span className="font-medium">{r.name ?? r.title ?? `#${r.id}`}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {[r.channel, r.status].filter(Boolean).join(" · ")}
+                        {linkedElsewhere ? " · linked to another project" : ""}
+                      </span>
+                    </div>
+                    <Switch
+                      checked={shared}
+                      disabled={linkMut.isPending || linkedElsewhere}
+                      onCheckedChange={(v) => linkMut.mutate({ kind, recordId: r.id, share: v })}
+                      aria-label={`Share ${r.name ?? r.title ?? r.id} with client`}
+                    />
+                  </div>
+                )
+              })
+            )}
+          </div>
+        ))}
+      </DialogContent>
+    </Dialog>
   )
 }
 

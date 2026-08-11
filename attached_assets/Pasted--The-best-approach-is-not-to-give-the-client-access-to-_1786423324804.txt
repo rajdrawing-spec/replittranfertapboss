@@ -1,0 +1,1113 @@
+. The best approach is not to give the client access to the full TapBoss/Tapashub Marketing Workspace.
+
+Instead, make a Client Marketing Portal inside the Targetgum workspace. The client sees only their own brand/project performance, while your internal marketing team keeps access to campaigns, finances, other clients, employees, strategy, etc.
+
+From your screenshot, the current Performance / Campaigns / Creative Library / Calendar / Leads structure is a good foundation.
+
+Recommended structure
+
+Internal Targetgum team
+
+Full Marketing Workspace
+→ All clients
+→ All campaigns
+→ Ad spend
+→ Margins
+→ Finance
+→ Team
+→ Strategy
+→ AI tools
+
+Client
+
+Client Marketing Portal
+→ Their brand only
+→ Their campaigns only
+→ Orders
+→ Sales
+→ ROAS
+→ Leads
+→ Marketing performance
+→ Approved creatives
+→ Reports
+→ AI recommendations
+
+Most importantly:
+
+Client A must never be able to discover Client B, another company, another brand, another campaign, or internal financial information.
+
+Copy this prompt into Replit
+TAPBOSS / TARGETGUM – CLIENT MARKETING PORTAL
+
+OBJECTIVE
+
+We currently have a Targetgum Marketing Workspace inside TapBoss.
+
+The current workspace contains:
+
+- Performance
+- Campaigns
+- Creative Library
+- Calendar
+- Leads
+
+Targetgum manages marketing for multiple companies/brands.
+
+We need to create a secure CLIENT MARKETING PORTAL so that marketing clients can log in and see ONLY the marketing performance of their own assigned company/project.
+
+DO NOT expose the internal Targetgum marketing workspace to clients.
+
+DO NOT expose other companies, brands, projects, employees, internal finance, internal strategy, or confidential data.
+
+The system must be multi-tenant and project-isolated.
+
+==================================================
+1. USER TYPES
+==================================================
+
+Implement clear role-based access control.
+
+ROLES:
+
+1. SUPER_ADMIN
+   - Full Tapashub access
+   - Can manage all companies
+   - Can manage Targetgum
+   - Can assign marketing projects
+   - Can control client visibility
+   - Can see all analytics
+
+2. MARKETING_ADMIN
+   - Full Targetgum marketing access
+   - Can manage campaigns
+   - Can manage clients
+   - Can manage marketing reports
+   - Can create AI marketing plans
+   - Cannot access unrelated company administration unless permitted
+
+3. MARKETING_TEAM
+   - Can manage assigned marketing projects
+   - Campaigns
+   - Leads
+   - Creatives
+   - Reports
+   - Analytics
+
+4. CLIENT_ADMIN
+   - Client portal only
+   - Can see their own company/project data
+   - Can see approved marketing performance
+   - Can see campaigns assigned to their company
+   - Can see orders/sales metrics
+   - Can see ROAS
+   - Can see leads if enabled
+   - Can see approved creatives
+   - Can view/download reports
+   - Can use Marketing AI for their own project
+
+5. CLIENT_VIEWER
+   - Read-only client portal
+   - Same project isolation
+   - No editing
+
+==================================================
+2. MULTI-TENANT DATA ISOLATION
+==================================================
+
+This is the MOST IMPORTANT requirement.
+
+Every marketing-related record must belong to:
+
+company_id
+brand_id
+marketing_project_id
+
+Examples:
+
+campaigns
+orders
+leads
+creative_assets
+marketing_reports
+ad_metrics
+marketing_spend
+sales_metrics
+roas_metrics
+ai_recommendations
+marketing_tasks
+
+Every API request must enforce ownership/project access on the SERVER.
+
+Do NOT rely only on frontend hiding.
+
+A client must NEVER be able to access another client's data by changing:
+
+- URL
+- project ID
+- company ID
+- campaign ID
+- API parameters
+- request body
+- browser developer tools
+
+Example:
+
+GET /api/marketing/projects/:projectId
+
+The server must verify:
+
+authenticated_user.company_id
+matches
+project.company_id
+
+AND
+
+authenticated_user is explicitly assigned to that project.
+
+If not:
+
+return 403 Forbidden.
+
+Never return another company's data.
+
+==================================================
+3. CLIENT PORTAL NAVIGATION
+==================================================
+
+When CLIENT_ADMIN or CLIENT_VIEWER logs in, DO NOT show the normal Tapashub internal sidebar.
+
+Show a simplified Client Marketing Portal.
+
+HEADER:
+
+[Client Brand Logo]
+
+Marketing Performance
+
+Powered by Targetgum
+
+Profile
+Notifications
+
+SIDEBAR:
+
+1. Overview
+2. Campaigns
+3. Sales & Orders
+4. Leads
+5. Creative Library
+6. Reports
+7. AI Marketing Plan
+
+Optional:
+
+8. Calendar
+
+Do NOT show:
+
+- Other companies
+- Other brands
+- Internal employees
+- Internal finance
+- Payroll
+- Company administration
+- Internal tasks
+- Internal marketing notes
+- Internal profit margins
+- Supplier information
+- Internal strategy
+- Other client campaigns
+
+==================================================
+4. CLIENT OVERVIEW DASHBOARD
+==================================================
+
+Create a professional dashboard similar to the existing Targetgum Performance page.
+
+Title:
+
+[CLIENT BRAND NAME]
+
+Marketing Performance
+
+Subtitle:
+
+Track your marketing activity, sales and return on advertising investment.
+
+TOP KPI CARDS:
+
+1. Total Sales
+2. Orders
+3. Revenue
+4. Ad Spend
+5. ROAS
+6. Leads
+7. Conversion Rate
+8. Cost Per Acquisition
+
+Example:
+
+TOTAL SALES
+₹4,82,500
+
+ORDERS
+326
+
+REVENUE
+₹4,82,500
+
+AD SPEND
+₹82,000
+
+ROAS
+5.88x
+
+LEADS
+1,240
+
+CONVERSION RATE
+3.8%
+
+CPA
+₹251
+
+These values must come ONLY from the selected client's project.
+
+==================================================
+5. DATE FILTER
+==================================================
+
+Add:
+
+Today
+Yesterday
+Last 7 Days
+Last 30 Days
+This Month
+Last Month
+Custom Date Range
+
+All dashboard metrics must update based on selected date range.
+
+==================================================
+6. PERFORMANCE GRAPH
+==================================================
+
+Create charts:
+
+Revenue
+Orders
+Ad Spend
+ROAS
+Leads
+Conversions
+
+Allow:
+
+Daily
+Weekly
+Monthly
+
+Do not mix data from different clients.
+
+==================================================
+7. CAMPAIGN PERFORMANCE
+==================================================
+
+Client can see only campaigns belonging to their project.
+
+Table:
+
+Campaign
+Platform
+Status
+Spend
+Reach
+Impressions
+Clicks
+CTR
+Leads
+Conversions
+Revenue
+ROAS
+
+Example:
+
+Meta – Summer Campaign
+Google – Search Campaign
+Instagram – Product Campaign
+
+Client should NOT see internal campaign notes unless specifically marked:
+
+client_visible = true
+
+==================================================
+8. ROAS CALCULATION
+==================================================
+
+Implement a reliable ROAS calculation.
+
+ROAS = attributed revenue / advertising spend
+
+Example:
+
+Revenue = ₹500,000
+Ad Spend = ₹100,000
+
+ROAS = 5.0x
+
+Clearly display:
+
+ROAS 5.0x
+
+Also show comparison:
+
+Previous Period
+Current Period
+% Change
+
+Example:
+
+ROAS
+5.0x
+
+↑ 18.5% vs previous period
+
+Do not calculate ROAS from unrelated company sales.
+
+==================================================
+9. SALES & ORDERS
+==================================================
+
+Create client-safe Sales & Orders dashboard.
+
+Show:
+
+Total Orders
+Paid Orders
+Cancelled Orders
+Returned Orders
+Revenue
+Average Order Value
+Conversion Rate
+
+Charts:
+
+Orders over time
+Revenue over time
+
+Order table should have configurable privacy.
+
+Default client fields:
+
+Order ID
+Date
+Product
+Quantity
+Order Value
+Status
+
+DO NOT expose:
+
+supplier cost
+product cost
+profit margin
+internal commission
+employee commission
+internal accounting notes
+
+unless explicitly enabled by SUPER_ADMIN.
+
+==================================================
+10. LEADS
+==================================================
+
+Client can see only leads generated for their project.
+
+Metrics:
+
+Total Leads
+Qualified Leads
+Converted Leads
+Cost Per Lead
+Conversion Rate
+
+Lead table:
+
+Name
+Date
+Source
+Campaign
+Status
+
+Allow SUPER_ADMIN to configure whether client can see personal lead information.
+
+If disabled, show anonymized lead information.
+
+==================================================
+11. CREATIVE LIBRARY
+==================================================
+
+Reuse the existing Creative Library concept.
+
+Client sees only creative assets assigned to their project.
+
+Each asset should have:
+
+Image
+Campaign
+Platform
+Date
+Status
+
+Statuses:
+
+Draft
+Internal Review
+Approved
+Published
+Archived
+
+CLIENT VIEW should only show:
+
+Approved
+Published
+
+Internal drafts should remain hidden.
+
+Allow client to download approved creatives.
+
+==================================================
+12. REPORTS
+==================================================
+
+Create Marketing Reports.
+
+Client can generate/view:
+
+Weekly Report
+Monthly Report
+Campaign Report
+Custom Date Report
+
+Report should contain:
+
+Executive Summary
+Revenue
+Orders
+Ad Spend
+ROAS
+Leads
+Conversions
+Best Campaign
+Worst Campaign
+Top Performing Creative
+Performance Compared With Previous Period
+AI Recommendations
+
+Allow:
+
+View Report
+Download PDF
+
+==================================================
+13. AI MARKETING PLAN
+==================================================
+
+Create:
+
+AI MARKETING COPILOT
+
+The AI must operate ONLY on the client's own project data.
+
+It can analyze:
+
+- Campaign performance
+- ROAS
+- Revenue
+- Orders
+- Leads
+- Conversion rate
+- CPA
+- CTR
+- Creative performance
+- Product performance
+- Date trends
+
+The AI should produce:
+
+1. What is working?
+2. What is underperforming?
+3. Why performance may have changed
+4. Which campaign deserves more attention
+5. Which campaign should be reviewed
+6. Creative recommendations
+7. Budget allocation recommendations
+8. Lead generation recommendations
+9. Next 7-day action plan
+10. Next 30-day marketing plan
+
+Example:
+
+AI MARKETING INSIGHT
+
+"Your Meta campaign generated 62% of total conversions this month while maintaining a 5.4x ROAS.
+
+Recommendation:
+Consider increasing budget gradually on this campaign while monitoring CPA and frequency."
+
+IMPORTANT:
+
+AI must NEVER access another client's private data.
+
+Do not send other clients' names, campaign data, financial data, or confidential information into the client's AI context.
+
+Default AI context:
+
+ONLY
+company_id
+brand_id
+marketing_project_id
+authorized metrics
+
+==================================================
+14. AI ACTION PLAN
+==================================================
+
+Add:
+
+Generate Marketing Plan
+
+The AI generates:
+
+THIS WEEK
+
+Priority 1:
+Review Campaign A
+
+Priority 2:
+Improve Creative B
+
+Priority 3:
+Reduce CPA on Campaign C
+
+NEXT 7 DAYS
+
+Task
+Owner
+Priority
+Expected Result
+
+NEXT 30 DAYS
+
+Marketing Objective
+Campaign Strategy
+Creative Strategy
+Budget Recommendation
+Expected KPI
+
+Client can view the plan.
+
+Internal marketing team can optionally approve/edit it before client visibility.
+
+==================================================
+15. CLIENT / INTERNAL DATA SEPARATION
+==================================================
+
+Create a visibility layer.
+
+Every marketing record can contain:
+
+client_visible = true/false
+
+Examples:
+
+campaign.client_visible
+creative.client_visible
+report.client_visible
+metric.client_visible
+note.client_visible
+task.client_visible
+
+Anything marked false must NEVER appear in the client portal.
+
+==================================================
+16. INTERNAL FINANCE PROTECTION
+==================================================
+
+Client must NOT see:
+
+Company profit
+Net profit
+Employee salary
+Agency margin
+Supplier cost
+Product manufacturing cost
+Internal commission
+Internal operating expenses
+Payroll
+Tax information
+Bank information
+Internal financial reports
+
+Client can see only approved marketing metrics such as:
+
+Ad Spend
+Revenue
+Orders
+ROAS
+CPA
+CPL
+Conversion Rate
+
+Make these permissions configurable.
+
+==================================================
+17. PROJECT ASSIGNMENT
+==================================================
+
+Create:
+
+Marketing Project Assignment
+
+Example:
+
+Company:
+ABC Toys Pvt Ltd
+
+Brand:
+ABC Toys
+
+Project:
+Digital Marketing – 2026
+
+Assigned Team:
+
+Raj
+Marketing Manager
+Designer
+Performance Marketer
+
+Client Users:
+
+client@abctoys.com
+
+Only users assigned to this project can access its client portal.
+
+A user can be assigned to multiple projects, but the interface must keep the projects clearly separated.
+
+==================================================
+18. CLIENT PROJECT SWITCHER
+==================================================
+
+If a CLIENT_ADMIN has access to multiple projects:
+
+Show:
+
+My Marketing Projects
+
+ABC Toys
+Marketing 2026
+
+XYZ Fashion
+Digital Marketing
+
+Do NOT show companies/projects they are not assigned to.
+
+==================================================
+19. SECURITY
+==================================================
+
+Implement server-side RBAC and tenant isolation.
+
+Never trust:
+
+company_id
+brand_id
+project_id
+
+sent from frontend.
+
+Always resolve authorized projects from authenticated user permissions.
+
+Every database query must apply tenant/project filtering.
+
+Example conceptual query:
+
+WHERE marketing_project_id IN (
+    SELECT project_id
+    FROM user_project_access
+    WHERE user_id = authenticated_user.id
+)
+
+Do not use unrestricted:
+
+SELECT * FROM campaigns
+
+for client endpoints.
+
+Create centralized authorization middleware:
+
+requireAuth()
+requireRole()
+requireCompanyAccess()
+requireProjectAccess()
+requireClientVisibility()
+
+==================================================
+20. API SECURITY
+==================================================
+
+Client API endpoints should be separate from internal APIs.
+
+Example:
+
+/api/client/marketing/overview
+/api/client/marketing/campaigns
+/api/client/marketing/sales
+/api/client/marketing/leads
+/api/client/marketing/creatives
+/api/client/marketing/reports
+/api/client/marketing/ai-plan
+
+Each endpoint must automatically determine the authorized project from the authenticated user.
+
+Do NOT allow clients to simply submit another project_id and retrieve it.
+
+==================================================
+21. DATABASE STRUCTURE
+==================================================
+
+Use/extend existing database rather than creating duplicate systems.
+
+Recommended entities:
+
+companies
+brands
+users
+marketing_projects
+marketing_project_members
+client_users
+campaigns
+campaign_metrics
+marketing_spend
+marketing_sales
+orders
+leads
+creative_assets
+marketing_reports
+ai_marketing_plans
+ai_marketing_recommendations
+client_visibility_settings
+
+Important relationships:
+
+company
+  ↓
+brand
+  ↓
+marketing_project
+  ↓
+campaigns
+  ↓
+campaign_metrics
+
+and
+
+marketing_project
+  ↓
+orders
+  ↓
+sales metrics
+
+==================================================
+22. CLIENT VISIBILITY SETTINGS
+==================================================
+
+SUPER_ADMIN should have:
+
+Client Visibility Settings
+
+For each project:
+
+[✓] Revenue
+[✓] Orders
+[✓] Ad Spend
+[✓] ROAS
+[✓] Leads
+[✓] CPA
+[✓] Conversion Rate
+[✓] Campaign Performance
+[✓] Creative Library
+[✓] Reports
+[✓] AI Recommendations
+[ ] Product Cost
+[ ] Profit Margin
+[ ] Internal Notes
+[ ] Internal Strategy
+[ ] Employee Information
+
+This gives us complete control.
+
+==================================================
+23. CLIENT DASHBOARD DESIGN
+==================================================
+
+Keep the current Targetgum visual language from the existing Marketing Workspace.
+
+Use:
+
+Dark modern dashboard
+Blue accent
+Clean KPI cards
+Professional charts
+Responsive layout
+
+But simplify the client experience.
+
+The client should immediately understand:
+
+"How is my marketing performing?"
+
+Top section:
+
+Brand Name
+Date Range
+
+Performance KPI cards
+
+Then:
+
+Revenue / Orders graph
+
+Then:
+
+ROAS performance
+
+Then:
+
+Campaign performance
+
+Then:
+
+AI Marketing Insights
+
+Then:
+
+Recent Reports
+
+==================================================
+24. IMPORTANT: DO NOT BREAK EXISTING SYSTEM
+==================================================
+
+This feature must be additive.
+
+Do NOT replace the existing Targetgum Marketing Workspace.
+
+Internal Targetgum users should continue using the current workspace.
+
+Add a separate client-facing experience.
+
+Existing:
+
+/marketing
+
+remains the INTERNAL Targetgum Marketing Workspace.
+
+New:
+
+/client/marketing
+
+becomes the CLIENT MARKETING PORTAL.
+
+Route access based on user role.
+
+CLIENT_ADMIN / CLIENT_VIEWER
+→ /client/marketing
+
+MARKETING_ADMIN / MARKETING_TEAM
+→ /marketing
+
+SUPER_ADMIN
+→ can access both.
+
+==================================================
+25. CROSS-CLIENT SECURITY TESTING
+==================================================
+
+Before completing the implementation, create automated authorization tests.
+
+Test:
+
+Client A requests Client B campaign
+→ 403
+
+Client A requests Client B orders
+→ 403
+
+Client A requests Client B report
+→ 403
+
+Client A changes project_id in URL
+→ 403
+
+Client A changes company_id in API request
+→ 403
+
+Client A tries to access internal finance endpoint
+→ 403
+
+Client A tries to access internal employee data
+→ 403
+
+Client A AI request must only use Client A data.
+
+Client B must not see Client A data.
+
+SUPER_ADMIN must be able to see all.
+
+==================================================
+26. AUDIT LOG
+==================================================
+
+Log client access events:
+
+User
+Company
+Project
+Action
+Timestamp
+IP/device if existing security system supports it
+
+Examples:
+
+Viewed dashboard
+Viewed campaign
+Downloaded report
+Generated AI plan
+Downloaded creative
+
+==================================================
+27. PERFORMANCE
+==================================================
+
+Optimize dashboard queries.
+
+Do not load all Targetgum clients' data into the browser.
+
+Only retrieve authorized project data.
+
+Use pagination for:
+
+Campaigns
+Orders
+Leads
+Creatives
+
+Cache safe aggregated metrics where appropriate.
+
+==================================================
+28. FINAL ACCEPTANCE CRITERIA
+==================================================
+
+The implementation is complete only when:
+
+1. Internal Targetgum marketing workspace still works.
+
+2. Client users have a separate client portal.
+
+3. Client sees only their assigned company/project.
+
+4. Client cannot discover other companies.
+
+5. Client cannot access internal finance.
+
+6. Client cannot access employee information.
+
+7. Client cannot access internal marketing notes.
+
+8. Client sees Orders.
+
+9. Client sees Revenue.
+
+10. Client sees Ad Spend if enabled.
+
+11. Client sees ROAS.
+
+12. Client sees campaign performance.
+
+13. Client sees leads if enabled.
+
+14. Client sees approved creatives.
+
+15. Client can view/download marketing reports.
+
+16. Client can receive AI-generated marketing insights.
+
+17. AI uses only authorized project data.
+
+18. SUPER_ADMIN can configure client visibility.
+
+19. All authorization is enforced server-side.
+
+20. Cross-tenant security tests pass.
+
+DO NOT expose data merely by hiding frontend UI elements.
+
+Security must be enforced at database/API/server authorization level.
+One important improvement I recommend
+
+I would make the client dashboard more like a business report than a marketing management system.
+
+For example:
+
+Client sees
+
+ABC Brand — Marketing Performance
+
+KPI	This Month	Previous Month
+Revenue	₹4.82L	₹3.91L
+Orders	326	271
+Ad Spend	₹82K	₹78K
+ROAS	5.88x	5.01x
+Leads	1,240	1,080
+Conversion	3.8%	3.2%
+
+Then:
+
+📈 What's happening?
+
+Sales increased 23%. ROAS improved from 5.01x to 5.88x. Meta is currently the strongest-performing channel.
+
+🤖 AI Recommendation
+
+Increase focus on the highest-performing campaign, test two new creatives, and monitor CPA over the next 7 days.
+
+🎯 Next 7 Days
+
+Improve Campaign A creative
+Test 2 new ad variations
+Review Campaign B CPA
+Retarget abandoned customers
+Monitor ROAS
+
+That makes the client feel "Targetgum is actively managing my marketing", rather than simply giving them access to an admin panel.
+
+The key architecture
+                    TAPASHUB
+                       │
+             ┌─────────┴─────────┐
+             │                   │
+        INTERNAL TEAM        CLIENT USERS
+             │                   │
+      Targetgum Workspace   Client Marketing Portal
+             │                   │
+       ALL CLIENTS          ONLY ASSIGNED PROJECT
+             │                   │
+     ┌───────┼───────┐          │
+   Client A Client B Client C   Client A
+                               ONLY
+
+This is the important separation that prevents the "why can this client see another company's information?" problem you were concerned about earlier.
+
+I would also make marketing_project_id the primary security boundary, rather than just company_id, because one company can eventually have multiple brands, campaigns, or marketing projects.

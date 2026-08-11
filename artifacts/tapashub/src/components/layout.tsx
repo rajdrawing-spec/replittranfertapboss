@@ -147,6 +147,7 @@ function getNavGroups(company: ActiveCompany | null, isSuperAdmin: boolean, isPa
           ...(!isParentView ? [{ name: "Team & Roles", href: "/admin/access", icon: ShieldCheck }] : []),
           { name: "Audit Logs", href: "/admin/audit", icon: ScrollText },
           { name: "Admin Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
+          { name: "Client Projects", href: "/admin/marketing-projects", icon: Megaphone },
         ],
       },
     ]

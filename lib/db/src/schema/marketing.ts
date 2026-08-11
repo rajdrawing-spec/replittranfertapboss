@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, real, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, real, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -6,6 +6,8 @@ import { z } from "zod/v4";
 export const campaignCreativesTable = pgTable("campaign_creatives", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull(),
+  projectId: integer("project_id"), // nullable: marketing project (client portal tenancy)
+  clientVisible: boolean("client_visible").notNull().default(false), // visible in the client portal
   campaignId: integer("campaign_id"), // nullable: unassigned assets live in the library
   name: text("name").notNull(),
   type: text("type").notNull().default("image"), // image|video|copy|carousel
@@ -22,6 +24,8 @@ export const campaignCreativesTable = pgTable("campaign_creatives", {
 export const campaignLeadsTable = pgTable("campaign_leads", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull(),
+  projectId: integer("project_id"), // nullable: marketing project (client portal tenancy)
+  clientVisible: boolean("client_visible").notNull().default(false), // visible in the client portal
   campaignId: integer("campaign_id"), // nullable
   name: text("name").notNull(),
   email: text("email"),

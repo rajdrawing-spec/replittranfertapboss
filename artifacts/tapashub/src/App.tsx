@@ -51,6 +51,8 @@ const Invoices = React.lazy(() => import('@/pages/invoices'));
 const InvoiceForm = React.lazy(() => import('@/pages/invoice-form'));
 const InvoiceDetail = React.lazy(() => import('@/pages/invoice-detail'));
 const InvoiceCustomers = React.lazy(() => import('@/pages/invoice-customers'));
+const ClientPortal = React.lazy(() => import('@/pages/client-portal'));
+const MarketingProjects = React.lazy(() => import('@/pages/admin/marketing-projects'));
 // Lazy-load the sign-in shell so the public landing page does not pay for the
 // entire signed-in app bundle on first paint.
 const SignInPage = React.lazy(() => import('@/pages/sign-in'));
@@ -208,12 +210,25 @@ function ProfileError() {
   );
 }
 
+const CLIENT_ROLES = ["client_admin", "client_viewer"];
+
 function AuthedApp() {
   const { loading, user, accessError, loadError } = useAuth();
   if (loading) return <LoadingScreen />;
   if (accessError) return <AccessDenied />;
   if (loadError) return <ProfileError />;
   if (!user) return <LoadingScreen />;
+
+  // External client users only ever see the branded client portal — the
+  // internal shell (sidebar, dashboards, admin) is never rendered for them.
+  // Matches the backend's isClientUser: primary role OR any extra role.
+  if ([user.role, ...(user.extraRoles ?? [])].some((r) => CLIENT_ROLES.includes(r))) {
+    return (
+      <React.Suspense fallback={<PageFallback />}>
+        <ClientPortal />
+      </React.Suspense>
+    );
+  }
 
   return (
     <CompanyProvider>
@@ -251,6 +266,7 @@ function AuthedApp() {
                   <Route path="/admin/access" component={AccessControl} />
                   <Route path="/admin/audit" component={AuditLogs} />
                   <Route path="/admin/dashboard" component={AdminDashboard} />
+                  <Route path="/admin/marketing-projects" component={MarketingProjects} />
                   <Route path="/ai-reports" component={AiReports} />
                   <Route path="/ai-tasks" component={AiTasks} />
                   <Route path="/planner" component={Planner} />

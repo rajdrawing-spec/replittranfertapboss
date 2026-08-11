@@ -1,10 +1,12 @@
-import { pgTable, serial, text, integer, real, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, real, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const campaignsTable = pgTable("campaigns", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull(),
+  projectId: integer("project_id"), // nullable: marketing project (client portal tenancy)
+  clientVisible: boolean("client_visible").notNull().default(false), // visible in the client portal
   name: text("name").notNull(),
   channel: text("channel").notNull().default("meta"), // meta|google|instagram|facebook|whatsapp|email
   objective: text("objective").default("conversions"), // awareness|traffic|leads|conversions|sales

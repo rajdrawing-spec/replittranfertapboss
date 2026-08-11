@@ -1,0 +1,187 @@
+IMPORTANT AUTHENTICATION CHANGE
+
+Our application is TapBoss / Tapashub and this is a production SaaS application.
+
+Currently the application uses Replit Auth.
+
+When users click Google login, they are redirected to a page showing:
+
+"Choose an account to continue to Replit"
+
+with Replit branding.
+
+I DO NOT WANT THIS.
+
+We need to REMOVE Replit Auth from the user-facing authentication flow.
+
+DO NOT simply change CSS or hide the Replit logo.
+
+Replace Replit Auth with our own direct Google OAuth 2.0 authentication.
+
+REQUIREMENTS:
+
+1. Users click:
+
+"Continue with Google"
+
+2. They should be taken directly to Google's account selection/authentication page.
+
+3. After successful Google authentication, Google should redirect back to our TapBoss application.
+
+4. Create or find the user in our existing database.
+
+5. Create a secure application session.
+
+6. Redirect the user to the correct TapBoss dashboard based on their role.
+
+7. Preserve our existing users, roles, company assignments, brand assignments and permissions.
+
+8. DO NOT delete existing user/company/project data.
+
+9. Do not use Replit Auth for production user authentication.
+
+10. Do not create a second competing user system if an existing users table already exists. Migrate/reuse the current user structure.
+
+GOOGLE OAUTH
+
+Use Google OAuth 2.0 / OpenID Connect.
+
+Use environment secrets for:
+
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+
+Never hardcode credentials.
+
+Use the production domain callback URL:
+
+https://YOUR-DOMAIN.com/auth/google/callback
+
+Also support the Replit development URL where necessary.
+
+SECURITY:
+
+- Use authorization-code flow.
+- Validate state to prevent CSRF.
+- Validate ID token/issuer/audience.
+- Use secure HTTP-only cookies for sessions.
+- Use Secure cookies in production.
+- Use SameSite appropriately.
+- Never store Google client secrets in frontend code.
+- Never expose OAuth tokens to the browser unnecessarily.
+- Do not trust company_id, brand_id or role values supplied by the frontend.
+
+IMPORTANT USER MAPPING
+
+Google authentication should identify the user by verified Google email / Google subject ID.
+
+Existing TapBoss users must continue to work.
+
+Do not create duplicate users when the same Google account logs in again.
+
+Add a field such as:
+
+google_subject_id
+
+or an equivalent secure provider identity mapping.
+
+ROLE / COMPANY ACCESS
+
+After Google login:
+
+1. Find the authenticated TapBoss user.
+2. Load their existing role.
+3. Load their company/project permissions.
+4. Redirect according to their permissions.
+
+Example:
+
+SUPER_ADMIN
+→ internal TapBoss dashboard
+
+MARKETING_ADMIN
+→ Targetgum internal marketing workspace
+
+MARKETING_TEAM
+→ assigned internal workspace
+
+CLIENT_ADMIN
+→ /client/marketing
+
+CLIENT_VIEWER
+→ /client/marketing
+
+IMPORTANT:
+
+Do NOT change our existing authorization model.
+
+Authentication and authorization are separate.
+
+Google only verifies WHO the user is.
+
+TapBoss determines WHAT the user is allowed to see.
+
+CLIENT SECURITY
+
+This is especially important for our Targetgum Client Marketing Portal.
+
+A client authenticated with Google must only access their assigned:
+
+company_id
+brand_id
+marketing_project_id
+
+They must never be able to access another client's data.
+
+The server must enforce this.
+
+Do not rely on frontend hiding.
+
+REMOVE REPLIT AUTH
+
+After the new Google OAuth system is verified:
+
+- Remove Replit Auth from the production login flow.
+- Remove Replit Auth login buttons.
+- Remove redirects to replit.com for authentication.
+- Remove Replit Auth middleware only where it is no longer required.
+- Preserve all existing application authorization and database logic.
+- Search the entire codebase for Replit Auth dependencies before removing them.
+
+DO NOT BREAK THE APPLICATION.
+
+Before making destructive changes:
+
+1. Inspect the existing authentication implementation.
+2. Inspect the users table.
+3. Inspect sessions.
+4. Inspect roles.
+5. Inspect company/project permissions.
+6. Create a migration plan.
+7. Implement Google OAuth.
+8. Test authentication.
+9. Test role-based redirects.
+10. Test client project isolation.
+11. Only then remove Replit Auth from production.
+
+FINAL LOGIN EXPERIENCE:
+
+TapBoss login page:
+
+TAPASHUB / TAPBOSS LOGO
+
+Welcome back
+
+[ Continue with Google ]
+
+Email/password can be added later if required.
+
+There should be NO:
+
+"Continue to Replit"
+
+NO Replit logo.
+
+NO Replit account selection page.
+
+The user should authenticate directly through Google and return to TapBoss.

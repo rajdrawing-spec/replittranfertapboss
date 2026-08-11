@@ -24,6 +24,7 @@ export * from "./shipments";
 export * from "./documents";
 export * from "./campaigns";
 export * from "./marketing";
+export * from "./marketing-projects";
 export * from "./treasury";
 export * from "./ai";
 export * from "./ai-reports";

@@ -35,6 +35,9 @@ import adminRouter from "./admin";
 import aiProductsRouter from "./ai-products";
 import connectRouter from "./connect";
 import invoicesRouter from "./invoices";
+import marketingProjectsRouter from "./marketing-projects";
+import clientMarketingRouter from "./client-marketing";
+import { blockClientUsersFromInternalApi } from "../lib/project-scope";
 
 const router: IRouter = Router();
 
@@ -44,6 +47,10 @@ router.use(authRouter);
 
 // All other routes require a valid session cookie
 router.use(requireAuth);
+// Client-role users are locked to the /client/* portal surface.
+router.use(blockClientUsersFromInternalApi);
+router.use(clientMarketingRouter);
+router.use(marketingProjectsRouter);
 router.use(companiesRouter);
 router.use(dashboardRouter);
 router.use(analyticsRouter);

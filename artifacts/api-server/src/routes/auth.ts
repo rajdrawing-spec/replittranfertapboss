@@ -3,6 +3,8 @@ import { getAuth } from "@clerk/express";
 import { usersTable } from "@workspace/db";
 import type { User } from "@workspace/db";
 import { getOrProvisionLocalUser, getUserPermissions, isSuperAdmin } from "../lib/auth-user";
+import { requireAuth } from "../middleware/auth";
+import { rejectClientUsers } from "../lib/project-scope";
 
 const router = Router();
 
@@ -48,6 +50,13 @@ router.get("/auth/me", async (req, res) => {
     res.status(500).json({ error: "Failed" });
   }
 });
+
+// Boundary catch-all: /auth/me above is the ONLY auth route open to client
+// accounts. Any future authenticated /auth/* endpoint added below this router
+// automatically requires a session and rejects client-role users, keeping the
+// client boundary intact despite this router being mounted before the global
+// guard in routes/index.ts.
+router.use("/auth", requireAuth, rejectClientUsers);
 
 export default router;
 export { fmtUser };

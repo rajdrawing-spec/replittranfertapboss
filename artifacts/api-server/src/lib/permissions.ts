@@ -59,7 +59,12 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "director.view", label: "View Director Portal", group: "Director" },
   { key: "callcenter.view", label: "Use the call center (make/receive calls, own history)", group: "Call Center" },
   { key: "callcenter.manage", label: "Manage call center (numbers, settings, all calls)", group: "Call Center" },
+  { key: "client_portal.view", label: "Access the client marketing portal", group: "Client Portal" },
 ];
+
+/** Role keys whose holders are CLIENT (external) users: they may only access
+ *  the client portal API surface, never internal modules. */
+export const CLIENT_ROLE_KEYS = ["client_admin", "client_viewer"];
 
 export const ALL_MODULE_PERMISSIONS = PERMISSIONS.filter((p) => !p.key.startsWith("platform.")).map((p) => p.key);
 
@@ -103,5 +108,17 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       "directory.view",
       "finance.manage",
     ],
+  },
+  {
+    key: "client_admin",
+    name: "Client Admin",
+    description: "External client — full access to their marketing project's client portal.",
+    permissions: ["client_portal.view"],
+  },
+  {
+    key: "client_viewer",
+    name: "Client Viewer",
+    description: "External client — read-only access to their marketing project's client portal.",
+    permissions: ["client_portal.view"],
   },
 ];

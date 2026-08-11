@@ -88,7 +88,9 @@ router.post("/campaigns", async (req, res) => {
 router.patch("/campaigns/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { id: _id, createdAt: _cr, updatedAt: _u, companyId: _cid, ...raw } = req.body ?? {};
+    // projectId/clientVisible are managed exclusively via the super-admin
+    // project-linking endpoint (validated there) — never through this PATCH.
+    const { id: _id, createdAt: _cr, updatedAt: _u, companyId: _cid, projectId: _pid, clientVisible: _cv, ...raw } = req.body ?? {};
     const body = normalizeCampaignBody(raw);
     // Load the current row so we can detect a status transition to "completed".
     const [existing] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, id));
@@ -119,8 +121,11 @@ router.delete("/campaigns/:id", async (req, res) => {
 });
 
 // Convert incoming ISO date strings to Date objects so drizzle/zod accept them.
+// Also strips projectId/clientVisible: project linkage & portal visibility are
+// managed exclusively by the validated super-admin linking endpoint
+// (marketing-projects.ts), never via generic create/update payloads.
 function normalizeCampaignBody(body: Record<string, unknown>): Record<string, unknown> {
-  const out = { ...body };
+  const { projectId: _pid, clientVisible: _cv, ...out } = { ...body };
   for (const key of ["startDate", "endDate"] as const) {
     const v = out[key];
     if (v === "" || v === null || v === undefined) { out[key] = null; }
@@ -260,7 +265,7 @@ router.post("/marketing/creatives", async (req, res) => {
 
 router.patch("/marketing/creatives/:id", async (req, res) => {
   try {
-    const { id: _id, createdAt: _cr, updatedAt: _u, companyId: _cid, ...raw } = req.body ?? {};
+    const { id: _id, createdAt: _cr, updatedAt: _u, companyId: _cid, projectId: _pid, clientVisible: _cv, ...raw } = req.body ?? {};
     const body = normalizeCreativeBody(raw);
     if (!isSafeAttachmentUrl(body.url) || !isSafeAttachmentUrl(body.thumbnailUrl)) {
       res.status(400).json({ error: "Unsafe URL: only http(s) links or uploaded files are allowed" }); return;
@@ -289,8 +294,9 @@ router.delete("/marketing/creatives/:id", async (req, res) => {
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to delete creative" }); }
 });
 
+// Strips projectId/clientVisible — see normalizeCampaignBody.
 function normalizeCreativeBody(body: Record<string, unknown>): Record<string, unknown> {
-  const out = { ...body };
+  const { projectId: _pid, clientVisible: _cv, ...out } = { ...body };
   const cid = out.campaignId;
   if (cid === "" || cid === null || cid === undefined || cid === "none") out.campaignId = null;
   else if (typeof cid === "string") out.campaignId = parseInt(cid);
@@ -336,7 +342,7 @@ router.post("/marketing/leads", async (req, res) => {
 
 router.patch("/marketing/leads/:id", async (req, res) => {
   try {
-    const { id: _id, createdAt: _cr, updatedAt: _u, companyId: _cid, ...raw } = req.body ?? {};
+    const { id: _id, createdAt: _cr, updatedAt: _u, companyId: _cid, projectId: _pid, clientVisible: _cv, ...raw } = req.body ?? {};
     const body = normalizeLeadBody(raw);
     const id = parseInt(req.params.id);
     const [existing] = await db.select().from(campaignLeadsTable).where(eq(campaignLeadsTable.id, id));
@@ -362,8 +368,9 @@ router.delete("/marketing/leads/:id", async (req, res) => {
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to delete lead" }); }
 });
 
+// Strips projectId/clientVisible — see normalizeCampaignBody.
 function normalizeLeadBody(body: Record<string, unknown>): Record<string, unknown> {
-  const out = { ...body };
+  const { projectId: _pid, clientVisible: _cv, ...out } = { ...body };
   const cid = out.campaignId;
   if (cid === "" || cid === null || cid === undefined || cid === "none") out.campaignId = null;
   else if (typeof cid === "string") out.campaignId = parseInt(cid);

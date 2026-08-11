@@ -695,6 +695,43 @@ export async function applyMigrations(): Promise<void> {
     await db.execute(sql`ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS is_group BOOLEAN NOT NULL DEFAULT false`);
     await db.execute(sql`ALTER TABLE chat_channel_members ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false`);
 
+    // ── Client Marketing Portal (projects, membership, tenancy columns) ──────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS marketing_projects (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL,
+        name        TEXT    NOT NULL,
+        brand_name  TEXT,
+        brand_color TEXT,
+        logo_url    TEXT,
+        status      TEXT    NOT NULL DEFAULT 'active',
+        created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS marketing_project_members (
+        id          SERIAL PRIMARY KEY,
+        project_id  INTEGER NOT NULL,
+        user_id     INTEGER NOT NULL,
+        member_type TEXT    NOT NULL DEFAULT 'internal',
+        created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS marketing_project_members_uniq
+        ON marketing_project_members (project_id, user_id)
+    `);
+    await db.execute(sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS project_id INTEGER`);
+    await db.execute(sql`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS client_visible BOOLEAN NOT NULL DEFAULT FALSE`);
+    await db.execute(sql`ALTER TABLE campaign_creatives ADD COLUMN IF NOT EXISTS project_id INTEGER`);
+    await db.execute(sql`ALTER TABLE campaign_creatives ADD COLUMN IF NOT EXISTS client_visible BOOLEAN NOT NULL DEFAULT FALSE`);
+    await db.execute(sql`ALTER TABLE campaign_leads ADD COLUMN IF NOT EXISTS project_id INTEGER`);
+    await db.execute(sql`ALTER TABLE campaign_leads ADD COLUMN IF NOT EXISTS client_visible BOOLEAN NOT NULL DEFAULT FALSE`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS campaigns_project_idx ON campaigns(project_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS campaign_creatives_project_idx ON campaign_creatives(project_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS campaign_leads_project_idx ON campaign_leads(project_id)`);
+
     logger.info("Startup migrations applied (schema)");
   } catch (e) {
     // Log but never crash the server — missing tables are better discovered

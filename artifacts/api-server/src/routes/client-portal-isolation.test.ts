@@ -25,6 +25,9 @@ const H = vi.hoisted(() => {
     campaign_creatives: [],
     campaign_leads: [],
     orders: [],
+    client_visibility_settings: [],
+    client_ai_plans: [],
+    client_audit_logs: [],
   };
   function reset() {
     for (const k of Object.keys(store)) store[k] = [];
@@ -44,6 +47,9 @@ const H = vi.hoisted(() => {
   const campaignCreativesTable = makeTable("campaign_creatives");
   const campaignLeadsTable = makeTable("campaign_leads");
   const ordersTable = makeTable("orders");
+  const clientVisibilitySettingsTable = makeTable("client_visibility_settings");
+  const clientAiPlansTable = makeTable("client_ai_plans");
+  const clientAuditLogsTable = makeTable("client_audit_logs");
 
   const field = (col: string) => String(col).split(".")[1];
   function match(row: Row, cond: any): boolean {
@@ -74,6 +80,10 @@ const H = vi.hoisted(() => {
     set(v: Row) { this.vals = v; return this; }
     where(c: any) { this.cond = c; return this; }
     orderBy() { return this; }
+    limit(n: number) { this._limit = n; return this; }
+    offset(n: number) { this._offset = n; return this; }
+    _limit: number | null = null;
+    _offset = 0;
     returning() { return this; }
     onConflictDoNothing() { return this; }
     then(resolve: (v: any) => void, reject: (e: any) => void) {
@@ -82,6 +92,10 @@ const H = vi.hoisted(() => {
     _exec() {
       const arr = store[this.table!];
       if (this.type === "insert") {
+        // Mirror the real DB's marketing_projects_company_uniq unique index.
+        if (this.table === "marketing_projects" && arr.some((r) => r.companyId === (this.vals as any)?.companyId)) {
+          throw Object.assign(new Error("duplicate key value violates unique constraint \"marketing_projects_company_uniq\""), { code: "23505" });
+        }
         const row = { id: arr.length + 1, createdAt: new Date(), ...this.vals };
         arr.push(row);
         return [{ ...row }];
@@ -97,6 +111,8 @@ const H = vi.hoisted(() => {
         return hit.map((r) => ({ ...r }));
       }
       let rows = arr.filter((r) => match(r, this.cond));
+      if (this._offset) rows = rows.slice(this._offset);
+      if (this._limit != null) rows = rows.slice(0, this._limit);
       if (this.cols) {
         return rows.map((r) => {
           const o: Row = {};
@@ -116,7 +132,7 @@ const H = vi.hoisted(() => {
   };
   // Holder for the "signed-in" user seen by the mocked Clerk/auth boundary.
   const authState = { user: null as any };
-  return { store, reset, db, authState, marketingProjectsTable, marketingProjectMembersTable, campaignsTable, campaignCreativesTable, campaignLeadsTable, ordersTable };
+  return { store, reset, db, authState, marketingProjectsTable, marketingProjectMembersTable, campaignsTable, campaignCreativesTable, campaignLeadsTable, ordersTable, clientVisibilitySettingsTable, clientAiPlansTable, clientAuditLogsTable };
 });
 
 vi.mock("@workspace/db", () => {
@@ -134,9 +150,35 @@ vi.mock("@workspace/db", () => {
   insertCampaignSchema: passThrough,
   insertCampaignCreativeSchema: passThrough,
   insertCampaignLeadSchema: passThrough,
+  insertMarketingProjectSchema: passThrough,
   usersTable: {},
+  clientVisibilitySettingsTable: H.clientVisibilitySettingsTable,
+  clientAiPlansTable: H.clientAiPlansTable,
+  clientAuditLogsTable: H.clientAuditLogsTable,
+  DEFAULT_CLIENT_VISIBILITY: {
+    revenue: true, orders: true, adSpend: true, roas: true, leads: true,
+    cpa: true, conversion: true, campaigns: true, creatives: true,
+    reports: true, ai: true, aiRequiresReview: false,
+  },
   };
 });
+
+// AI provider boundary: capture the exact context sent to the model.
+const aiCalls: { messages: any[]; system?: string }[] = [];
+let aiResponse = JSON.stringify({
+  observed: { working: ["Campaign A ROAS 4x"], underperforming: ["Campaign B CTR 0.2%"] },
+  likely_reasons: ["Likely creative fatigue"],
+  recommendations: { campaigns: ["Shift budget to A"], creatives: ["Refresh B"], budget: ["Hold spend"], lead_gen: ["Add lead form"] },
+  plan_7_day: [{ day: "Day 1", focus: "Audit", actions: ["Review campaign B"] }],
+  plan_30_day: [{ week: "Week 1", focus: "Optimize", actions: ["Scale winners"] }],
+  summary: "Solid overall performance.",
+});
+vi.mock("../lib/ai-provider", () => ({
+  getActiveProvider: async () => ({
+    chat: async (messages: any[], system?: string) => { aiCalls.push({ messages, system }); return aiResponse; },
+  }),
+  getActiveProviderName: async () => "test-provider",
+}));
 
 vi.mock("../lib/notify", () => ({ emitNotification: vi.fn() }));
 vi.mock("../lib/url-safety", () => ({ isSafeAttachmentUrl: () => true }));
@@ -167,10 +209,19 @@ vi.mock("../lib/auth-user", () => ({
       : ["dashboard.view", "marketing.view"],
 }));
 
+vi.mock("../lib/objectStorage", () => ({
+  ObjectStorageService: class {
+    async getObjectEntityFile() { throw new Error("not-found"); }
+    async downloadObject() { throw new Error("unreachable"); }
+  },
+  ObjectNotFoundError: class ObjectNotFoundError extends Error {},
+}));
+
 import { blockClientUsersFromInternalApi, projectScope } from "../lib/project-scope";
 import clientMarketingRouter from "./client-marketing";
 import authRouter from "./auth";
 import marketingRouter from "./marketing";
+import marketingProjectsRouter from "./marketing-projects";
 
 const SUPER_ADMIN = { id: 1, name: "Owner", email: "tapashub@gmail.com", role: "super_admin", extraRoles: [], companyIds: [] };
 const CLIENT_USER = { id: 10, name: "Client", email: "client@acme.example.com", role: "client_admin", extraRoles: [], companyIds: [] };
@@ -185,12 +236,13 @@ function buildApp() {
   app.use(express.json());
   app.use((req, _res, next) => {
     (req as any).localUser = currentUser;
-    (req as any).log = { error: () => {} };
+    (req as any).log = { error: (e: any) => { if (process.env.DBG) console.error("ROUTE ERR", e); }, warn: () => {} };
     next();
   });
   app.use(blockClientUsersFromInternalApi);
   app.use(clientMarketingRouter);
   app.use(marketingRouter);
+  app.use(marketingProjectsRouter);
   // Representative hypothetical future authenticated /auth/* route the guard
   // must protect (only /auth/me is exempt).
   app.get("/auth/sessions", (_req, res) => { res.json([{ id: 1, secret: true }]); });
@@ -538,6 +590,228 @@ describe("client dashboard endpoints", () => {
 // projectId/clientVisible must be stripped from POST payloads: linking happens
 // exclusively via the validated super-admin endpoint. Otherwise a staff user
 // with Company A access could link a record to Company B's project.
+// ---- Visibility settings, AI copilot & audit log (task: copilot phase) -------
+describe("client visibility, AI plan & audit", () => {
+  const flush = () => new Promise((r) => setImmediate(r));
+  function setVisibility(projectId: number, overrides: Record<string, boolean>) {
+    H.store.client_visibility_settings.push({
+      id: H.store.client_visibility_settings.length + 1,
+      projectId,
+      settings: {
+        revenue: true, orders: true, adSpend: true, roas: true, leads: true,
+        cpa: true, conversion: true, campaigns: true, creatives: true,
+        reports: true, ai: true, aiRequiresReview: false, ...overrides,
+      },
+      updatedAt: new Date(),
+    });
+  }
+
+  let projectId: number;
+  beforeEach(() => {
+    aiCalls.length = 0;
+    projectId = seedProject({ companyId: 1 });
+    addMember(projectId, CLIENT_USER.id);
+    currentUser = CLIENT_USER;
+  });
+
+  it("GET visibility returns settings without the internal aiRequiresReview flag", async () => {
+    setVisibility(projectId, { revenue: false, aiRequiresReview: true });
+    const res = await request(app).get(`/client/marketing/projects/${projectId}/visibility`);
+    expect(res.status).toBe(200);
+    expect(res.body.revenue).toBe(false);
+    expect(res.body.aiRequiresReview).toBeUndefined();
+  });
+
+  it("overview strips hidden KPIs from the payload", async () => {
+    setVisibility(projectId, { revenue: false, adSpend: false });
+    H.store.orders.push({ id: 1, companyId: 1, totalAmount: 1000, status: "delivered", createdAt: new Date(), itemCount: 1, orderNumber: "O1", channel: "web" });
+    H.store.campaigns.push({ id: 1, projectId, clientVisible: true, name: "A", status: "active", spent: 200, revenue: 800, impressions: 100, clicks: 5, leads: 4, conversions: 2, createdAt: new Date() });
+    const res = await request(app).get(`/client/marketing/projects/${projectId}/overview`);
+    expect(res.status).toBe(200);
+    expect(res.body.kpis.revenue).toBeUndefined();
+    expect(res.body.kpis.aov).toBeUndefined();
+    expect(res.body.kpis.orders).toBe(1);
+    expect(res.body.campaignLifetime.adSpend).toBeUndefined();
+    expect(res.body.campaignLifetime.cpl).toBeUndefined();
+    expect(res.body.campaignLifetime.roas).toBe(4);
+    expect(res.body.comparison.revenue).toBeUndefined();
+    for (const t of res.body.timeseries) expect(t.revenue).toBeUndefined();
+  });
+
+  it("disabled sections return 403 (campaigns, sales, leads, creatives, report, ai)", async () => {
+    setVisibility(projectId, { campaigns: false, orders: false, leads: false, creatives: false, reports: false, ai: false });
+    for (const path of ["campaigns", "sales", "leads", "creatives", "report", "ai-plan"]) {
+      const res = await request(app).get(`/client/marketing/projects/${projectId}/${path}`);
+      expect(res.status, path).toBe(403);
+    }
+    const gen = await request(app).post(`/client/marketing/projects/${projectId}/ai-plan/generate`);
+    expect(gen.status).toBe(403);
+  });
+
+  it("defaults apply when no settings row exists (everything visible)", async () => {
+    const res = await request(app).get(`/client/marketing/projects/${projectId}/campaigns`);
+    expect(res.status).toBe(200);
+  });
+
+  it("AI plan generation publishes immediately by default and stores the plan", async () => {
+    const res = await request(app).post(`/client/marketing/projects/${projectId}/ai-plan/generate`);
+    expect(res.status).toBe(201);
+    expect(res.body.pendingReview).toBe(false);
+    expect(res.body.plan.summary).toBe("Solid overall performance.");
+    expect(H.store.client_ai_plans).toHaveLength(1);
+    expect(H.store.client_ai_plans[0].status).toBe("published");
+
+    const get = await request(app).get(`/client/marketing/projects/${projectId}/ai-plan`);
+    expect(get.status).toBe(200);
+    expect(get.body.plan.plan7).toHaveLength(1);
+    // Client payload must not leak reviewer fields.
+    expect(get.body.plan.requestedByUserId).toBeUndefined();
+    expect(get.body.plan.provider).toBeUndefined();
+  });
+
+  it("aiRequiresReview holds the plan as pending_review and hides it from the client", async () => {
+    setVisibility(projectId, { aiRequiresReview: true });
+    const res = await request(app).post(`/client/marketing/projects/${projectId}/ai-plan/generate`);
+    expect(res.status).toBe(201);
+    expect(res.body.pendingReview).toBe(true);
+    expect(res.body.plan).toBeNull();
+    expect(H.store.client_ai_plans[0].status).toBe("pending_review");
+
+    const get = await request(app).get(`/client/marketing/projects/${projectId}/ai-plan`);
+    expect(get.body.plan).toBeNull();
+    expect(get.body.pendingReview).toBe(true);
+  });
+
+  it("AI context contains only this project's client-visible data", async () => {
+    const other = seedProject({ companyId: 2 });
+    H.store.campaigns.push(
+      { id: 1, projectId, clientVisible: true, name: "MyVisibleCampaign", status: "active", spent: 100, revenue: 400, impressions: 10, clicks: 2, leads: 1, conversions: 1, createdAt: new Date() },
+      { id: 2, projectId, clientVisible: false, name: "MyHiddenCampaign", status: "active", spent: 1, revenue: 1, createdAt: new Date() },
+      { id: 3, projectId: other, clientVisible: true, name: "OtherClientCampaign", status: "active", spent: 1, revenue: 1, createdAt: new Date() },
+    );
+    const res = await request(app).post(`/client/marketing/projects/${projectId}/ai-plan/generate`);
+    expect(res.status).toBe(201);
+    const sent = aiCalls[0].messages.map((m: any) => m.content).join("\n");
+    expect(sent).toContain("MyVisibleCampaign");
+    expect(sent).not.toContain("MyHiddenCampaign");
+    expect(sent).not.toContain("OtherClientCampaign");
+  });
+
+  it("non-members get 403 on AI endpoints", async () => {
+    currentUser = CLIENT_VIEWER; // not a member of projectId
+    expect((await request(app).get(`/client/marketing/projects/${projectId}/ai-plan`)).status).toBe(403);
+    expect((await request(app).post(`/client/marketing/projects/${projectId}/ai-plan/generate`)).status).toBe(403);
+  });
+
+  it("records audit events for dashboard view, report view, AI generation", async () => {
+    await request(app).get(`/client/marketing/projects/${projectId}/overview`);
+    await request(app).get(`/client/marketing/projects/${projectId}/report`);
+    await request(app).post(`/client/marketing/projects/${projectId}/ai-plan/generate`);
+    await flush();
+    const actions = H.store.client_audit_logs.map((r) => r.action);
+    expect(actions).toContain("portal.overview_viewed");
+    expect(actions).toContain("portal.report_viewed");
+    expect(actions).toContain("portal.ai_plan_generated");
+    for (const r of H.store.client_audit_logs) {
+      expect(r.projectId).toBe(projectId);
+      expect(r.userId).toBe(CLIENT_USER.id);
+    }
+  });
+
+  it("campaign rows omit spend/revenue/roas when those KPIs are hidden", async () => {
+    setVisibility(projectId, { adSpend: false, revenue: false, roas: false });
+    H.store.campaigns.push({ id: 1, projectId, clientVisible: true, name: "A", status: "active", spent: 200, revenue: 800, impressions: 100, clicks: 5, leads: 4, conversions: 2, createdAt: new Date() });
+    const res = await request(app).get(`/client/marketing/projects/${projectId}/campaigns`);
+    expect(res.status).toBe(200);
+    const row = res.body.campaigns[0];
+    expect(row.spend).toBeUndefined();
+    expect(row.revenue).toBeUndefined();
+    expect(row.roas).toBeUndefined();
+    expect(row.impressions).toBe(100);
+  });
+
+  it("report campaign highlights omit hidden financial fields", async () => {
+    setVisibility(projectId, { adSpend: false });
+    H.store.campaigns.push({ id: 1, projectId, clientVisible: true, name: "A", status: "active", spent: 200, revenue: 800, createdAt: new Date() });
+    const res = await request(app).get(`/client/marketing/projects/${projectId}/report`);
+    expect(res.status).toBe(200);
+    expect(res.body.bestCampaign.name).toBe("A");
+    expect(res.body.bestCampaign.spend).toBeUndefined();
+    expect(res.body.bestCampaign.revenue).toBe(800);
+    expect(res.body.campaignLifetime.adSpend).toBeUndefined();
+  });
+
+  it("creative asset endpoint enforces project scope, visibility and status", async () => {
+    const other = seedProject({ companyId: 2 });
+    H.store.campaign_creatives.push(
+      { id: 1, companyId: 1, projectId, clientVisible: true, name: "Mine", type: "image", url: "https://cdn.example.com/a.png", status: "approved", createdAt: new Date() },
+      { id: 2, companyId: 2, projectId: other, clientVisible: true, name: "Theirs", type: "image", url: "https://cdn.example.com/b.png", status: "approved", createdAt: new Date() },
+      { id: 3, companyId: 1, projectId, clientVisible: true, name: "Draft", type: "image", url: "https://cdn.example.com/c.png", status: "draft", createdAt: new Date() },
+    );
+    // Own approved creative with external URL → redirect.
+    const ok = await request(app).get(`/client/marketing/projects/${projectId}/creatives/1/asset`);
+    expect(ok.status).toBe(302);
+    // Cross-project and non-approved → 404.
+    expect((await request(app).get(`/client/marketing/projects/${projectId}/creatives/2/asset`)).status).toBe(404);
+    expect((await request(app).get(`/client/marketing/projects/${projectId}/creatives/3/asset`)).status).toBe(404);
+    // Section disabled → 403.
+    setVisibility(projectId, { creatives: false });
+    expect((await request(app).get(`/client/marketing/projects/${projectId}/creatives/1/asset`)).status).toBe(403);
+  });
+
+  it("creative asset download=1 records an audit event", async () => {
+    H.store.campaign_creatives.push(
+      { id: 1, companyId: 1, projectId, clientVisible: true, name: "Mine", type: "image", url: "https://cdn.example.com/a.png", status: "approved", createdAt: new Date() },
+    );
+    await request(app).get(`/client/marketing/projects/${projectId}/creatives/1/asset?download=1`);
+    await flush();
+    const rows = H.store.client_audit_logs.filter((r) => r.action === "portal.creative_downloaded");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].detail.creativeId).toBe(1);
+  });
+
+  it("POST /marketing-projects rejects a second project for the same company", async () => {
+    currentUser = SUPER_ADMIN;
+    H.authState.user = SUPER_ADMIN;
+    const res = await request(app).post("/marketing-projects")
+      .send({ name: "Second", companyId: 1 });
+    expect(res.status).toBe(409);
+  });
+
+  it("maps a concurrent-create unique violation (23505) to 409", async () => {
+    currentUser = SUPER_ADMIN;
+    H.authState.user = SUPER_ADMIN;
+    // Simulate the race: the pre-check select sees no project, but the DB
+    // unique index rejects the insert because another request won the race.
+    const realSelect = H.db.select;
+    (H.db as any).select = () => ({ from: () => ({ where: () => ({ then: (r: any) => r([]) }) }) });
+    try {
+      const res = await request(app).post("/marketing-projects")
+        .send({ name: "Racer", companyId: 1 }); // projectId seeded for company 1 in beforeEach
+      expect(res.status).toBe(409);
+      expect(H.store.marketing_projects).toHaveLength(1);
+    } finally {
+      (H.db as any).select = realSelect;
+    }
+  });
+
+  it("creative download audit rejects cross-project/hidden creatives", async () => {
+    const other = seedProject({ companyId: 2 });
+    H.store.campaign_creatives.push(
+      { id: 1, companyId: 1, projectId, clientVisible: true, name: "Mine", type: "image", url: "/objects/a.png", status: "approved", createdAt: new Date() },
+      { id: 2, companyId: 2, projectId: other, clientVisible: true, name: "Theirs", type: "image", url: "/objects/b.png", status: "approved", createdAt: new Date() },
+      { id: 3, companyId: 1, projectId, clientVisible: false, name: "Hidden", type: "image", url: "/objects/c.png", status: "approved", createdAt: new Date() },
+    );
+    expect((await request(app).post(`/client/marketing/projects/${projectId}/creatives/1/downloaded`)).status).toBe(200);
+    expect((await request(app).post(`/client/marketing/projects/${projectId}/creatives/2/downloaded`)).status).toBe(404);
+    expect((await request(app).post(`/client/marketing/projects/${projectId}/creatives/3/downloaded`)).status).toBe(404);
+    await flush();
+    const rows = H.store.client_audit_logs.filter((r) => r.action === "portal.creative_downloaded");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].detail.creativeId).toBe(1);
+  });
+});
+
 describe("marketing POST strips projectId/clientVisible", () => {
   it("POST /campaigns ignores projectId & clientVisible", async () => {
     currentUser = STAFF;
@@ -582,7 +856,7 @@ describe("auth router client boundary (real router)", () => {
   function buildRealApp() {
     const app = express();
     app.use(express.json());
-    app.use((req, _res, next) => { (req as any).log = { error: () => {} }; next(); });
+    app.use((req, _res, next) => { (req as any).log = { error: (e: any) => { if (process.env.DBG) console.error("ROUTE ERR", e); }, warn: () => {} }; next(); });
     app.use(authRouter); // mounted publicly, exactly like routes/index.ts
     return app;
   }

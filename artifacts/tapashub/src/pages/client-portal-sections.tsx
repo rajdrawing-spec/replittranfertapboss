@@ -22,13 +22,6 @@ const fmtINR = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN")
 const fmtNum = (n: number) => n.toLocaleString("en-IN")
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
-// Assets stored via object storage return an /objects path served by the storage API.
-function assetSrc(url?: string | null): string | undefined {
-  if (!url) return undefined
-  if (url.startsWith("/objects")) return `/api/storage${url}`
-  return url
-}
-
 const toYMD = (d: Date) => {
   const pad = (n: number) => String(n).padStart(2, "0")
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -133,11 +126,13 @@ function Delta({ value }: { value: number | null }) {
 
 /* ------------------------------ overview ------------------------------ */
 
+// KPI fields are OPTIONAL — the server removes any metric the super admin
+// has hidden for this project, so render only what's present.
 interface Overview {
-  kpis: { revenue: number; orders: number; leads: number; conversionRate: number | null; aov: number }
-  campaignLifetime: { adSpend: number; roas: number | null; cpl: number | null; cpa: number | null }
-  comparison: { revenue: number | null; orders: number | null; leads: number | null }
-  timeseries: { period: string; revenue: number; orders: number; leads: number }[]
+  kpis: { revenue?: number; orders?: number; leads?: number; conversionRate?: number | null; aov?: number }
+  campaignLifetime: { adSpend?: number; roas?: number | null; cpl?: number | null; cpa?: number | null }
+  comparison: { revenue?: number | null; orders?: number | null; leads?: number | null }
+  timeseries: { period: string; revenue?: number; orders?: number; leads?: number }[]
 }
 
 export function OverviewSection({ projectId }: { projectId: number }) {
@@ -157,15 +152,19 @@ export function OverviewSection({ projectId }: { projectId: number }) {
   // Range-scoped cards (orders & leads are dated rows); campaign metrics below
   // are lifetime running totals since campaigns store no dated snapshots.
   const cards = [
-    { label: "Net Revenue", help: "Orders in period, minus cancellations & returns", value: fmtINR(k.revenue), delta: data.comparison.revenue },
-    { label: "Net Orders", help: "Orders in period excluding cancellations & returns", value: fmtNum(k.orders), delta: data.comparison.orders },
-    { label: "Leads", help: "New enquiries in this period", value: fmtNum(k.leads), delta: data.comparison.leads },
-    { label: "Conversion Rate", help: "Share of period leads that converted", value: k.conversionRate != null ? `${k.conversionRate.toFixed(1)}%` : "—", delta: null },
-    { label: "Avg Order Value", help: "Average net revenue per order in period", value: fmtINR(k.aov), delta: null },
-    { label: "Ad Spend (lifetime)", help: "Total ever spent across your campaigns", value: fmtINR(cl.adSpend), delta: null },
-    { label: "ROAS (lifetime)", help: "Campaign revenue per ₹1 of ad spend, all time", value: cl.roas != null ? `${cl.roas.toFixed(2)}x` : "—", delta: null },
-    { label: "Cost / Lead (lifetime)", help: "Lifetime ad spend ÷ lifetime campaign leads", value: cl.cpl != null ? fmtINR(cl.cpl) : "—", delta: null },
-  ]
+    k.revenue !== undefined && { label: "Net Revenue", help: "Orders in period, minus cancellations & returns", value: fmtINR(k.revenue), delta: data.comparison.revenue ?? null },
+    k.orders !== undefined && { label: "Net Orders", help: "Orders in period excluding cancellations & returns", value: fmtNum(k.orders), delta: data.comparison.orders ?? null },
+    k.leads !== undefined && { label: "Leads", help: "New enquiries in this period", value: fmtNum(k.leads), delta: data.comparison.leads ?? null },
+    k.conversionRate !== undefined && { label: "Conversion Rate", help: "Share of period leads that converted", value: k.conversionRate != null ? `${k.conversionRate.toFixed(1)}%` : "—", delta: null },
+    k.aov !== undefined && { label: "Avg Order Value", help: "Average net revenue per order in period", value: fmtINR(k.aov), delta: null },
+    cl.adSpend !== undefined && { label: "Ad Spend (lifetime)", help: "Total ever spent across your campaigns", value: fmtINR(cl.adSpend), delta: null },
+    cl.roas !== undefined && { label: "ROAS (lifetime)", help: "Campaign revenue per ₹1 of ad spend, all time", value: cl.roas != null ? `${cl.roas.toFixed(2)}x` : "—", delta: null },
+    cl.cpl !== undefined && { label: "Cost / Lead (lifetime)", help: "Lifetime ad spend ÷ lifetime campaign leads", value: cl.cpl != null ? fmtINR(cl.cpl) : "—", delta: null },
+  ].filter(Boolean) as { label: string; help: string; value: string; delta: number | null }[]
+
+  const hasRevenue = data.timeseries.some((t) => t.revenue !== undefined) || k.revenue !== undefined
+  const hasOrders = k.orders !== undefined
+  const hasLeads = k.leads !== undefined
 
   return (
     <div className="space-y-6">
@@ -208,9 +207,9 @@ export function OverviewSection({ projectId }: { projectId: number }) {
                 <YAxis yAxisId="count" orientation="right" fontSize={11} allowDecimals={false} />
                 <Tooltip formatter={(v: number, name: string) => name === "revenue" ? fmtINR(v) : fmtNum(v)} />
                 <Legend />
-                <Bar yAxisId="rev" dataKey="revenue" name="Revenue" fill="#22c55e" radius={[3, 3, 0, 0]} />
-                <Line yAxisId="count" dataKey="orders" name="Orders" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                <Line yAxisId="count" dataKey="leads" name="Leads" stroke="#a855f7" strokeWidth={2} dot={false} />
+                {hasRevenue && <Bar yAxisId="rev" dataKey="revenue" name="Revenue" fill="#22c55e" radius={[3, 3, 0, 0]} />}
+                {hasOrders && <Line yAxisId="count" dataKey="orders" name="Orders" stroke="#3b82f6" strokeWidth={2} dot={false} />}
+                {hasLeads && <Line yAxisId="count" dataKey="leads" name="Leads" stroke="#a855f7" strokeWidth={2} dot={false} />}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -428,7 +427,10 @@ export function CreativesSection({ projectId }: { projectId: number }) {
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {data.creatives.map((c) => {
-          const preview = assetSrc(c.thumbnailUrl || (c.type === "image" ? c.url : null))
+          // Client users can't reach internal /storage routes — assets are
+          // served through the project-authorized creative asset endpoint.
+          const hasPreview = !!(c.thumbnailUrl || (c.type === "image" && c.url))
+          const preview = hasPreview ? `/api/client/marketing/projects/${projectId}/creatives/${c.id}/asset?thumb=1` : undefined
           return (
             <div key={c.id} className="overflow-hidden rounded-lg border">
               <div className="flex h-36 items-center justify-center bg-muted">
@@ -443,7 +445,8 @@ export function CreativesSection({ projectId }: { projectId: number }) {
                   <span className="rounded-full bg-muted px-2 py-0.5 text-xs capitalize">{c.status}</span>
                 </div>
                 {c.url && (
-                  <a href={assetSrc(c.url)} target="_blank" rel="noopener noreferrer" download
+                  <a href={`/api/client/marketing/projects/${projectId}/creatives/${c.id}/asset?download=1`}
+                    target="_blank" rel="noopener noreferrer" download
                     className="inline-flex items-center gap-1 pt-1 text-xs text-primary hover:underline">
                     <Download className="h-3 w-3" /> Download
                   </a>
@@ -460,14 +463,15 @@ export function CreativesSection({ projectId }: { projectId: number }) {
 
 /* ------------------------------ reports ------------------------------ */
 
+// KPI/comparison fields are optional — the server strips hidden metrics.
 interface Report {
   project: { id: number; name: string; brandName: string }
   range: { from: string; to: string }
-  kpis: { revenue: number; orders: number; aov: number; leads: number }
-  campaignLifetime: { adSpend: number; roas: number | null; impressions: number; clicks: number; ctr: number | null }
+  kpis: { revenue?: number; orders?: number; aov?: number; leads?: number }
+  campaignLifetime: { adSpend?: number; roas?: number | null; impressions?: number; clicks?: number; ctr?: number | null }
   bestCampaign: { name: string; channel: string; spend: number; revenue: number; roas: number | null } | null
   worstCampaign: { name: string; channel: string; spend: number; revenue: number; roas: number | null } | null
-  comparison: { revenue: { current: number; previous: number; change: number | null }; orders: { current: number; previous: number; change: number | null } }
+  comparison: { revenue?: { current: number; previous: number; change: number | null }; orders?: { current: number; previous: number; change: number | null } }
   generatedAt: string
 }
 
@@ -501,16 +505,16 @@ export function ReportsSection({ projectId }: { projectId: number }) {
   const cl = data.campaignLifetime
   const fmtPeriod = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
   const kpiRows = [
-    { label: "Net Revenue", value: fmtINR(k.revenue) },
-    { label: "Net Orders", value: fmtNum(k.orders) },
-    { label: "Avg Order Value", value: fmtINR(k.aov) },
-    { label: "Leads", value: fmtNum(k.leads) },
-    { label: "Ad Spend (lifetime)", value: fmtINR(cl.adSpend) },
-    { label: "ROAS (lifetime)", value: cl.roas != null ? `${cl.roas.toFixed(2)}x` : "—" },
-    { label: "Impressions (lifetime)", value: fmtNum(cl.impressions) },
-    { label: "Clicks (lifetime)", value: fmtNum(cl.clicks) },
-    { label: "CTR (lifetime)", value: cl.ctr != null ? `${cl.ctr.toFixed(1)}%` : "—" },
-  ]
+    k.revenue !== undefined && { label: "Net Revenue", value: fmtINR(k.revenue) },
+    k.orders !== undefined && { label: "Net Orders", value: fmtNum(k.orders) },
+    k.aov !== undefined && { label: "Avg Order Value", value: fmtINR(k.aov) },
+    k.leads !== undefined && { label: "Leads", value: fmtNum(k.leads) },
+    cl.adSpend !== undefined && { label: "Ad Spend (lifetime)", value: fmtINR(cl.adSpend) },
+    cl.roas !== undefined && { label: "ROAS (lifetime)", value: cl.roas != null ? `${cl.roas.toFixed(2)}x` : "—" },
+    cl.impressions !== undefined && { label: "Impressions (lifetime)", value: fmtNum(cl.impressions) },
+    cl.clicks !== undefined && { label: "Clicks (lifetime)", value: fmtNum(cl.clicks) },
+    cl.ctr !== undefined && { label: "CTR (lifetime)", value: cl.ctr != null ? `${cl.ctr.toFixed(1)}%` : "—" },
+  ].filter(Boolean) as { label: string; value: string }[]
 
   return (
     <div className="space-y-4">
@@ -542,18 +546,22 @@ export function ReportsSection({ projectId }: { projectId: number }) {
             <th className="py-2 text-right font-medium">Previous period</th><th className="py-2 text-right font-medium">Change</th>
           </tr></thead>
           <tbody>
-            <tr className="border-b border-border/50">
-              <td className="py-2">Revenue</td>
-              <td className="py-2 text-right">{fmtINR(data.comparison.revenue.current)}</td>
-              <td className="py-2 text-right">{fmtINR(data.comparison.revenue.previous)}</td>
-              <td className="py-2 text-right">{data.comparison.revenue.change != null ? `${data.comparison.revenue.change.toFixed(0)}%` : "—"}</td>
-            </tr>
-            <tr>
-              <td className="py-2">Orders</td>
-              <td className="py-2 text-right">{fmtNum(data.comparison.orders.current)}</td>
-              <td className="py-2 text-right">{fmtNum(data.comparison.orders.previous)}</td>
-              <td className="py-2 text-right">{data.comparison.orders.change != null ? `${data.comparison.orders.change.toFixed(0)}%` : "—"}</td>
-            </tr>
+            {data.comparison.revenue && (
+              <tr className="border-b border-border/50">
+                <td className="py-2">Revenue</td>
+                <td className="py-2 text-right">{fmtINR(data.comparison.revenue.current)}</td>
+                <td className="py-2 text-right">{fmtINR(data.comparison.revenue.previous)}</td>
+                <td className="py-2 text-right">{data.comparison.revenue.change != null ? `${data.comparison.revenue.change.toFixed(0)}%` : "—"}</td>
+              </tr>
+            )}
+            {data.comparison.orders && (
+              <tr>
+                <td className="py-2">Orders</td>
+                <td className="py-2 text-right">{fmtNum(data.comparison.orders.current)}</td>
+                <td className="py-2 text-right">{fmtNum(data.comparison.orders.previous)}</td>
+                <td className="py-2 text-right">{data.comparison.orders.change != null ? `${data.comparison.orders.change.toFixed(0)}%` : "—"}</td>
+              </tr>
+            )}
           </tbody>
         </table>
 
@@ -578,6 +586,158 @@ export function ReportsSection({ projectId }: { projectId: number }) {
           Generated {new Date(data.generatedAt).toLocaleString("en-IN")} · TapasHub Client Portal
         </div>
       </div>
+    </div>
+  )
+}
+
+/* ------------------------------ AI plan ------------------------------ */
+
+interface AiPlanInsights {
+  observed?: { working?: string[]; underperforming?: string[] }
+  likelyReasons?: string[]
+  recommendations?: { campaigns?: string[]; creatives?: string[]; budget?: string[]; lead_gen?: string[] }
+}
+interface AiPlanEntry7 { day: string; focus: string; actions: string[] }
+interface AiPlanEntry30 { week: string; focus: string; actions: string[] }
+interface AiPlan {
+  id: number
+  status: string
+  insights: AiPlanInsights | null
+  plan7: AiPlanEntry7[] | null
+  plan30: AiPlanEntry30[] | null
+  summary: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export function AiPlanSection({ projectId }: { projectId: number }) {
+  const [generating, setGenerating] = React.useState(false)
+  const [genError, setGenError] = React.useState<string | null>(null)
+  const query = useQuery<{ plan: AiPlan | null; pendingReview: boolean }>({
+    queryKey: ["/api/client/marketing/projects", projectId, "ai-plan"],
+    queryFn: () => fetchJson(`/api/client/marketing/projects/${projectId}/ai-plan`),
+  })
+
+  async function generate() {
+    setGenerating(true); setGenError(null)
+    try {
+      const r = await fetch(`/api/client/marketing/projects/${projectId}/ai-plan/generate`, {
+        method: "POST", credentials: "include",
+      })
+      if (!r.ok) {
+        const body = await r.json().catch(() => null)
+        throw new Error(body?.error ?? `Failed (${r.status})`)
+      }
+      await query.refetch()
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : "Generation failed")
+    } finally { setGenerating(false) }
+  }
+
+  if (query.isLoading) return <Loading />
+  if (query.isError || !query.data) return <ErrorState />
+  const { plan, pendingReview } = query.data
+  const ins = plan?.insights ?? null
+
+  const List = ({ title, items, tone }: { title: string; items?: string[]; tone?: "good" | "bad" | "muted" }) =>
+    !items || items.length === 0 ? null : (
+      <div className="rounded-lg border p-4">
+        <h4 className={`mb-2 text-sm font-semibold ${tone === "good" ? "text-green-600" : tone === "bad" ? "text-red-600" : ""}`}>{title}</h4>
+        <ul className="space-y-1.5 text-sm">
+          {items.map((it, i) => <li key={i} className="flex gap-2"><span className="text-muted-foreground">•</span><span>{it}</span></li>)}
+        </ul>
+      </div>
+    )
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          AI analysis based only on your brand's shared marketing data.
+          {plan && <> Last updated {new Date(plan.updatedAt).toLocaleString("en-IN")}.</>}
+        </p>
+        <Button onClick={generate} disabled={generating}>
+          <Sparkles className="mr-2 h-4 w-4" />{generating ? "Analysing…" : plan ? "Regenerate plan" : "Generate plan"}
+        </Button>
+      </div>
+      {genError && <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{genError}</div>}
+      {pendingReview && (
+        <div className="rounded-md border border-amber-400/40 bg-amber-400/10 p-3 text-sm">
+          A new plan is being reviewed by your team and will appear here once approved.
+        </div>
+      )}
+
+      {!plan ? (
+        !pendingReview && (
+          <div className="flex h-56 flex-col items-center justify-center gap-2 rounded-lg border border-dashed text-center">
+            <Sparkles className="h-8 w-8 text-muted-foreground" />
+            <p className="font-medium">No AI plan yet</p>
+            <p className="max-w-sm text-sm text-muted-foreground">Generate an analysis of what's working, what isn't, and a 7-day & 30-day action plan.</p>
+          </div>
+        )
+      ) : (
+        <>
+          {plan.summary && (
+            <div className="rounded-lg border bg-muted/40 p-4 text-sm">{plan.summary}</div>
+          )}
+
+          <div>
+            <h3 className="mb-3 font-semibold">What the data shows</h3>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <List title="Working well" items={ins?.observed?.working} tone="good" />
+              <List title="Underperforming" items={ins?.observed?.underperforming} tone="bad" />
+            </div>
+          </div>
+
+          <List title="Possible reasons (AI hypotheses — not verified)" items={ins?.likelyReasons} tone="muted" />
+
+          <div>
+            <h3 className="mb-3 font-semibold">Recommendations</h3>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <List title="Campaigns" items={ins?.recommendations?.campaigns} />
+              <List title="Creatives" items={ins?.recommendations?.creatives} />
+              <List title="Budget" items={ins?.recommendations?.budget} />
+              <List title="Lead generation" items={ins?.recommendations?.lead_gen} />
+            </div>
+          </div>
+
+          {plan.plan7 && plan.plan7.length > 0 && (
+            <div>
+              <h3 className="mb-3 font-semibold">Next 7 days</h3>
+              <div className="space-y-2">
+                {plan.plan7.map((d, i) => (
+                  <div key={i} className="rounded-lg border p-3">
+                    <div className="text-sm font-medium">{d.day} — {d.focus}</div>
+                    <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">
+                      {(d.actions ?? []).map((a, j) => <li key={j}>• {a}</li>)}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {plan.plan30 && plan.plan30.length > 0 && (
+            <div>
+              <h3 className="mb-3 font-semibold">30-day roadmap</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {plan.plan30.map((w, i) => (
+                  <div key={i} className="rounded-lg border p-3">
+                    <div className="text-sm font-medium">{w.week} — {w.focus}</div>
+                    <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">
+                      {(w.actions ?? []).map((a, j) => <li key={j}>• {a}</li>)}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            AI-generated recommendations are suggestions based on your shared data — discuss with your account team before major changes.
+          </p>
+        </>
+      )}
     </div>
   )
 }

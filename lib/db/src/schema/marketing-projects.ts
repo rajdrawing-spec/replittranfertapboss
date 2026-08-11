@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -17,7 +17,12 @@ export const marketingProjectsTable = pgTable("marketing_projects", {
   status: text("status").notNull().default("active"), // active | paused | archived
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (t) => [
+  // One project per company: sales/order data has no project link and is
+  // scoped by companyId, so a second project would expose the same revenue
+  // to a different client. Enforced at DB level against concurrent creates.
+  uniqueIndex("marketing_projects_company_uniq").on(t.companyId),
+]);
 
 /** Project membership: internal team members and client users assigned to a project. */
 export const marketingProjectMembersTable = pgTable("marketing_project_members", {

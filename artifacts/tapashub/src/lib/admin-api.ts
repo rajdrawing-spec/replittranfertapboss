@@ -19,6 +19,13 @@ export const adminApi = {
       headers: { "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
     }).then(handle),
+  put: (p: string, body: unknown) =>
+    fetch(`/api${p}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(handle),
   patch: (p: string, body: unknown) =>
     fetch(`/api${p}`, {
       method: "PATCH",

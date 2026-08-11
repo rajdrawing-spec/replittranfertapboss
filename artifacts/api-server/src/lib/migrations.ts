@@ -709,6 +709,11 @@ export async function applyMigrations(): Promise<void> {
         updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
+    // One project per company (see schema comment) — guards concurrent creates.
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS marketing_projects_company_uniq
+        ON marketing_projects (company_id)
+    `);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS marketing_project_members (
         id          SERIAL PRIMARY KEY,
@@ -731,6 +736,52 @@ export async function applyMigrations(): Promise<void> {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS campaigns_project_idx ON campaigns(project_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS campaign_creatives_project_idx ON campaign_creatives(project_id)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS campaign_leads_project_idx ON campaign_leads(project_id)`);
+
+    // ── Client Portal: visibility settings, AI plans, audit log ──────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS client_visibility_settings (
+        id          SERIAL PRIMARY KEY,
+        project_id  INTEGER NOT NULL,
+        settings    JSON    NOT NULL,
+        updated_by  INTEGER,
+        updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS client_visibility_project_uniq
+        ON client_visibility_settings (project_id)
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS client_ai_plans (
+        id                   SERIAL PRIMARY KEY,
+        project_id           INTEGER NOT NULL,
+        status               TEXT    NOT NULL DEFAULT 'published',
+        provider             TEXT,
+        insights             JSON,
+        plan7                JSON,
+        plan30               JSON,
+        summary              TEXT,
+        requested_by_user_id INTEGER,
+        reviewed_by_user_id  INTEGER,
+        review_note          TEXT,
+        created_at           TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at           TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS client_ai_plans_project_idx ON client_ai_plans(project_id)`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS client_audit_logs (
+        id          SERIAL PRIMARY KEY,
+        project_id  INTEGER NOT NULL,
+        user_id     INTEGER,
+        user_email  TEXT,
+        action      TEXT    NOT NULL,
+        detail      JSON,
+        created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS client_audit_project_idx ON client_audit_logs(project_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS client_audit_created_idx ON client_audit_logs(created_at)`);
 
     logger.info("Startup migrations applied (schema)");
   } catch (e) {

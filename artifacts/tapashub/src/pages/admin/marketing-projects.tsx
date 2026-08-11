@@ -13,8 +13,10 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, Trash2, UserPlus, X, Briefcase } from "lucide-react"
+import { Plus, Trash2, UserPlus, X, Briefcase, Eye, Sparkles, ScrollText } from "lucide-react"
 
 interface ProjectMember {
   id: number
@@ -246,7 +248,220 @@ function ProjectCard({ project, users, companyName, onDelete, onAddMember, onRem
             <UserPlus className="h-4 w-4" />
           </Button>
         </div>
+        <div className="flex flex-wrap gap-2 pt-1">
+          <VisibilityDialog projectId={project.id} />
+          <AiPlansDialog projectId={project.id} />
+          <AuditDialog projectId={project.id} />
+        </div>
       </CardContent>
     </Card>
+  )
+}
+
+/* -------------------- Client visibility settings dialog -------------------- */
+
+type Visibility = Record<string, boolean>
+
+const VISIBILITY_FIELDS: { key: string; label: string }[] = [
+  { key: "revenue", label: "Revenue & AOV" },
+  { key: "orders", label: "Orders & Sales" },
+  { key: "adSpend", label: "Ad Spend" },
+  { key: "roas", label: "ROAS" },
+  { key: "leads", label: "Leads" },
+  { key: "cpa", label: "CPA" },
+  { key: "conversion", label: "Conversion Rate" },
+  { key: "campaigns", label: "Campaigns" },
+  { key: "creatives", label: "Creative Library" },
+  { key: "reports", label: "Reports" },
+  { key: "ai", label: "AI Plan" },
+  { key: "aiRequiresReview", label: "AI plans need internal approval" },
+]
+
+function VisibilityDialog({ projectId }: { projectId: number }) {
+  const { toast } = useToast()
+  const qc = useQueryClient()
+  const [open, setOpen] = React.useState(false)
+  const [draft, setDraft] = React.useState<Visibility | null>(null)
+
+  const { data } = useQuery<Visibility>({
+    queryKey: ["/api/marketing-projects", projectId, "visibility"],
+    queryFn: () => adminApi.get(`/marketing-projects/${projectId}/visibility`),
+    enabled: open,
+  })
+  React.useEffect(() => { if (data && open) setDraft(data) }, [data, open])
+
+  const saveMut = useMutation({
+    mutationFn: (v: Visibility) => adminApi.put(`/marketing-projects/${projectId}/visibility`, v),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/marketing-projects", projectId, "visibility"] })
+      toast({ title: "Visibility settings saved" }); setOpen(false)
+    },
+    onError: (e: Error) => toast({ title: "Failed to save", description: e.message, variant: "destructive" }),
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm"><Eye className="mr-1.5 h-3.5 w-3.5" />Visibility</Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Client visibility settings</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Hidden sections and KPIs are removed server-side — the client never receives that data.
+        </p>
+        {!draft ? (
+          <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-muted border-t-primary" /></div>
+        ) : (
+          <div className="space-y-2">
+            {VISIBILITY_FIELDS.map((f) => (
+              <div key={f.key} className="flex items-center justify-between rounded-md border px-3 py-2">
+                <span className="text-sm">{f.label}</span>
+                <Switch checked={draft[f.key] ?? false} onCheckedChange={(v) => setDraft({ ...draft, [f.key]: v })} />
+              </div>
+            ))}
+          </div>
+        )}
+        <DialogFooter>
+          <Button onClick={() => draft && saveMut.mutate(draft)} disabled={!draft || saveMut.isPending}>Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/* ------------------------- AI plan review dialog ------------------------- */
+
+interface AdminAiPlan {
+  id: number
+  status: string
+  summary: string | null
+  insights: { observed?: { working?: string[]; underperforming?: string[] } } | null
+  reviewNote: string | null
+  createdAt: string
+}
+
+function AiPlansDialog({ projectId }: { projectId: number }) {
+  const { toast } = useToast()
+  const qc = useQueryClient()
+  const [open, setOpen] = React.useState(false)
+  const [note, setNote] = React.useState("")
+
+  const { data: plans = [], isLoading } = useQuery<AdminAiPlan[]>({
+    queryKey: ["/api/marketing-projects", projectId, "ai-plans"],
+    queryFn: () => adminApi.get(`/marketing-projects/${projectId}/ai-plans`),
+    enabled: open,
+  })
+
+  const reviewMut = useMutation({
+    mutationFn: (v: { planId: number; action: string }) =>
+      adminApi.patch(`/marketing-projects/${projectId}/ai-plans/${v.planId}`, { action: v.action, reviewNote: note || undefined }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/marketing-projects", projectId, "ai-plans"] })
+      setNote(""); toast({ title: "Plan updated" })
+    },
+    onError: (e: Error) => toast({ title: "Failed to update plan", description: e.message, variant: "destructive" }),
+  })
+
+  const badge = (s: string) =>
+    s === "published" ? "default" : s === "pending_review" ? "secondary" : "outline"
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm"><Sparkles className="mr-1.5 h-3.5 w-3.5" />AI Plans</Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+        <DialogHeader><DialogTitle>AI plan review</DialogTitle></DialogHeader>
+        {isLoading ? (
+          <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-muted border-t-primary" /></div>
+        ) : plans.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">No AI plans generated for this project yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {plans.map((p) => (
+              <div key={p.id} className="rounded-md border p-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium">Plan #{p.id} · {new Date(p.createdAt).toLocaleString("en-IN")}</div>
+                  <Badge variant={badge(p.status)}>{p.status.replace("_", " ")}</Badge>
+                </div>
+                {p.summary && <p className="mt-1 text-sm text-muted-foreground">{p.summary}</p>}
+                {p.reviewNote && <p className="mt-1 text-xs text-muted-foreground">Review note: {p.reviewNote}</p>}
+                {p.status === "pending_review" && (
+                  <div className="mt-2 space-y-2">
+                    <Textarea placeholder="Review note (optional)" value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => reviewMut.mutate({ planId: p.id, action: "approve" })} disabled={reviewMut.isPending}>Approve & publish</Button>
+                      <Button size="sm" variant="outline" onClick={() => reviewMut.mutate({ planId: p.id, action: "reject" })} disabled={reviewMut.isPending}>Reject</Button>
+                    </div>
+                  </div>
+                )}
+                {p.status === "published" && (
+                  <Button size="sm" variant="outline" className="mt-2" onClick={() => reviewMut.mutate({ planId: p.id, action: "archive" })} disabled={reviewMut.isPending}>Unpublish</Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/* --------------------------- Audit log dialog --------------------------- */
+
+interface AuditRow {
+  id: number
+  userEmail: string | null
+  action: string
+  detail: Record<string, unknown> | null
+  createdAt: string
+}
+
+const AUDIT_LABELS: Record<string, string> = {
+  "portal.overview_viewed": "Viewed dashboard",
+  "portal.report_viewed": "Viewed report",
+  "portal.creative_downloaded": "Downloaded creative",
+  "portal.ai_plan_generated": "Generated AI plan",
+  "portal.ai_plan_reviewed": "AI plan reviewed",
+  "portal.visibility_changed": "Visibility settings changed",
+}
+
+function AuditDialog({ projectId }: { projectId: number }) {
+  const [open, setOpen] = React.useState(false)
+  const { data: rows = [], isLoading } = useQuery<AuditRow[]>({
+    queryKey: ["/api/marketing-projects", projectId, "audit"],
+    queryFn: () => adminApi.get(`/marketing-projects/${projectId}/audit`),
+    enabled: open,
+  })
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm"><ScrollText className="mr-1.5 h-3.5 w-3.5" />Audit</Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] max-w-xl overflow-y-auto">
+        <DialogHeader><DialogTitle>Client access audit log</DialogTitle></DialogHeader>
+        {isLoading ? (
+          <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-muted border-t-primary" /></div>
+        ) : rows.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">No client activity recorded yet.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {rows.map((r) => (
+              <div key={r.id} className="flex items-start justify-between gap-3 rounded-md border px-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <div className="font-medium">{AUDIT_LABELS[r.action] ?? r.action}</div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {r.userEmail ?? "system"}
+                    {r.detail && "name" in r.detail ? ` · ${String(r.detail.name)}` : ""}
+                    {r.detail && "changed" in r.detail && Array.isArray(r.detail.changed) && r.detail.changed.length > 0 ? ` · ${(r.detail.changed as string[]).join(", ")}` : ""}
+                  </div>
+                </div>
+                <span className="shrink-0 text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleString("en-IN")}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

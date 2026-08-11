@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   OverviewSection, CampaignsSection, SalesSection, LeadsSection,
-  CreativesSection, ReportsSection, ComingSoon,
+  CreativesSection, ReportsSection, AiPlanSection,
 } from "./client-portal-sections"
 
 interface PortalProject {
@@ -45,6 +45,18 @@ const NAV = [
   { key: "ai-plan", label: "AI Plan", icon: Sparkles },
 ]
 
+// Which visibility toggle controls each nav section (server enforces too).
+const SECTION_TOGGLE: Record<string, keyof PortalVisibility> = {
+  campaigns: "campaigns", sales: "orders", leads: "leads",
+  creatives: "creatives", reports: "reports", "ai-plan": "ai",
+}
+
+interface PortalVisibility {
+  revenue: boolean; orders: boolean; adSpend: boolean; roas: boolean
+  leads: boolean; cpa: boolean; conversion: boolean; campaigns: boolean
+  creatives: boolean; reports: boolean; ai: boolean
+}
+
 function SectionContent({ section, projectId }: { section: string; projectId: number }) {
   switch (section) {
     case "overview": return <OverviewSection key={projectId} projectId={projectId} />
@@ -53,7 +65,7 @@ function SectionContent({ section, projectId }: { section: string; projectId: nu
     case "leads": return <LeadsSection key={projectId} projectId={projectId} />
     case "creatives": return <CreativesSection key={projectId} projectId={projectId} />
     case "reports": return <ReportsSection key={projectId} projectId={projectId} />
-    default: return <ComingSoon /> // AI Plan ships with the copilot phase.
+    default: return <AiPlanSection key={projectId} projectId={projectId} />
   }
 }
 
@@ -79,6 +91,23 @@ export default function ClientPortal() {
   const projects = data?.projects ?? []
   const active = projects.find((p) => p.id === activeProjectId) ?? projects[0] ?? null
   const brandColor = active?.brandColor || "#1d90e8"
+
+  // Per-project visibility settings drive which nav sections appear.
+  // The server enforces the same toggles, so this is UX only.
+  const { data: visibility } = useQuery<PortalVisibility>({
+    queryKey: ["/api/client/marketing/projects", active?.id, "visibility"],
+    queryFn: () => fetchJson(`/api/client/marketing/projects/${active!.id}/visibility`),
+    enabled: !!active,
+  })
+  const nav = React.useMemo(() => NAV.filter((item) => {
+    const toggle = SECTION_TOGGLE[item.key]
+    return !toggle || !visibility || visibility[toggle]
+  }), [visibility])
+
+  // Kick the user off a section that has just been hidden.
+  React.useEffect(() => {
+    if (nav.length > 0 && !nav.some((n) => n.key === section)) setSection(nav[0].key)
+  }, [nav, section])
 
   if (isLoading) {
     return (
@@ -155,7 +184,7 @@ export default function ClientPortal() {
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <nav className="hidden w-56 shrink-0 border-r p-2 md:block">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <button
               key={item.key}
               onClick={() => setSection(item.key)}
@@ -171,7 +200,7 @@ export default function ClientPortal() {
 
         {/* Mobile nav */}
         <div className="absolute bottom-0 left-0 right-0 z-10 flex justify-around border-t bg-background p-1 md:hidden">
-          {NAV.slice(0, 5).map((item) => (
+          {nav.slice(0, 5).map((item) => (
             <button
               key={item.key}
               onClick={() => setSection(item.key)}

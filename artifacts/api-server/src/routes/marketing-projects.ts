@@ -8,12 +8,15 @@ import {
   campaignsTable,
   campaignCreativesTable,
   campaignLeadsTable,
+  clientVisibilitySettingsTable,
+  clientAiPlansTable,
 } from "@workspace/db";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 import { requireSuperAdmin } from "../middleware/authz";
 import { canAccessCompany } from "../lib/company-scope";
 import { isSafeAttachmentUrl } from "../lib/url-safety";
+import { getClientVisibility, logClientEvent, listClientEvents } from "../lib/client-visibility";
 
 /**
  * Admin management of Client Marketing Portal projects.
@@ -58,8 +61,27 @@ router.post("/marketing-projects", async (req, res) => {
     if (!isSafeAttachmentUrl(parsed.data.logoUrl ?? undefined)) {
       res.status(400).json({ error: "Unsafe logo URL" }); return;
     }
-    const [p] = await db.insert(marketingProjectsTable).values(parsed.data).returning();
-    res.status(201).json(p);
+    // One project per company: order/revenue data has no project link and is
+    // scoped by companyId, so two projects on one company would expose the
+    // same sales data to different clients. Enforce the invariant here.
+    const [existingForCompany] = await db.select().from(marketingProjectsTable)
+      .where(eq(marketingProjectsTable.companyId, parsed.data.companyId));
+    if (existingForCompany) {
+      res.status(409).json({ error: "This company already has a marketing project. Sales data is company-wide, so each company supports one client project." });
+      return;
+    }
+    try {
+      const [p] = await db.insert(marketingProjectsTable).values(parsed.data).returning();
+      res.status(201).json(p);
+    } catch (e: any) {
+      // Unique violation on marketing_projects_company_uniq — a concurrent
+      // request created a project for this company between check and insert.
+      if (e?.code === "23505" || e?.cause?.code === "23505") {
+        res.status(409).json({ error: "This company already has a marketing project. Sales data is company-wide, so each company supports one client project." });
+        return;
+      }
+      throw e;
+    }
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to create project" }); }
 });
 
@@ -168,6 +190,103 @@ router.patch("/marketing-projects/link/:kind/:recordId", async (req, res) => {
     const [row] = await db.update(table).set(set).where(eq(table.id, recordId)).returning();
     res.json(row);
   } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to link record" }); }
+});
+
+/* ---------------- Client visibility settings (per project) ---------------- */
+
+const visibilitySchema = z.object({
+  revenue: z.boolean(), orders: z.boolean(), adSpend: z.boolean(),
+  roas: z.boolean(), leads: z.boolean(), cpa: z.boolean(),
+  conversion: z.boolean(), campaigns: z.boolean(), creatives: z.boolean(),
+  reports: z.boolean(), ai: z.boolean(), aiRequiresReview: z.boolean(),
+});
+
+router.get("/marketing-projects/:id/visibility", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id);
+    res.json(await getClientVisibility(projectId));
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to load visibility settings" }); }
+});
+
+router.put("/marketing-projects/:id/visibility", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id);
+    const [project] = await db.select().from(marketingProjectsTable).where(eq(marketingProjectsTable.id, projectId));
+    if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+    const parsed = visibilitySchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
+    const before = await getClientVisibility(projectId);
+    const [existing] = await db.select().from(clientVisibilitySettingsTable)
+      .where(eq(clientVisibilitySettingsTable.projectId, projectId));
+    const user = (req as any).localUser;
+    if (existing) {
+      await db.update(clientVisibilitySettingsTable)
+        .set({ settings: parsed.data, updatedBy: user?.id ?? null, updatedAt: new Date() })
+        .where(eq(clientVisibilitySettingsTable.projectId, projectId));
+    } else {
+      await db.insert(clientVisibilitySettingsTable)
+        .values({ projectId, settings: parsed.data, updatedBy: user?.id ?? null });
+    }
+    const changed = (Object.keys(parsed.data) as (keyof typeof parsed.data)[])
+      .filter((k) => before[k] !== parsed.data[k]);
+    logClientEvent(req, projectId, "portal.visibility_changed", { changed, settings: parsed.data });
+    res.json(parsed.data);
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to save visibility settings" }); }
+});
+
+/* ------------------- AI plan review (internal workflow) ------------------- */
+
+router.get("/marketing-projects/:id/ai-plans", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id);
+    const plans = await db.select().from(clientAiPlansTable)
+      .where(eq(clientAiPlansTable.projectId, projectId))
+      .orderBy(desc(clientAiPlansTable.createdAt))
+      .limit(50);
+    res.json(plans);
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to load AI plans" }); }
+});
+
+const planReviewSchema = z.object({
+  action: z.enum(["approve", "reject", "archive"]),
+  reviewNote: z.string().max(2000).optional(),
+});
+
+router.patch("/marketing-projects/:id/ai-plans/:planId", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id);
+    const planId = parseInt(req.params.planId);
+    const parsed = planReviewSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
+    const [plan] = await db.select().from(clientAiPlansTable)
+      .where(and(eq(clientAiPlansTable.id, planId), eq(clientAiPlansTable.projectId, projectId)));
+    if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
+    const user = (req as any).localUser;
+    const status = parsed.data.action === "approve" ? "published"
+      : parsed.data.action === "reject" ? "rejected" : "archived";
+    if (status === "published") {
+      // Only one client-visible plan at a time.
+      await db.update(clientAiPlansTable)
+        .set({ status: "archived", updatedAt: new Date() })
+        .where(and(eq(clientAiPlansTable.projectId, projectId), eq(clientAiPlansTable.status, "published")));
+    }
+    const [updated] = await db.update(clientAiPlansTable)
+      .set({ status, reviewedByUserId: user?.id ?? null, reviewNote: parsed.data.reviewNote ?? null, updatedAt: new Date() })
+      .where(eq(clientAiPlansTable.id, planId)).returning();
+    logClientEvent(req, projectId, "portal.ai_plan_reviewed", { planId, action: parsed.data.action });
+    res.json(updated);
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to update AI plan" }); }
+});
+
+/* ----------------------- Client access audit viewer ----------------------- */
+
+router.get("/marketing-projects/:id/audit", async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id);
+    const limit = Math.min(parseInt(String(req.query.limit)) || 100, 500);
+    const offset = Math.max(parseInt(String(req.query.offset)) || 0, 0);
+    res.json(await listClientEvents(projectId, limit, offset));
+  } catch (e) { req.log.error(e); res.status(500).json({ error: "Failed to load audit log" }); }
 });
 
 export default router;

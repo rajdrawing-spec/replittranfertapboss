@@ -9,6 +9,10 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  OverviewSection, CampaignsSection, SalesSection, LeadsSection,
+  CreativesSection, ReportsSection, ComingSoon,
+} from "./client-portal-sections"
 
 interface PortalProject {
   id: number
@@ -31,34 +35,6 @@ async function fetchJson<T>(url: string): Promise<T> {
   return r.json()
 }
 
-/** Read-only, client-visible records for the active project. */
-function useProjectRecords(projectId: number | null, kind: "campaigns" | "creatives" | "leads") {
-  return useQuery<any[]>({
-    queryKey: ["/api/client/marketing/projects", projectId, kind],
-    queryFn: () => fetchJson(`/api/client/marketing/projects/${projectId}/${kind}`),
-    enabled: projectId !== null,
-  })
-}
-
-function RecordList({ rows, isLoading, empty, render }: {
-  rows: any[] | undefined
-  isLoading: boolean
-  empty: string
-  render: (row: any) => React.ReactNode
-}) {
-  if (isLoading) {
-    return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-muted border-t-primary" /></div>
-  }
-  if (!rows || rows.length === 0) {
-    return (
-      <div className="flex h-40 flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-center">
-        <p className="text-sm text-muted-foreground">{empty}</p>
-      </div>
-    )
-  }
-  return <div className="space-y-2">{rows.map(render)}</div>
-}
-
 const NAV = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
   { key: "campaigns", label: "Campaigns", icon: Megaphone },
@@ -70,88 +46,15 @@ const NAV = [
 ]
 
 function SectionContent({ section, projectId }: { section: string; projectId: number }) {
-  const campaigns = useProjectRecords(section === "campaigns" || section === "overview" ? projectId : null, "campaigns")
-  const creatives = useProjectRecords(section === "creatives" || section === "overview" ? projectId : null, "creatives")
-  const leads = useProjectRecords(section === "leads" || section === "overview" ? projectId : null, "leads")
-
-  if (section === "overview") {
-    const stats = [
-      { label: "Active campaigns", value: campaigns.data?.filter((c) => c.status === "active").length ?? "—" },
-      { label: "Total campaigns", value: campaigns.data?.length ?? "—" },
-      { label: "Leads", value: leads.data?.length ?? "—" },
-      { label: "Creatives", value: creatives.data?.length ?? "—" },
-    ]
-    return (
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map((s) => (
-          <div key={s.label} className="rounded-lg border p-4">
-            <div className="text-2xl font-bold">{s.value}</div>
-            <div className="text-sm text-muted-foreground">{s.label}</div>
-          </div>
-        ))}
-      </div>
-    )
+  switch (section) {
+    case "overview": return <OverviewSection key={projectId} projectId={projectId} />
+    case "campaigns": return <CampaignsSection key={projectId} projectId={projectId} />
+    case "sales": return <SalesSection key={projectId} projectId={projectId} />
+    case "leads": return <LeadsSection key={projectId} projectId={projectId} />
+    case "creatives": return <CreativesSection key={projectId} projectId={projectId} />
+    case "reports": return <ReportsSection key={projectId} projectId={projectId} />
+    default: return <ComingSoon /> // AI Plan ships with the copilot phase.
   }
-
-  if (section === "campaigns") {
-    return (
-      <RecordList rows={campaigns.data} isLoading={campaigns.isLoading}
-        empty="No campaigns have been shared with you yet."
-        render={(c) => (
-          <div key={c.id} className="flex items-center justify-between rounded-lg border p-4">
-            <div>
-              <div className="font-medium">{c.name}</div>
-              <div className="text-sm text-muted-foreground">{c.platform ?? c.type ?? "Campaign"}</div>
-            </div>
-            <span className="rounded-full bg-muted px-3 py-1 text-xs capitalize">{c.status}</span>
-          </div>
-        )} />
-    )
-  }
-
-  if (section === "creatives") {
-    return (
-      <RecordList rows={creatives.data} isLoading={creatives.isLoading}
-        empty="No creatives have been shared with you yet."
-        render={(c) => (
-          <div key={c.id} className="flex items-center justify-between rounded-lg border p-4">
-            <div className="flex items-center gap-3">
-              {c.thumbnailUrl ? <img src={c.thumbnailUrl} alt="" className="h-10 w-10 rounded object-cover" /> : <Image className="h-6 w-6 text-muted-foreground" />}
-              <div>
-                <div className="font-medium">{c.name}</div>
-                <div className="text-sm capitalize text-muted-foreground">{c.type}</div>
-              </div>
-            </div>
-            {c.url && <a href={c.url} target="_blank" rel="noreferrer" className="text-sm underline">View</a>}
-          </div>
-        )} />
-    )
-  }
-
-  if (section === "leads") {
-    return (
-      <RecordList rows={leads.data} isLoading={leads.isLoading}
-        empty="No leads have been shared with you yet."
-        render={(l) => (
-          <div key={l.id} className="flex items-center justify-between rounded-lg border p-4">
-            <div>
-              <div className="font-medium">{l.name}</div>
-              <div className="text-sm text-muted-foreground">{l.source ?? ""}</div>
-            </div>
-            <span className="rounded-full bg-muted px-3 py-1 text-xs capitalize">{l.status ?? "new"}</span>
-          </div>
-        )} />
-    )
-  }
-
-  // Sales, Reports, AI Plan arrive with the dashboards & copilot phases.
-  return (
-    <div className="flex h-64 flex-col items-center justify-center gap-2 rounded-lg border border-dashed text-center">
-      <Sparkles className="h-8 w-8 text-muted-foreground" />
-      <p className="font-medium">Coming soon</p>
-      <p className="max-w-sm text-sm text-muted-foreground">This dashboard is being prepared by the team.</p>
-    </div>
-  )
 }
 
 /**

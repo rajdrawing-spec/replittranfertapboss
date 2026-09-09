@@ -10,7 +10,8 @@ A production-ready SaaS ERP + CRM + AI platform for TapasHub, a parent company t
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required env: `SUPABASE_DB_URL` — Postgres connection string (required when `NODE_ENV=production`; `DATABASE_URL` is only a development fallback), plus `PORT` and `SESSION_SECRET`
+- Deploying to Hostinger: see `docs/deployment-hostinger.md`
 
 ## Stack
 
@@ -71,7 +72,7 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 - Auth: Replit-managed Clerk (`CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY` auto-provisioned).
 - AI: Gemini. User declined the Replit AI Integrations upgrade, so `lib/integrations-gemini-ai/src/client.ts` falls back to a direct `GEMINI_API_KEY` secret instead of the managed proxy — see `.agents/memory/gemini-client-fallback.md`.
-- DB: Replit Postgres via `DATABASE_URL`; schema pushed with `pnpm --filter @workspace/db run push`. Starter companies and system roles auto-seed on API server startup.
+- DB: Postgres via `SUPABASE_DB_URL` (falls back to `DATABASE_URL` outside production); schema pushed with `pnpm --filter @workspace/db run push`. Starter companies and system roles auto-seed on API server startup.
 - All three artifacts (`tapashub` web, `api-server`, `mockup-sandbox`) run via their auto-created workflows; `pnpm run typecheck` and both `test`/`test-web` suites pass.
 
 ## Gotchas

@@ -556,7 +556,7 @@ export default function AiAssistant() {
                 type="submit" size="icon"
                 disabled={!input.trim() || chat.isPending}
                 className="absolute right-1 w-10 h-10 bg-primary/20 text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
-              >
+               aria-label="Send">
                 <Send className="w-4 h-4" />
               </Button>
             </form>
@@ -984,7 +984,7 @@ function ReportsTab({ companies }: { companies: { id: number; name: string }[] }
               <div className="space-y-2">{[1,2].map(i => <Skeleton key={i} className="h-14 w-full" />)}</div>
             ) : !schedules || schedules.length === 0 ? (
               <div className="py-6 text-center text-sm text-muted-foreground">
-                <Clock className="w-7 h-7 mx-auto mb-2 opacity-40" />
+                <Clock className="w-9 h-9 md:w-7 md:h-7 mx-auto mb-2 opacity-40" />
                 No automated schedules yet. Create one above.
               </div>
             ) : (
@@ -1014,7 +1014,7 @@ function ReportsTab({ companies }: { companies: { id: number; name: string }[] }
                       <Button
                         variant="ghost" size="icon"
                         onClick={() => { if (confirm("Delete this schedule?")) deleteSchedule.mutate(s.id) }}
-                        className="h-7 w-7 text-red-400 hover:text-red-300"
+                        className="w-9 h-9 md:w-7 md:h-7 text-red-400 hover:text-red-300"
                       >
                         ✕
                       </Button>

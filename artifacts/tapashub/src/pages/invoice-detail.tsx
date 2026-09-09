@@ -351,7 +351,7 @@ export default function InvoiceDetailPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Link href="/invoices">
-            <Button variant="ghost" size="icon"><ArrowLeft className="w-4 h-4" /></Button>
+            <Button variant="ghost" size="icon" aria-label="Go back"><ArrowLeft className="w-4 h-4" /></Button>
           </Link>
           <div>
             <div className="flex items-center gap-2">

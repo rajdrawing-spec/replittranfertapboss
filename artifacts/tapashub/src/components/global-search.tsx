@@ -28,7 +28,14 @@ const TYPE_COLORS: Record<string, string> = {
   Template: "text-sky-400 bg-sky-500/10",
 }
 
-export function GlobalSearch() {
+export interface GlobalSearchProps {
+  /** Focus the input on mount — used when opened as a mobile overlay. */
+  autoFocus?: boolean
+  /** Called after a result is chosen, so a wrapping overlay can close itself. */
+  onNavigate?: () => void
+}
+
+export function GlobalSearch({ autoFocus, onNavigate }: GlobalSearchProps = {}) {
   const [, setLocation] = useLocation()
   const { activeCompany } = useCompany()
   const [q, setQ] = React.useState("")
@@ -39,12 +46,15 @@ export function GlobalSearch() {
   const inputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
+    // In the mobile overlay the search *is* the screen, so a click outside
+    // the input should not collapse the results — the overlay owns dismissal.
+    if (autoFocus) return
     function handler(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener("mousedown", handler)
     return () => document.removeEventListener("mousedown", handler)
-  }, [])
+  }, [autoFocus])
 
   // keyboard shortcut: Cmd/Ctrl+K
   React.useEffect(() => {
@@ -75,10 +85,15 @@ export function GlobalSearch() {
     return () => clearTimeout(t)
   }, [q, activeCompany])
 
+  React.useEffect(() => {
+    if (autoFocus) inputRef.current?.focus()
+  }, [autoFocus])
+
   function go(r: Result) {
     setLocation(r.href)
     setOpen(false)
     setQ("")
+    onNavigate?.()
   }
 
   return (

@@ -198,14 +198,14 @@ export default function Shipping() {
                   <TableCell><Badge variant="outline" className={STATUS_COLORS[s.status]}>{label(s.status)}</Badge></TableCell>
                   <TableCell className="text-xs text-muted-foreground">{fmtDate(s.lastSyncedAt) ?? "—"}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">
-                    <Button variant="ghost" size="icon" title="Sync tracking" disabled={syncingId === s.id} onClick={() => syncTracking(s)}>
+                    <Button variant="ghost" size="icon" title="Sync tracking" disabled={syncingId === s.id} onClick={() => syncTracking(s)} aria-label="Sync tracking">
                       <RefreshCw className={`w-4 h-4 ${syncingId === s.id ? "animate-spin" : ""}`} />
                     </Button>
                     {s.status !== "returned" && (
                       <Button variant="ghost" size="icon" title="Mark returned" className="text-orange-400" onClick={() => openReturn(s)}><Undo2 className="w-4 h-4" /></Button>
                     )}
-                    <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(s)}><Pencil className="w-4 h-4" /></Button>
-                    <Button variant="ghost" size="icon" title="Delete" className="text-red-400" onClick={() => del(s.id)}><Trash2 className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(s)} aria-label="Edit"><Pencil className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" title="Delete" className="text-red-400" onClick={() => del(s.id)} aria-label="Delete"><Trash2 className="w-4 h-4" /></Button>
                   </TableCell>
                 </TableRow>
               ))}

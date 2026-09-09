@@ -530,7 +530,7 @@ export function ReportsSection({ projectId }: { projectId: number }) {
         </div>
 
         <h3 className="mb-3 font-semibold">Key metrics</h3>
-        <div className="mb-6 grid grid-cols-3 gap-3">
+        <div className="mb-6 grid grid-cols-2 sm:grid-cols-3 gap-3">
           {kpiRows.map((r) => (
             <div key={r.label} className="rounded border p-3">
               <div className="text-lg font-bold">{r.value}</div>

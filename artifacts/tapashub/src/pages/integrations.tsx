@@ -96,7 +96,7 @@ function TopBar({ companyName }: { companyName: string | null }) {
     <header className="h-14 flex items-center justify-between px-5 border-b border-white/8 bg-card/80 backdrop-blur-md shrink-0 z-30">
       <div className="flex items-center gap-3">
         <div className="bg-white rounded-lg p-0.5 shadow-sm shrink-0">
-          <img src="/tapashub-logo.png" alt="TAPBOSS" className="w-7 h-7 object-contain" />
+          <img src="/tapashub-logo.png" alt="TAPBOSS" className="w-9 h-9 md:w-7 md:h-7 object-contain" />
         </div>
         <div>
           <div className="font-bold text-sm leading-tight">TAPBOSS</div>
@@ -216,7 +216,7 @@ function WelcomePanel({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="p-4 rounded-2xl bg-violet-500/8 border border-violet-500/20 space-y-2">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-violet-500/20 flex items-center justify-center">
+              <div className="w-9 h-9 md:w-7 md:h-7 rounded-lg bg-violet-500/20 flex items-center justify-center">
                 <Globe className="w-3.5 h-3.5 text-violet-400" />
               </div>
               <span className="text-sm font-semibold text-violet-300">Browser Workspace</span>
@@ -247,7 +247,7 @@ function WelcomePanel({
 
           <div className="p-4 rounded-2xl bg-sky-500/8 border border-sky-500/20 space-y-2">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-sky-500/20 flex items-center justify-center">
+              <div className="w-9 h-9 md:w-7 md:h-7 rounded-lg bg-sky-500/20 flex items-center justify-center">
                 <Link2 className="w-3.5 h-3.5 text-sky-400" />
               </div>
               <span className="text-sm font-semibold text-sky-300">API Integration</span>

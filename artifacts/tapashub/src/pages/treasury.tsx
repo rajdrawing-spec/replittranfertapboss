@@ -598,7 +598,7 @@ export default function Treasury() {
                   {(summary!.revenueBySubsidiary).map(co => (
                     <div key={co.companyId} className="flex items-center gap-2 p-2.5 rounded-lg bg-white/4 border border-emerald-500/10">
                       <div
-                        className="w-7 h-7 rounded text-white text-[9px] flex items-center justify-center font-bold shrink-0"
+                        className="w-9 h-9 md:w-7 md:h-7 rounded text-white text-[9px] flex items-center justify-center font-bold shrink-0"
                         style={{ background: co.color }}
                       >
                         {co.companyName.substring(0, 2).toUpperCase()}
@@ -788,10 +788,10 @@ export default function Treasury() {
                       <TableCell>
                         {!e.isReversed && (
                           <div className="flex gap-1">
-                            <Button size="icon" variant="ghost" className="w-7 h-7" title="Edit entry" onClick={() => openEdit(e)}>
+                            <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7" title="Edit entry" onClick={() => openEdit(e)} aria-label="Edit entry">
                               <Pencil className="w-3.5 h-3.5" />
                             </Button>
-                            <Button size="icon" variant="ghost" className="w-7 h-7 text-amber-400 hover:text-amber-300"
+                            <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7 text-amber-400 hover:text-amber-300"
                               title="Reverse entry" onClick={() => openReverse(e)}>
                               <RotateCcw className="w-3.5 h-3.5" />
                             </Button>

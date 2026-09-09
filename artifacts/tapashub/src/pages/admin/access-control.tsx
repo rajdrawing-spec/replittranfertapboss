@@ -177,7 +177,7 @@ function UsersTab({ roles }: { roles: AdminRole[] }) {
                         className="h-5 w-5 ml-0.5"
                         title="Edit roles"
                         onClick={() => setEditingRoles(u)}
-                      >
+                       aria-label="Edit roles">
                         <Pencil className="h-3 w-3" />
                       </Button>
                     </div>

@@ -226,7 +226,7 @@ export function AiTaskCompanySettings({ companyId }: { companyId: number }) {
                     <div className="font-medium">{h.name}</div>
                     <div className="text-xs text-muted-foreground">{h.date} {h.isRecurringYearly && <Badge variant="outline" className="ml-1">Recurring</Badge>}</div>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => deleteHolidayMutation.mutate(h.id)}>
+                  <Button variant="ghost" size="icon" onClick={() => deleteHolidayMutation.mutate(h.id)} aria-label="Delete">
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>

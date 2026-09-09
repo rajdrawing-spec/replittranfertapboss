@@ -313,7 +313,7 @@ function CampaignsTab() {
                     <Progress value={pct} className="h-1.5" />
                   </div>
 
-                  <div className="grid grid-cols-4 gap-2 text-center">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                     <div><div className="text-sm font-bold">{c.leads}</div><div className="text-[10px] text-muted-foreground">Leads</div></div>
                     <div><div className="text-sm font-bold">{c.conversions}</div><div className="text-[10px] text-muted-foreground">Conv.</div></div>
                     <div><div className="text-sm font-bold text-green-400">{fmtINR(c.revenue)}</div><div className="text-[10px] text-muted-foreground">Revenue</div></div>
@@ -475,8 +475,8 @@ function CreativesTab() {
                   <div className="flex items-center gap-2 pt-1">
                     {c.url && <a href={assetSrc(c.url)} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1"><ExternalLink className="w-3 h-3" /> View</a>}
                     <div className="ml-auto flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(c)}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400" onClick={() => del(c.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="w-9 h-9 md:w-7 md:h-7" onClick={() => openEdit(c)} aria-label="Edit"><Pencil className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="w-9 h-9 md:w-7 md:h-7 text-red-400" onClick={() => del(c.id)} aria-label="Delete"><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </div>
                 </CardContent>
@@ -597,9 +597,9 @@ function CalendarTab() {
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">{cursor.toLocaleString("en-IN", { month: "long", year: "numeric" })}</h3>
         <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={() => setCursor(new Date(year, month - 1, 1))}><ChevronLeft className="w-4 h-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label="Previous"><ChevronLeft className="w-4 h-4" /></Button>
           <Button variant="outline" size="sm" onClick={() => { const d = new Date(); setCursor(new Date(d.getFullYear(), d.getMonth(), 1)) }}>Today</Button>
-          <Button variant="outline" size="icon" onClick={() => setCursor(new Date(year, month + 1, 1))}><ChevronRight className="w-4 h-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label="Next"><ChevronRight className="w-4 h-4" /></Button>
         </div>
       </div>
 
@@ -754,8 +754,8 @@ function LeadsTab() {
                             {linked && <span className="text-[10px] text-muted-foreground truncate">{linked.name}</span>}
                           </div>
                           <div className="flex gap-1 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openEdit(l)}><Pencil className="w-3 h-3" /></Button>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-red-400" onClick={() => del(l.id)}><Trash2 className="w-3 h-3" /></Button>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openEdit(l)} aria-label="Edit"><Pencil className="w-3 h-3" /></Button>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-red-400" onClick={() => del(l.id)} aria-label="Delete"><Trash2 className="w-3 h-3" /></Button>
                           </div>
                         </CardContent>
                       </Card>

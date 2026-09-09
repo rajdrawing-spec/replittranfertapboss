@@ -356,7 +356,7 @@ export default function InvoiceForm() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/invoices">
-            <Button variant="ghost" size="icon"><ArrowLeft className="w-4 h-4" /></Button>
+            <Button variant="ghost" size="icon" aria-label="Go back"><ArrowLeft className="w-4 h-4" /></Button>
           </Link>
           <div>
             <h1 className="text-xl font-bold">{isEdit ? "Edit Document" : isDup ? "Duplicate Document" : "New Document"}</h1>
@@ -450,7 +450,7 @@ export default function InvoiceForm() {
                     )}
                   </div>
                   {showCustDropdown && (
-                    <Button type="button" variant="ghost" size="icon" onClick={() => setShowCustDropdown(false)}>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => setShowCustDropdown(false)} aria-label="Close">
                       <X className="w-4 h-4" />
                     </Button>
                   )}

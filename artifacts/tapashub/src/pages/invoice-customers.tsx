@@ -164,8 +164,8 @@ export default function InvoiceCustomersPage() {
                     {canManage && (
                       <TableCell>
                         <div className="flex gap-1 justify-end">
-                          <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => openEdit(c)}><Pencil className="w-3.5 h-3.5" /></Button>
-                          <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive" onClick={() => setDeleteTarget(c)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                          <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7" onClick={() => openEdit(c)} aria-label="Edit"><Pencil className="w-3.5 h-3.5" /></Button>
+                          <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7 text-destructive" onClick={() => setDeleteTarget(c)} aria-label="Delete"><Trash2 className="w-3.5 h-3.5" /></Button>
                         </div>
                       </TableCell>
                     )}

@@ -127,7 +127,7 @@ function BalanceSection({ balance, loading }: { balance: BalanceData | undefined
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
           {rows.map(r => (
             <div key={r.label} className={`rounded-xl p-3 border border-white/5 ${r.bg}`}>
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center mb-2 bg-black/20`}>
+              <div className={`w-9 h-9 md:w-7 md:h-7 rounded-lg flex items-center justify-center mb-2 bg-black/20`}>
                 <r.icon className={`w-3.5 h-3.5 ${r.color}`} />
               </div>
               <div className={`text-lg font-bold leading-tight ${r.color}`}>{fmt(r.value, r.signed)}</div>
@@ -601,13 +601,13 @@ export default function Finance() {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => openEdit(t)}>
+                            <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7" onClick={() => openEdit(t)} aria-label="Edit">
                               <Pencil className="w-3.5 h-3.5" />
                             </Button>
                             <Button
-                              size="icon" variant="ghost" className="w-7 h-7 text-destructive hover:text-destructive"
+                              size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7 text-destructive hover:text-destructive"
                               disabled={deleting === t.id} onClick={() => handleDelete(t.id, t.description)}
-                            >
+                             aria-label="Delete">
                               <Trash2 className="w-3.5 h-3.5" />
                             </Button>
                           </div>

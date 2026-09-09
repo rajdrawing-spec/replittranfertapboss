@@ -85,7 +85,7 @@ function FullScreenCallUI({
           <Button variant="ghost" size="icon" onClick={toggleFullscreen} title="Fullscreen">
             <Maximize2 className="h-4 w-4" />
           </Button>
-          <Button variant="destructive" size="icon" onClick={() => setLeaveOpen(true)} title="Leave">
+          <Button variant="destructive" size="icon" onClick={() => setLeaveOpen(true)} title="Leave" aria-label="Leave">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -143,7 +143,7 @@ function MiniPlayerUI({
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onExpand} title="Expand">
             <Maximize2 className="h-3 w-3" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={onLeave} title="Leave">
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={onLeave} title="Leave" aria-label="Leave">
             <X className="h-3 w-3" />
           </Button>
         </div>

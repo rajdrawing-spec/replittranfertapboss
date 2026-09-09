@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { useFabAction } from "@/lib/fab-action"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { EmptyState } from "@/components/empty-state"
@@ -35,6 +36,8 @@ export default function PlannerPage() {
   const userId = user?.id
   const [view, setView] = React.useState("week")
   const [showEventDialog, setShowEventDialog] = React.useState(false)
+
+  useFabAction("Add Event", () => setShowEventDialog(true))
   const [eventTitle, setEventTitle] = React.useState("")
   const [eventDate, setEventDate] = React.useState("")
   const [eventType, setEventType] = React.useState("custom")

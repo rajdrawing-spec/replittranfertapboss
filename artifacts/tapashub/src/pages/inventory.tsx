@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Search, Plus, Pencil, Trash2, PackageSearch, AlertTriangle, Sparkles, Upload, Download, Wand2, ScanBarcode, ImagePlus, Loader2, FileSpreadsheet, Check, Link, RefreshCw } from "lucide-react"
+import { useFabAction } from "@/lib/fab-action"
 import { useCompany } from "@/contexts/company-context"
 import { useToast } from "@/hooks/use-toast"
 import { useUpload } from "@workspace/object-storage-web"
@@ -192,6 +193,8 @@ export default function Inventory() {
       toast({ title: "Could not create product", description: e?.message, variant: "destructive" })
     } finally { setQuickCreating(false) }
   }
+
+  useFabAction("Add Product", () => openAdd())
 
   function openAdd() {
     setEditing(null)
@@ -636,9 +639,9 @@ export default function Inventory() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => openEdit(p)}><Pencil className="w-3.5 h-3.5" /></Button>
-                          <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => setAiProduct(p)}><Sparkles className="w-3.5 h-3.5 text-purple-500" /></Button>
-                          <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive hover:text-destructive" disabled={deleting === p.id} onClick={() => handleDelete(p.id)}>
+                          <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7" onClick={() => openEdit(p)} aria-label="Edit"><Pencil className="w-3.5 h-3.5" /></Button>
+                          <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7" onClick={() => setAiProduct(p)} aria-label="AI actions"><Sparkles className="w-3.5 h-3.5 text-purple-500" /></Button>
+                          <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7 text-destructive hover:text-destructive" disabled={deleting === p.id} onClick={() => handleDelete(p.id)} aria-label="Delete">
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </div>
@@ -708,7 +711,7 @@ export default function Inventory() {
                   title="Auto-generate link from product name"
                   onClick={() => f("sourceLink", autoGenerateSourceLink(form.name, form.sku))}
                   disabled={!form.name && !form.sku}
-                >
+                 aria-label="Auto-generate link from product name">
                   <RefreshCw className="w-4 h-4" />
                 </Button>
               </div>
@@ -757,13 +760,13 @@ export default function Inventory() {
               </div>
               {variants.length === 0 && <p className="text-xs text-muted-foreground">No variants yet</p>}
               {variants.map((v, i) => (
-                <div key={i} className="grid grid-cols-4 gap-2 items-end">
+                <div key={i} className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
                   <Input placeholder="Variant name" value={v.name} onChange={e => updateVariant(i, "name", e.target.value)} />
                   <Input placeholder="SKU" value={v.sku} onChange={e => updateVariant(i, "sku", e.target.value)} />
                   <Input placeholder="Price" type="number" value={v.price} onChange={e => updateVariant(i, "price", e.target.value)} />
                   <div className="flex gap-2">
                     <Input placeholder="Stock" type="number" value={v.stockQuantity} onChange={e => updateVariant(i, "stockQuantity", e.target.value)} />
-                    <Button size="icon" variant="ghost" onClick={() => removeVariant(i)} type="button"><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                    <Button size="icon" variant="ghost" onClick={() => removeVariant(i)} type="button" aria-label="Delete"><Trash2 className="w-4 h-4 text-destructive" /></Button>
                   </div>
                 </div>
               ))}

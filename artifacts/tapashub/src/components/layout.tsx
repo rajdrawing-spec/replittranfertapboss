@@ -5,13 +5,14 @@ import {
   CheckSquare, Bell, Bot, Globe2, Settings, Menu, Moon, Sun, ChevronDown,
   TrendingUp, FileText, Megaphone, LayoutDashboard, PieChart, LogOut, Contact,
   Headset, Truck, ShieldCheck, ScrollText, Landmark,
-  CalendarDays, ChevronRight, Home, Phone, MoreHorizontal, X, Plus,
+  CalendarDays, ChevronRight, Home, Phone, MoreHorizontal, X, Plus, Search,
   Sparkles, Briefcase,
 } from "lucide-react"
 import { GlobalSearch } from "@/components/global-search"
 import { NotificationBadge } from "@/components/notification-badge"
 import { WorkingCapitalWidget } from "@/components/working-capital-widget"
 import { cn } from "@/lib/utils"
+import { useCurrentFabAction } from "@/lib/fab-action"
 import { Button } from "@/components/ui/button"
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "")
@@ -465,6 +466,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = React.useState(true)
   const [mobileOpen, setMobileOpen] = React.useState(false)
   const [moreOpen, setMoreOpen] = React.useState(false)
+  const [searchOpen, setSearchOpen] = React.useState(false)
   const { activeCompany, isParentView } = useCompany()
   const { logout, user: authUser, isSuperAdmin, hasPermission } = useAuth()
   const { user: clerkUser } = useUser()
@@ -671,9 +673,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-0.5 shrink-0">
             <Button
               variant="ghost" size="icon"
-              className="w-8 h-8 text-muted-foreground hover:text-foreground"
+              className="md:hidden w-9 h-9 text-muted-foreground hover:text-foreground"
+              onClick={() => setSearchOpen(true)}
+              title="Search"
+              aria-label="Search"
+            >
+              <Search className="w-4 h-4" />
+            </Button>
+
+            <Button
+              variant="ghost" size="icon"
+              className="w-9 h-9 md:w-8 md:h-8 text-muted-foreground hover:text-foreground"
               onClick={() => setTheme(theme === "light" ? "dark" : "light")}
               title={theme === "light" ? "Dark mode" : "Light mode"}
+              aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
             >
               {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
             </Button>
@@ -682,7 +695,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
             <div className="flex items-center gap-2 ml-2 pl-2 border-l border-border">
               <Avatar
-                className="w-7 h-7 cursor-pointer ring-2 ring-offset-1 ring-offset-card transition-opacity hover:opacity-80"
+                className="w-9 h-9 md:w-7 md:h-7 cursor-pointer ring-2 ring-offset-1 ring-offset-card transition-opacity hover:opacity-80"
                 style={{ "--ring-color": workspaceColor } as React.CSSProperties}
               >
                 <AvatarImage
@@ -763,6 +776,28 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
 
+      {/* Mobile search overlay — the desktop search bar is hidden below md,
+          so without this there is no way to search on a phone. */}
+      {searchOpen && (
+        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Search">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={() => setSearchOpen(false)} />
+          <div className="absolute top-0 left-0 right-0 bg-card border-b border-border p-3 shadow-2xl">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <GlobalSearch autoFocus onNavigate={() => setSearchOpen(false)} />
+              </div>
+              <button
+                onClick={() => setSearchOpen(false)}
+                className="w-10 h-10 shrink-0 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
+                aria-label="Close search"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* "More" drawer on mobile */}
       {moreOpen && (
         <div className="fixed inset-0 z-50 md:hidden" onClick={() => setMoreOpen(false)}>
@@ -812,34 +847,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* ── Mobile FAB (context-aware) ───────────────────────── */}
-      <MobileFab location={location} workspaceColor={workspaceColor} hidden={hideMobileChrome} />
+      <MobileFab workspaceColor={workspaceColor} hidden={hideMobileChrome} />
     </div>
   )
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Mobile FAB — shows primary action for current page
+   Mobile FAB — runs the action the current page registered
 ───────────────────────────────────────────────────────────── */
-function MobileFab({ location, workspaceColor, hidden }: { location: string; workspaceColor: string; hidden?: boolean }) {
-  const fab = React.useMemo(() => {
-    if (location.startsWith("/ai-tasks")) return { icon: Sparkles, title: "New AI Task" }
-    if (location.startsWith("/inventory")) return { icon: Plus, title: "Add Product" }
-    if (location.startsWith("/orders")) return { icon: Plus, title: "New Order" }
-    if (location.startsWith("/crm")) return { icon: Plus, title: "New Contact" }
-    if (location.startsWith("/planner")) return { icon: Plus, title: "New Task" }
-    return null
-  }, [location])
+function MobileFab({ workspaceColor, hidden }: { workspaceColor: string; hidden?: boolean }) {
+  const action = useCurrentFabAction()
 
-  if (!fab) return null
+  // No page has declared a create action, so there is nothing to offer.
+  if (!action) return null
 
   return (
     <button
+      type="button"
+      onClick={action.run}
       className={cn("fab", hidden && "translate-y-[140%] opacity-0 pointer-events-none")}
       style={{ background: workspaceColor, boxShadow: `0 8px 24px ${workspaceColor}55` }}
-      title={fab.title}
-      aria-label={fab.title}
+      title={action.label}
+      aria-label={action.label}
     >
-      <fab.icon className="w-6 h-6" />
+      <Plus className="w-6 h-6" />
     </button>
   )
 }

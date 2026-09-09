@@ -319,20 +319,20 @@ export function BrowserWorkspace({
 
           {/* Controls */}
           <div className="flex items-center gap-0.5 shrink-0">
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-zinc-200"
+            <Button variant="ghost" size="icon" className="w-9 h-9 md:w-7 md:h-7 text-zinc-500 hover:text-zinc-200"
               onClick={handleReload} aria-label="Reload page" disabled={!showBrowser}>
               <RefreshCw className="w-3.5 h-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-zinc-200"
+            <Button variant="ghost" size="icon" className="w-9 h-9 md:w-7 md:h-7 text-zinc-500 hover:text-zinc-200"
               onClick={handleHome} aria-label="Go to platform home" disabled={!showBrowser}>
               <Home className="w-3.5 h-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-zinc-200"
+            <Button variant="ghost" size="icon" className="w-9 h-9 md:w-7 md:h-7 text-zinc-500 hover:text-zinc-200"
               onClick={() => window.open(currentUrl, "_blank", "noopener")} aria-label="Open in new browser tab">
               <ExternalLink className="w-3.5 h-3.5" />
             </Button>
             <div className="w-px h-4 bg-white/10 mx-1" />
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-red-400"
+            <Button variant="ghost" size="icon" className="w-9 h-9 md:w-7 md:h-7 text-zinc-500 hover:text-red-400"
               onClick={onClose} aria-label="Close workspace">
               <X className="w-3.5 h-3.5" />
             </Button>
@@ -346,7 +346,7 @@ export function BrowserWorkspace({
           <div className="flex items-center gap-2 px-3 pt-2 pb-1.5">
             {/* Platform icon + name */}
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <div className={`w-7 h-7 rounded-lg ${platform.logoColor} flex items-center justify-center shrink-0`}>
+              <div className={`w-9 h-9 md:w-7 md:h-7 rounded-lg ${platform.logoColor} flex items-center justify-center shrink-0`}>
                 <span className="text-white font-bold" style={{ fontSize: 10 }}>{platform.logo}</span>
               </div>
               <div className="flex flex-col min-w-0">

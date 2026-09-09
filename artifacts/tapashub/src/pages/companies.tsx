@@ -254,7 +254,7 @@ export default function Companies() {
                         {isSuperAdmin && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" data-testid={`menu-company-${company.id}`}>
+                              <Button variant="ghost" size="icon" className="w-9 h-9 md:w-7 md:h-7" data-testid={`menu-company-${company.id}`} aria-label="More options">
                                 <MoreVertical className="w-4 h-4" />
                               </Button>
                             </DropdownMenuTrigger>

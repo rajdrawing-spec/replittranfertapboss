@@ -366,7 +366,7 @@ export default function AiProductPanel({ product, onChange }: { product: Product
                 {metadata?.images?.length === 0 && <p className="text-xs text-muted-foreground">No images yet. Upload images in the product form.</p>}
               </div>
               {metadata?.images?.length > 0 && (
-                <div className="grid grid-cols-3 gap-2 items-end">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 items-end">
                   <div className="space-y-1"><Label className="text-xs">Width</Label><Input type="number" value={resizeWidth} onChange={e => setResizeWidth(parseInt(e.target.value) || 0)} /></div>
                   <div className="space-y-1"><Label className="text-xs">Height</Label><Input type="number" value={resizeHeight} onChange={e => setResizeHeight(parseInt(e.target.value) || 0)} /></div>
                   <div className="flex gap-2">

@@ -193,10 +193,10 @@ export function ManagerApproval({ companyId }: { companyId: number }) {
                     )}
                   </div>
                   <div className="flex gap-1">
-                    <Button size="icon" variant="ghost" onClick={() => taskActionMutation.mutate({ id: task.id, action: "approve" })}>
+                    <Button size="icon" variant="ghost" onClick={() => taskActionMutation.mutate({ id: task.id, action: "approve" })} aria-label="Confirm">
                       <Check className="h-4 w-4 text-green-600" />
                     </Button>
-                    <Button size="icon" variant="ghost" onClick={() => taskActionMutation.mutate({ id: task.id, action: "reject" })}>
+                    <Button size="icon" variant="ghost" onClick={() => taskActionMutation.mutate({ id: task.id, action: "reject" })} aria-label="Close">
                       <X className="h-4 w-4 text-red-600" />
                     </Button>
                   </div>

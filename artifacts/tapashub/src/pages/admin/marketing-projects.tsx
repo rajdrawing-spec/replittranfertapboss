@@ -216,7 +216,7 @@ function ProjectCard({ project, users, companyName, onDelete, onAddMember, onRem
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant={m.memberType === "client" ? "default" : "secondary"}>{m.memberType}</Badge>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onRemoveMember(m.userId)} aria-label={`Remove ${m.name}`}>
+                <Button variant="ghost" size="icon" className="w-9 h-9 md:w-7 md:h-7" onClick={() => onRemoveMember(m.userId)} aria-label={`Remove ${m.name}`}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>

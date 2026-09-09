@@ -512,17 +512,17 @@ export default function FundAllocations() {
                         <div className="flex items-center gap-1">
                           {/* Edit: only for pending allocations */}
                           {a.status === "pending_approval" && (
-                            <Button size="icon" variant="ghost" className="h-7 w-7" title="Edit allocation" onClick={() => openEdit(a)}>
+                            <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7" title="Edit allocation" onClick={() => openEdit(a)} aria-label="Edit allocation">
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                           )}
                           {/* Delete: available for all allocations */}
                           <Button
                             size="icon" variant="ghost"
-                            className="h-7 w-7 text-red-400 hover:text-red-300"
+                            className="w-9 h-9 md:w-7 md:h-7 text-red-400 hover:text-red-300"
                             title="Delete allocation"
                             onClick={() => openDelete(a)}
-                          >
+                           aria-label="Delete allocation">
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>

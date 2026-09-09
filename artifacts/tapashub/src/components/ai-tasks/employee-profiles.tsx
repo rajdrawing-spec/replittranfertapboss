@@ -166,7 +166,7 @@ export function EmployeeProfiles({ companyId }: { companyId: number }) {
                       <span className="font-medium">Project:</span> {emp.currentProject || "—"}
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => setEditing(emp)}>
+                  <Button variant="ghost" size="icon" onClick={() => setEditing(emp)} aria-label="Edit">
                     <Pencil className="h-4 w-4" />
                   </Button>
                 </div>

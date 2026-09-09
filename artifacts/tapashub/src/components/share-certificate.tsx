@@ -561,7 +561,7 @@ export function ShareCertificateModal({
               <Printer className="w-4 h-4" />
               Print / Save PDF
             </Button>
-            <Button size="icon" variant="ghost" onClick={onClose} className="h-8 w-8">
+            <Button size="icon" variant="ghost" onClick={onClose} className="h-8 w-8" aria-label="Close">
               <X className="w-4 h-4" />
             </Button>
           </div>

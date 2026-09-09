@@ -284,7 +284,7 @@ export default function InvoicesPage() {
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="w-7 h-7">
+                          <Button variant="ghost" size="icon" className="w-9 h-9 md:w-7 md:h-7" aria-label="More options">
                             <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>

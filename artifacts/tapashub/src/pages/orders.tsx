@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Search, Plus, Pencil, Trash2, ShoppingBag, X } from "lucide-react"
+import { useFabAction } from "@/lib/fab-action"
 import { useCompany } from "@/contexts/company-context"
 import { useToast } from "@/hooks/use-toast"
 
@@ -69,6 +70,8 @@ export default function Orders() {
   const { data, isLoading, refetch } = useListOrders(params, {
     query: { enabled: true, queryKey: getListOrdersQueryKey(params) }
   })
+
+  useFabAction("New Order", () => openAdd())
 
   function openAdd() {
     setEditing(null)
@@ -213,8 +216,8 @@ export default function Orders() {
                     <TableCell className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleDateString("en-IN")}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => openEdit(o)}><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive hover:text-destructive" disabled={deleting === o.id} onClick={() => handleDelete(o.id)}>
+                        <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7" onClick={() => openEdit(o)} aria-label="Edit"><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7 text-destructive hover:text-destructive" disabled={deleting === o.id} onClick={() => handleDelete(o.id)} aria-label="Delete">
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>

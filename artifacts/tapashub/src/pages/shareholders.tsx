@@ -708,11 +708,11 @@ function AdminShareholdersView() {
                           title={h.email ? (h.invitedAt ? `Invited ${new Date(h.invitedAt).toLocaleDateString("en-IN")} — resend` : "Send invite email") : "Add an email address to invite"}
                           disabled={!h.email || (invite.isPending && invite.variables === h.id)}
                           onClick={() => invite.mutate(h.id)}
-                        >
+                         aria-label="Send">
                           <Send className={`h-4 w-4 ${h.invitedAt ? "text-green-400" : ""}`} />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(h)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => { if (confirm(`Remove ${h.name}?`)) remove.mutate(h.id) }}><Trash2 className="h-4 w-4 text-red-400" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(h)} aria-label="Edit"><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => { if (confirm(`Remove ${h.name}?`)) remove.mutate(h.id) }} aria-label="Delete"><Trash2 className="h-4 w-4 text-red-400" /></Button>
                       </TableCell>
                     )}
                   </TableRow>
@@ -774,7 +774,7 @@ function AdminShareholdersView() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label>Shares</Label>
                 <Input type="number" min="0" value={form.shares} onChange={(e) => setForm({ ...form, shares: e.target.value })} placeholder="0" />
@@ -909,7 +909,7 @@ function ShareholderDetail({ id, onClose, canManage, txForm, setTxForm, onChange
           <Skeleton className="h-40 w-full" />
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
               <Stat label="Shares" value={num(data.shares)} />
               <Stat label="Price / share" value={inr(data.sharePrice)} />
               <Stat label="Total invested" value={inr(data.investmentAmount)} />

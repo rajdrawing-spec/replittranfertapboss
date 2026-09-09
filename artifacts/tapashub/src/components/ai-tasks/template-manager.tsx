@@ -253,10 +253,10 @@ export function TemplateManager({ companyId, canManage }: { companyId: number; c
                         {canManage && (
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
-                              <Button variant="ghost" size="icon" onClick={() => openEdit(template)}>
+                              <Button variant="ghost" size="icon" onClick={() => openEdit(template)} aria-label="Edit">
                                 <Pencil className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(template.id)} disabled={deleteMutation.isPending}>
+                              <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(template.id)} disabled={deleteMutation.isPending} aria-label="Delete">
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>

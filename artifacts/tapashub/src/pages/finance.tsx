@@ -1,5 +1,4 @@
 import * as React from "react"
-import * as XLSX from "xlsx"
 import {
   useListTransactions, getListTransactionsQueryKey,
   useGetPnlSummary, getGetPnlSummaryQueryKey,
@@ -288,6 +287,8 @@ export default function Finance() {
   async function handleExport() {
     setExporting(true)
     try {
+      // Loaded on demand — keeps the ~95 kB gzipped xlsx bundle out of the initial page load.
+      const XLSX = await import("xlsx")
       // Fetch ALL transactions (up to 10 000 rows) without pagination
       const qs = activeCompany ? `?companyId=${activeCompany.id}&limit=10000` : "?limit=10000"
       const txRes = await fetch(`${API_BASE}/api/finance/transactions${qs}`, { credentials: "include" })

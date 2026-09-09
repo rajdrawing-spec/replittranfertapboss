@@ -9,7 +9,6 @@
  *   • Full entry management (add / edit / reverse)
  */
 import * as React from "react"
-import * as XLSX from "xlsx"
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -326,6 +325,8 @@ export default function Treasury() {
   /* Excel export */
   async function handleExport() {
     try {
+      // Loaded on demand — keeps the ~95 kB gzipped xlsx bundle out of the initial page load.
+      const XLSX = await import("xlsx")
       const data = await adminApi.get("/treasury/entries?limit=10000")
       const rows = (data.items as TreasuryEntry[]).map(e => ({
         "Date":            e.date,

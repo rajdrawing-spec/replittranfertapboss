@@ -26,6 +26,22 @@ export interface QueryStateProps {
   /** e.g. a "Add first product" button, shown below the empty message/hint. */
   emptyAction?: React.ReactNode
   className?: string
+  /**
+   * The success-state content.
+   *
+   * ⚠️ `children` is a normal prop, not real control flow: React builds this
+   * JSX at the *call site*, before QueryState ever runs its own
+   * isLoading/isError/isEmpty branching — exactly like any other function
+   * argument. So anything referenced in here must already be safe to
+   * construct in every state, not just the one where it's actually shown.
+   *
+   * `data?.items ?? []` passed straight to a list/table is fine — mapping an
+   * empty array does nothing. `someQueryResult!.field` is not: it throws
+   * the moment this element is built, regardless of which branch QueryState
+   * was about to pick. If content needs a single possibly-absent object
+   * (not an array) rather than a `?? []`-able list, guard it with a real
+   * short-circuit — a ternary or `&&` — instead of routing it through here.
+   */
   children: React.ReactNode
 }
 
@@ -35,6 +51,9 @@ export interface QueryStateProps {
  * no error branch at all, adds one. Without it a failed request and an
  * empty result render identically (an empty table), so a user has no way to
  * tell "nothing here yet" from "this broke" or any reason to retry.
+ *
+ * See the `children` doc above before reaching for this on content that
+ * isn't a simple `data ?? []` list.
  */
 export function QueryState({
   isLoading,

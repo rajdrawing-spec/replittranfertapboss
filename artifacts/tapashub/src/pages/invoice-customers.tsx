@@ -7,15 +7,15 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useToast } from "@/hooks/use-toast"
 import { Plus, Search, Pencil, Trash2, Users, Phone, Mail } from "lucide-react"
+import { ResponsiveTable, type ResponsiveTableColumn, type ResponsiveTableAction } from "@/components/responsive-table"
+import { QueryState } from "@/components/query-state"
 
 interface InvoiceCustomer {
   id: number; companyId: number; name: string; email?: string; phone?: string
@@ -52,7 +52,7 @@ export default function InvoiceCustomersPage() {
   const canManage = hasPermission("finance.manage")
   const qs = activeCompany ? `?companyId=${activeCompany.id}` : ""
 
-  const { data: customers = [], isLoading } = useQuery<InvoiceCustomer[]>({
+  const { data: customers = [], isLoading, isError, refetch } = useQuery<InvoiceCustomer[]>({
     queryKey: ["/api/invoice-customers", activeCompany?.id],
     queryFn: () => adminApi.get(`/invoice-customers${qs}`),
     enabled: !!activeCompany,
@@ -108,6 +108,44 @@ export default function InvoiceCustomersPage() {
 
   const isOpen = showForm || !!editing
 
+  const columns: ResponsiveTableColumn<InvoiceCustomer>[] = [
+    {
+      key: "name", header: "Name", card: "title",
+      cell: (c) => (
+        <div>
+          <div className="font-medium text-sm">{c.name}</div>
+          {c.billingAddress && <div className="text-xs text-muted-foreground truncate max-w-48">{c.billingAddress}</div>}
+        </div>
+      ),
+      cardCell: (c) => c.name,
+    },
+    {
+      key: "contact", header: "Contact", card: "subtitle",
+      cell: (c) => (
+        <>
+          {c.email && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Mail className="w-3 h-3" />{c.email}</div>}
+          {c.phone && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Phone className="w-3 h-3" />{c.phone}</div>}
+        </>
+      ),
+      cardCell: (c) => c.email || c.phone || "—",
+    },
+    { key: "gstin", header: "GSTIN", cell: (c) => <span className="font-mono text-xs">{c.gstin ?? "—"}</span> },
+    { key: "state", header: "State", cell: (c) => <span className="text-sm">{c.state ?? "—"}</span> },
+    {
+      key: "outstanding", header: "Outstanding", card: "badge", headClassName: "text-right", cellClassName: "text-right",
+      cell: (c) => (
+        <span className="text-sm font-medium">
+          {c.outstanding > 0 ? <span className="text-amber-400">₹{Math.round(c.outstanding).toLocaleString("en-IN")}</span> : "₹0"}
+        </span>
+      ),
+    },
+  ]
+
+  const rowActions: ResponsiveTableAction<InvoiceCustomer>[] = canManage ? [
+    { label: "Edit", icon: Pencil, onClick: openEdit },
+    { label: "Delete", icon: Trash2, onClick: setDeleteTarget, destructive: true },
+  ] : []
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
@@ -124,56 +162,22 @@ export default function InvoiceCustomersPage() {
       </div>
 
       <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center py-16 gap-3 text-muted-foreground">
-              <Users className="w-10 h-10 opacity-30" />
-              <p className="text-sm">No customers yet</p>
-              {canManage && <Button size="sm" variant="outline" onClick={openCreate}><Plus className="w-3 h-3 mr-1" /> Add first customer</Button>}
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>GSTIN</TableHead>
-                  <TableHead>State</TableHead>
-                  <TableHead className="text-right">Outstanding</TableHead>
-                  {canManage && <TableHead className="w-20" />}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell>
-                      <div className="font-medium text-sm">{c.name}</div>
-                      {c.billingAddress && <div className="text-xs text-muted-foreground truncate max-w-48">{c.billingAddress}</div>}
-                    </TableCell>
-                    <TableCell>
-                      {c.email && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Mail className="w-3 h-3" />{c.email}</div>}
-                      {c.phone && <div className="flex items-center gap-1 text-xs text-muted-foreground"><Phone className="w-3 h-3" />{c.phone}</div>}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{c.gstin ?? "—"}</TableCell>
-                    <TableCell className="text-sm">{c.state ?? "—"}</TableCell>
-                    <TableCell className="text-right text-sm font-medium">
-                      {c.outstanding > 0 ? <span className="text-amber-400">₹{Math.round(c.outstanding).toLocaleString("en-IN")}</span> : "₹0"}
-                    </TableCell>
-                    {canManage && (
-                      <TableCell>
-                        <div className="flex gap-1 justify-end">
-                          <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7" onClick={() => openEdit(c)} aria-label="Edit"><Pencil className="w-3.5 h-3.5" /></Button>
-                          <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7 text-destructive" onClick={() => setDeleteTarget(c)} aria-label="Delete"><Trash2 className="w-3.5 h-3.5" /></Button>
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+        <CardContent className="p-3 md:p-0">
+          <QueryState
+            isLoading={isLoading}
+            isError={isError}
+            isEmpty={filtered.length === 0}
+            onRetry={refetch}
+            errorMessage="Could not load customers."
+            emptyIcon={Users}
+            emptyMessage="No customers yet"
+            emptyAction={canManage ? (
+              <Button size="sm" variant="outline" onClick={openCreate}><Plus className="w-3 h-3 mr-1" /> Add first customer</Button>
+            ) : undefined}
+            loading={<ResponsiveTable columns={columns} data={[]} rowKey={(c) => c.id} isLoading skeletonCount={5} actions={rowActions} />}
+          >
+            <ResponsiveTable columns={columns} data={filtered} rowKey={(c) => c.id} actions={rowActions} />
+          </QueryState>
         </CardContent>
       </Card>
 

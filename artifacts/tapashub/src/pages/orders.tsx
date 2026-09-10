@@ -1,19 +1,18 @@
 import * as React from "react"
 import { useListOrders, getListOrdersQueryKey, useListCompanies } from "@workspace/api-client-react"
 import { useQueryClient } from "@tanstack/react-query"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Search, Plus, Pencil, Trash2, ShoppingBag, X } from "lucide-react"
+import { Search, Plus, Pencil, Trash2, ShoppingBag } from "lucide-react"
 import { useFabAction } from "@/lib/fab-action"
 import { useCompany } from "@/contexts/company-context"
 import { useToast } from "@/hooks/use-toast"
+import { ResponsiveTable, type ResponsiveTableColumn, type ResponsiveTableAction } from "@/components/responsive-table"
+import { QueryState } from "@/components/query-state"
 
 const API_BASE = ""
 const STATUS_COLORS: Record<string, string> = {
@@ -67,7 +66,7 @@ export default function Orders() {
   if (statusFilter !== "all") params.status = statusFilter
   if (search) params.search = search
 
-  const { data, isLoading, refetch } = useListOrders(params, {
+  const { data, isLoading, isError, refetch } = useListOrders(params, {
     query: { enabled: true, queryKey: getListOrdersQueryKey(params) }
   })
 
@@ -143,6 +142,41 @@ export default function Orders() {
 
   const field = (k: keyof OrderForm, v: string) => setForm(f => ({ ...f, [k]: v }))
 
+  const columns: ResponsiveTableColumn<any>[] = [
+    {
+      key: "orderNumber", header: "Order #", card: "subtitle",
+      cell: (o) => <span className="font-mono text-xs">{o.orderNumber}</span>,
+      cardCell: (o) => <>#{o.orderNumber} · {new Date(o.createdAt).toLocaleDateString("en-IN")}</>,
+    },
+    {
+      key: "customer", header: "Customer", card: "title",
+      cell: (o) => (
+        <div>
+          <div className="font-medium">{o.customerName}</div>
+          <div className="text-xs text-muted-foreground">{o.customerEmail}</div>
+        </div>
+      ),
+      cardCell: (o) => o.customerName,
+    },
+    { key: "companyName", header: "Company", cell: (o) => <span className="text-sm text-muted-foreground">{o.companyName}</span> },
+    { key: "channel", header: "Channel", cell: (o) => <span className="text-sm capitalize">{o.channel}</span> },
+    { key: "totalAmount", header: "Amount", cell: (o) => <span className="font-semibold">₹{Number(o.totalAmount).toLocaleString("en-IN")}</span> },
+    {
+      key: "status", header: "Status", card: "badge",
+      cell: (o) => (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium capitalize ${STATUS_COLORS[o.status] ?? ""}`}>
+          {o.status}
+        </span>
+      ),
+    },
+    { key: "createdAt", header: "Date", card: "hidden", cell: (o) => <span className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleDateString("en-IN")}</span> },
+  ]
+
+  const rowActions: ResponsiveTableAction<any>[] = [
+    { label: "Edit", icon: Pencil, onClick: openEdit },
+    { label: "Delete", icon: Trash2, onClick: (o) => handleDelete(o.id), destructive: true, disabled: (o) => deleting === o.id },
+  ]
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
@@ -172,61 +206,18 @@ export default function Orders() {
             </Select>
           </div>
 
-          <div className="overflow-x-auto rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Order #</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Channel</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="w-20" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  Array.from({ length: 8 }).map((_, i) => (
-                    <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
-                  ))
-                ) : data?.items?.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="h-32 text-center">
-                      <ShoppingBag className="mx-auto h-8 w-8 opacity-20 mb-2" />
-                      <p className="text-muted-foreground">No orders found</p>
-                    </TableCell>
-                  </TableRow>
-                ) : data?.items?.map((o: any) => (
-                  <TableRow key={o.id} className="hover:bg-muted/30">
-                    <TableCell className="font-mono text-xs">{o.orderNumber}</TableCell>
-                    <TableCell>
-                      <div className="font-medium">{o.customerName}</div>
-                      <div className="text-xs text-muted-foreground">{o.customerEmail}</div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{o.companyName}</TableCell>
-                    <TableCell className="text-sm capitalize">{o.channel}</TableCell>
-                    <TableCell className="font-semibold">₹{Number(o.totalAmount).toLocaleString("en-IN")}</TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium capitalize ${STATUS_COLORS[o.status] ?? ""}`}>
-                        {o.status}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleDateString("en-IN")}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7" onClick={() => openEdit(o)} aria-label="Edit"><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7 text-destructive hover:text-destructive" disabled={deleting === o.id} onClick={() => handleDelete(o.id)} aria-label="Delete">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <QueryState
+            isLoading={isLoading}
+            isError={isError}
+            isEmpty={(data?.items?.length ?? 0) === 0}
+            onRetry={refetch}
+            errorMessage="Could not load orders."
+            emptyMessage="No orders found"
+            emptyIcon={ShoppingBag}
+            loading={<ResponsiveTable columns={columns} data={[]} rowKey={(o: any) => o.id} isLoading skeletonCount={8} actions={rowActions} />}
+          >
+            <ResponsiveTable columns={columns} data={data?.items ?? []} rowKey={(o: any) => o.id} actions={rowActions} />
+          </QueryState>
 
           {/* Pagination */}
           {data && data.total > 20 && (

@@ -6,11 +6,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Search, Plus, Truck, Package, MapPin, Pencil, Trash2, RefreshCw, Undo2 } from "lucide-react"
 import { useCompany } from "@/contexts/company-context"
 import { useToast } from "@/hooks/use-toast"
+import { ResponsiveTable, type ResponsiveTableColumn, type ResponsiveTableAction } from "@/components/responsive-table"
+import { QueryState } from "@/components/query-state"
 
 interface Shipment {
   id: number; companyId: number; orderNumber: string | null; courier: string; trackingNumber: string | null
@@ -39,6 +40,7 @@ export default function Shipping() {
   const { toast } = useToast()
   const [rows, setRows] = React.useState<Shipment[]>([])
   const [loading, setLoading] = React.useState(true)
+  const [loadError, setLoadError] = React.useState(false)
   const [search, setSearch] = React.useState("")
   const [statusFilter, setStatusFilter] = React.useState("all")
   const [view, setView] = React.useState<"all" | "returns">("all")
@@ -53,6 +55,7 @@ export default function Shipping() {
 
   const load = React.useCallback(async () => {
     setLoading(true)
+    setLoadError(false)
     try {
       const p = new URLSearchParams()
       if (activeCompany) p.set("companyId", String(activeCompany.id))
@@ -60,9 +63,12 @@ export default function Shipping() {
       else if (statusFilter !== "all") p.set("status", statusFilter)
       if (search.trim()) p.set("q", search.trim())
       const res = await fetch(`/api/shipments?${p}`, { credentials: "include" })
+      if (!res.ok) throw new Error()
       setRows(await res.json())
-    } catch { toast({ title: "Failed to load shipments", variant: "destructive" }) }
-    finally { setLoading(false) }
+    } catch {
+      setLoadError(true)
+      toast({ title: "Failed to load shipments", variant: "destructive" })
+    } finally { setLoading(false) }
   }, [activeCompany, statusFilter, search, view, toast])
 
   React.useEffect(() => { const t = setTimeout(load, 200); return () => clearTimeout(t) }, [load])
@@ -132,7 +138,28 @@ export default function Shipping() {
     finally { setSyncingId(null) }
   }
 
-  const colSpan = view === "returns" ? 8 : 8
+  const columns: ResponsiveTableColumn<Shipment>[] = [
+    {
+      key: "trackingNumber", header: "Tracking", card: "subtitle",
+      cell: (s) => <span className="font-mono text-xs">{s.trackingNumber || "—"}</span>,
+      cardCell: (s) => <>{s.trackingNumber || "No tracking #"}{s.orderNumber ? ` · Order ${s.orderNumber}` : ""}</>,
+    },
+    { key: "orderNumber", header: "Order", card: "hidden", cell: (s) => <span className="text-sm">{s.orderNumber || "—"}</span> },
+    { key: "customerName", header: "Customer", card: "title", cell: (s) => <span className="font-medium">{s.customerName}</span> },
+    { key: "courier", header: "Courier", cell: (s) => <span className="flex items-center gap-1.5 text-sm"><Package className="w-3.5 h-3.5 text-muted-foreground" />{s.courier}</span> },
+    view === "returns"
+      ? { key: "returnReason", header: "Return Reason", cell: (s) => <span className="text-sm text-muted-foreground truncate block max-w-[16rem]" title={s.returnReason ?? undefined}>{s.returnReason || "—"}</span> }
+      : { key: "destination", header: "Destination", cell: (s) => <span className="flex items-center gap-1 text-sm text-muted-foreground"><MapPin className="w-3.5 h-3.5" />{s.destination || "—"}</span> },
+    { key: "status", header: "Status", card: "badge", cell: (s) => <Badge variant="outline" className={STATUS_COLORS[s.status]}>{label(s.status)}</Badge> },
+    { key: "lastSyncedAt", header: "Last Synced", cell: (s) => <span className="text-xs text-muted-foreground">{fmtDate(s.lastSyncedAt) ?? "—"}</span> },
+  ]
+
+  const actions: ResponsiveTableAction<Shipment>[] = [
+    { label: "Sync tracking", icon: RefreshCw, onClick: syncTracking, disabled: (s) => syncingId === s.id },
+    { label: "Mark returned", icon: Undo2, onClick: openReturn, hidden: (s) => s.status === "returned" },
+    { label: "Edit", icon: Pencil, onClick: openEdit },
+    { label: "Delete", icon: Trash2, onClick: (s) => del(s.id), destructive: true },
+  ]
 
   return (
     <div className="space-y-6">
@@ -169,48 +196,19 @@ export default function Shipping() {
       </div>
 
       <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tracking</TableHead><TableHead>Order</TableHead><TableHead>Customer</TableHead>
-                <TableHead>Courier</TableHead>
-                {view === "returns" ? <TableHead>Return Reason</TableHead> : <TableHead>Destination</TableHead>}
-                <TableHead>Status</TableHead><TableHead>Last Synced</TableHead><TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={colSpan} className="text-center py-10 text-muted-foreground">Loading…</TableCell></TableRow>
-              ) : rows.length === 0 ? (
-                <TableRow><TableCell colSpan={colSpan} className="text-center py-10 text-muted-foreground">{view === "returns" ? "No returns or RTO shipments." : "No shipments found."}</TableCell></TableRow>
-              ) : rows.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell className="font-mono text-xs">{s.trackingNumber || "—"}</TableCell>
-                  <TableCell className="text-sm">{s.orderNumber || "—"}</TableCell>
-                  <TableCell className="font-medium">{s.customerName}</TableCell>
-                  <TableCell><span className="flex items-center gap-1.5 text-sm"><Package className="w-3.5 h-3.5 text-muted-foreground" />{s.courier}</span></TableCell>
-                  {view === "returns" ? (
-                    <TableCell className="text-sm text-muted-foreground max-w-[16rem] truncate" title={s.returnReason ?? undefined}>{s.returnReason || "—"}</TableCell>
-                  ) : (
-                    <TableCell><span className="flex items-center gap-1 text-sm text-muted-foreground"><MapPin className="w-3.5 h-3.5" />{s.destination || "—"}</span></TableCell>
-                  )}
-                  <TableCell><Badge variant="outline" className={STATUS_COLORS[s.status]}>{label(s.status)}</Badge></TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{fmtDate(s.lastSyncedAt) ?? "—"}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">
-                    <Button variant="ghost" size="icon" title="Sync tracking" disabled={syncingId === s.id} onClick={() => syncTracking(s)} aria-label="Sync tracking">
-                      <RefreshCw className={`w-4 h-4 ${syncingId === s.id ? "animate-spin" : ""}`} />
-                    </Button>
-                    {s.status !== "returned" && (
-                      <Button variant="ghost" size="icon" title="Mark returned" className="text-orange-400" onClick={() => openReturn(s)}><Undo2 className="w-4 h-4" /></Button>
-                    )}
-                    <Button variant="ghost" size="icon" title="Edit" onClick={() => openEdit(s)} aria-label="Edit"><Pencil className="w-4 h-4" /></Button>
-                    <Button variant="ghost" size="icon" title="Delete" className="text-red-400" onClick={() => del(s.id)} aria-label="Delete"><Trash2 className="w-4 h-4" /></Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <CardContent className="p-3 md:p-0">
+          <QueryState
+            isLoading={loading}
+            isError={loadError}
+            isEmpty={rows.length === 0}
+            onRetry={load}
+            errorMessage="Could not load shipments."
+            emptyMessage={view === "returns" ? "No returns or RTO shipments." : "No shipments found."}
+            emptyIcon={Truck}
+            loading={<ResponsiveTable columns={columns} data={[]} rowKey={(s) => s.id} isLoading skeletonCount={6} actions={actions} />}
+          >
+            <ResponsiveTable columns={columns} data={rows} rowKey={(s) => s.id} actions={actions} />
+          </QueryState>
         </CardContent>
       </Card>
 

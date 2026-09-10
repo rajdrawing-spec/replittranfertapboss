@@ -134,13 +134,18 @@ function scopedUrls(pathFragment: string) {
     .filter((u) => u.includes(pathFragment))
 }
 
+// Presence is checked with getAllByText(...).length > 0 rather than
+// getByText, which requires exactly one match: pages built on ResponsiveTable
+// render both the desktop table and the mobile card layout at once (CSS
+// toggles which is visible), so a matching row's text legitimately appears
+// twice in the DOM.
 async function assertScoped(opts: {
   pathFragment: string
   aText: RegExp | string
   bText: RegExp | string
 }) {
   fireEvent.click(screen.getByTestId("pick-a"))
-  await waitFor(() => expect(screen.getByText(opts.aText)).toBeInTheDocument(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getAllByText(opts.aText).length).toBeGreaterThan(0), { timeout: 3000 })
   expect(screen.queryByText(opts.bText)).not.toBeInTheDocument()
 
   let urls = scopedUrls(opts.pathFragment)
@@ -148,7 +153,7 @@ async function assertScoped(opts: {
   expect(urls.every((u) => !u.includes("companyId=2"))).toBe(true)
 
   fireEvent.click(screen.getByTestId("pick-b"))
-  await waitFor(() => expect(screen.getByText(opts.bText)).toBeInTheDocument(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getAllByText(opts.bText).length).toBeGreaterThan(0), { timeout: 3000 })
   // The previous company's row must be gone the moment B is shown.
   expect(screen.queryByText(opts.aText)).not.toBeInTheDocument()
 

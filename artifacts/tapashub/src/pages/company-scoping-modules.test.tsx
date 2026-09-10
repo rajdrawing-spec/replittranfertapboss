@@ -159,6 +159,12 @@ function scopedUrls(pathFragment: string) {
  * Shared assertions: pick A → only A's row, requests carry companyId=1 and never
  * companyId=2; switch to B → only B's row (A's row gone), requests carry
  * companyId=2.
+ *
+ * Presence is checked with getAllByText(...).length > 0 rather than
+ * getByText, which requires exactly one match: pages built on ResponsiveTable
+ * render both the desktop table and the mobile card layout at once (CSS
+ * toggles which is visible), so a matching row's text legitimately appears
+ * twice in the DOM.
  */
 async function assertScoped(opts: {
   pathFragment: string
@@ -166,7 +172,7 @@ async function assertScoped(opts: {
   bText: RegExp | string
 }) {
   fireEvent.click(screen.getByTestId("pick-a"))
-  await waitFor(() => expect(screen.getByText(opts.aText)).toBeInTheDocument())
+  await waitFor(() => expect(screen.getAllByText(opts.aText).length).toBeGreaterThan(0))
   expect(screen.queryByText(opts.bText)).not.toBeInTheDocument()
 
   let urls = scopedUrls(opts.pathFragment)
@@ -174,7 +180,7 @@ async function assertScoped(opts: {
   expect(urls.every((u) => !u.includes("companyId=2"))).toBe(true)
 
   fireEvent.click(screen.getByTestId("pick-b"))
-  await waitFor(() => expect(screen.getByText(opts.bText)).toBeInTheDocument())
+  await waitFor(() => expect(screen.getAllByText(opts.bText).length).toBeGreaterThan(0))
   // The previous company's row must be gone the moment B is shown.
   expect(screen.queryByText(opts.aText)).not.toBeInTheDocument()
 

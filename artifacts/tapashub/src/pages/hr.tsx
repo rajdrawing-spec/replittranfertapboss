@@ -1,10 +1,8 @@
 import * as React from "react"
 import { useListEmployees, getListEmployeesQueryKey, useListCompanies } from "@workspace/api-client-react"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -13,6 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Search, Plus, Pencil, Trash2, Users, Mail, Building2 } from "lucide-react"
 import { useCompany } from "@/contexts/company-context"
 import { useToast } from "@/hooks/use-toast"
+import { ResponsiveTable, type ResponsiveTableColumn, type ResponsiveTableAction } from "@/components/responsive-table"
+import { QueryState } from "@/components/query-state"
 
 const API_BASE = ""
 const DEPTS = ["Engineering", "Sales", "Marketing", "Finance", "Operations", "HR", "Design", "Customer Support", "Logistics", "Management"]
@@ -44,7 +44,7 @@ export default function HR() {
   if (activeCompany) params.companyId = activeCompany.id
   if (search) params.search = search
 
-  const { data, isLoading, refetch } = useListEmployees(params, {
+  const { data, isLoading, isError, refetch } = useListEmployees(params, {
     query: { enabled: true, queryKey: getListEmployeesQueryKey(params) }
   })
 
@@ -105,6 +105,48 @@ export default function HR() {
     terminated: "bg-red-500/10 text-red-400 border-red-500/20",
   }
 
+  const columns: ResponsiveTableColumn<any>[] = [
+    {
+      key: "employee", header: "Employee", card: "title",
+      cell: (e) => (
+        <div className="flex items-center gap-3">
+          <Avatar className="w-8 h-8">
+            <AvatarFallback className="text-xs bg-primary/10 text-primary">
+              {e.firstName[0]}{e.lastName[0]}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="font-medium">{e.firstName} {e.lastName}</div>
+            <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <Mail className="w-3 h-3" />{e.email}
+            </div>
+          </div>
+        </div>
+      ),
+      cardCell: (e) => `${e.firstName} ${e.lastName}`,
+    },
+    { key: "designation", header: "Designation", card: "subtitle", cell: (e) => <span className="font-medium text-sm">{e.designation}</span> },
+    {
+      key: "companyName", header: "Company",
+      cell: (e) => <Badge variant="outline" className="font-normal text-xs"><Building2 className="w-3 h-3 mr-1 opacity-50" />{e.companyName}</Badge>,
+    },
+    { key: "department", header: "Department", cell: (e) => <span className="text-sm text-muted-foreground">{e.department}</span> },
+    { key: "salary", header: "Salary", cell: (e) => <span className="font-semibold text-sm">₹{Number(e.salary).toLocaleString("en-IN")}</span> },
+    {
+      key: "status", header: "Status", card: "badge",
+      cell: (e) => (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium ${statusColor[e.status] ?? ""}`}>
+          {e.status.replace("_", " ")}
+        </span>
+      ),
+    },
+  ]
+
+  const rowActions: ResponsiveTableAction<any>[] = [
+    { label: "Edit", icon: Pencil, onClick: openEdit },
+    { label: "Delete", icon: Trash2, onClick: (e) => handleDelete(e.id), destructive: true, disabled: (e) => deleting === e.id },
+  ]
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
@@ -121,66 +163,18 @@ export default function HR() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Search employees…" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} className="pl-9 max-w-sm" />
           </div>
-          <div className="overflow-x-auto rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Employee</TableHead><TableHead>Designation</TableHead>
-                  <TableHead>Company</TableHead><TableHead>Department</TableHead>
-                  <TableHead>Salary</TableHead><TableHead>Status</TableHead><TableHead className="w-20" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? Array.from({ length: 8 }).map((_, i) => (
-                  <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
-                )) : data?.items?.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="h-32 text-center">
-                    <Users className="mx-auto h-8 w-8 opacity-20 mb-2" />
-                    <p className="text-muted-foreground">No employees found</p>
-                  </TableCell></TableRow>
-                ) : data?.items?.map((e: any) => (
-                  <TableRow key={e.id} className="hover:bg-muted/30">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-8 h-8">
-                          <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                            {e.firstName[0]}{e.lastName[0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <div className="font-medium">{e.firstName} {e.lastName}</div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Mail className="w-3 h-3" />{e.email}
-                          </div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-medium text-sm">{e.designation}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="font-normal text-xs">
-                        <Building2 className="w-3 h-3 mr-1 opacity-50" />{e.companyName}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{e.department}</TableCell>
-                    <TableCell className="font-semibold text-sm">₹{Number(e.salary).toLocaleString("en-IN")}</TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium ${statusColor[e.status] ?? ""}`}>
-                        {e.status.replace("_", " ")}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7" onClick={() => openEdit(e)} aria-label="Edit"><Pencil className="w-3.5 h-3.5" /></Button>
-                        <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7 text-destructive hover:text-destructive" disabled={deleting === e.id} onClick={() => handleDelete(e.id)} aria-label="Delete">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <QueryState
+            isLoading={isLoading}
+            isError={isError}
+            isEmpty={(data?.items?.length ?? 0) === 0}
+            onRetry={refetch}
+            errorMessage="Could not load employees."
+            emptyMessage="No employees found"
+            emptyIcon={Users}
+            loading={<ResponsiveTable columns={columns} data={[]} rowKey={(e: any) => e.id} isLoading skeletonCount={8} actions={rowActions} />}
+          >
+            <ResponsiveTable columns={columns} data={data?.items ?? []} rowKey={(e: any) => e.id} actions={rowActions} />
+          </QueryState>
           {data && data.total > 20 && (
             <div className="flex justify-between mt-4 text-sm">
               <span className="text-muted-foreground">Page {page} of {Math.ceil(data.total / 20)}</span>

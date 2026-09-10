@@ -191,6 +191,11 @@ function CompanySwitcher() {
   )
 }
 
+// Orders renders through ResponsiveTable, which puts a real <table> for
+// desktop and a stacked-card layout for mobile in the DOM simultaneously
+// (CSS toggles which is visible per breakpoint) — so a matching row's text
+// appears twice. Presence assertions below use getAllByText(...).length > 0
+// rather than getByText, which requires exactly one match.
 describe("company-scoped list view (Orders)", () => {
   it("renders only the active company's orders and sends its companyId", async () => {
     const qc = newClient()
@@ -205,7 +210,7 @@ describe("company-scoped list view (Orders)", () => {
 
     fireEvent.click(screen.getByTestId("pick-a"))
 
-    await waitFor(() => expect(screen.getByText("Alice Buyer")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText("Alice Buyer").length).toBeGreaterThan(0))
     // Company B's order must never appear while A is active.
     expect(screen.queryByText("Bob Buyer")).not.toBeInTheDocument()
 
@@ -229,10 +234,10 @@ describe("company-scoped list view (Orders)", () => {
     )
 
     fireEvent.click(screen.getByTestId("pick-a"))
-    await waitFor(() => expect(screen.getByText("Alice Buyer")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText("Alice Buyer").length).toBeGreaterThan(0))
 
     fireEvent.click(screen.getByTestId("pick-b"))
-    await waitFor(() => expect(screen.getByText("Bob Buyer")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText("Bob Buyer").length).toBeGreaterThan(0))
 
     // A's row is gone the moment B is shown — no cross-company bleed.
     expect(screen.queryByText("Alice Buyer")).not.toBeInTheDocument()

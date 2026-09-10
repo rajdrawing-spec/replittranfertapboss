@@ -5,7 +5,6 @@ import {
   useListCompanies,
 } from "@workspace/api-client-react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -25,6 +24,8 @@ import { useCompany } from "@/contexts/company-context"
 import { useAuth } from "@/contexts/auth-context"
 import { RequestAccessGate } from "@/components/access-gate"
 import { useToast } from "@/hooks/use-toast"
+import { ResponsiveTable, type ResponsiveTableColumn, type ResponsiveTableAction } from "@/components/responsive-table"
+import { QueryState } from "@/components/query-state"
 
 const API_BASE = ""
 
@@ -205,7 +206,7 @@ export default function Finance() {
   if (activeCompany) params.companyId = activeCompany.id
   if (typeFilter !== "all") params.type = typeFilter
 
-  const { data, isLoading, refetch } = useListTransactions(params, {
+  const { data, isLoading, isError, refetch } = useListTransactions(params, {
     query: { enabled: canViewFinance, queryKey: getListTransactionsQueryKey(params) }
   })
 
@@ -384,6 +385,47 @@ export default function Finance() {
     return <RequestAccessGate module="Finance" />
   }
 
+  const columns: ResponsiveTableColumn<any>[] = [
+    { key: "date", header: "Date", card: "hidden", cell: (t) => <span className="text-xs text-muted-foreground">{t.date}</span> },
+    {
+      key: "description", header: "Description", card: "title",
+      cell: (t) => (
+        <div>
+          <div className="font-medium text-sm">{t.description}</div>
+          {t.referenceNumber && <div className="text-xs text-muted-foreground font-mono">{t.referenceNumber}</div>}
+        </div>
+      ),
+      cardCell: (t) => t.description,
+    },
+    { key: "category", header: "Category", card: "subtitle", cell: (t) => <span className="text-sm">{t.category}</span>, cardCell: (t) => <>{t.category} · {t.date}</> },
+    { key: "companyName", header: "Company", cell: (t) => <span className="text-xs text-muted-foreground">{t.companyName}</span> },
+    {
+      key: "type", header: "Type",
+      cell: (t) => t.category === "Capital Injection" ? (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium ${TYPE_COLORS.capital_injection}`}>Capital Injection</span>
+      ) : (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium capitalize ${TYPE_COLORS[t.type] ?? ""}`}>{t.type}</span>
+      ),
+    },
+    {
+      key: "amount", header: "Amount",
+      cell: (t) => (
+        <span className={`font-semibold ${t.category === "Capital Injection" ? "text-violet-400" : t.type === "income" ? "text-green-400" : t.type === "expense" ? "text-red-400" : ""}`}>
+          {t.type === "expense" ? "−" : "+"}₹{Number(t.amount).toLocaleString("en-IN")}
+        </span>
+      ),
+    },
+    {
+      key: "status", header: "Status", card: "badge",
+      cell: (t) => <Badge variant={t.status === "completed" ? "default" : "secondary"} className="text-xs capitalize">{t.status}</Badge>,
+    },
+  ]
+
+  const rowActions: ResponsiveTableAction<any>[] = [
+    { label: "Edit", icon: Pencil, onClick: openEdit },
+    { label: "Delete", icon: Trash2, onClick: (t) => handleDelete(t.id, t.description), destructive: true, disabled: (t) => deleting === t.id },
+  ]
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
@@ -542,81 +584,18 @@ export default function Finance() {
           </div>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="overflow-x-auto rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-20" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading
-                  ? Array.from({ length: 8 }).map((_, i) => (
-                      <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
-                    ))
-                  : data?.items?.length === 0
-                  ? (
-                      <TableRow>
-                        <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
-                          No transactions found
-                        </TableCell>
-                      </TableRow>
-                    )
-                  : data?.items?.map((t: any) => (
-                      <TableRow key={t.id} className="hover:bg-muted/30">
-                        <TableCell className="text-xs text-muted-foreground">{t.date}</TableCell>
-                        <TableCell>
-                          <div className="font-medium text-sm">{t.description}</div>
-                          {t.referenceNumber && (
-                            <div className="text-xs text-muted-foreground font-mono">{t.referenceNumber}</div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm">{t.category}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{t.companyName}</TableCell>
-                        <TableCell>
-                          {t.category === "Capital Injection" ? (
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium ${TYPE_COLORS.capital_injection}`}>
-                              Capital Injection
-                            </span>
-                          ) : (
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium capitalize ${TYPE_COLORS[t.type] ?? ""}`}>
-                              {t.type}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className={`font-semibold ${t.category === "Capital Injection" ? "text-violet-400" : t.type === "income" ? "text-green-400" : t.type === "expense" ? "text-red-400" : ""}`}>
-                          {t.type === "expense" ? "−" : "+"}₹{Number(t.amount).toLocaleString("en-IN")}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={t.status === "completed" ? "default" : "secondary"} className="text-xs capitalize">
-                            {t.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7" onClick={() => openEdit(t)} aria-label="Edit">
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button
-                              size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7 text-destructive hover:text-destructive"
-                              disabled={deleting === t.id} onClick={() => handleDelete(t.id, t.description)}
-                             aria-label="Delete">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-              </TableBody>
-            </Table>
-          </div>
+          <QueryState
+            isLoading={isLoading}
+            isError={isError}
+            isEmpty={(data?.items?.length ?? 0) === 0}
+            onRetry={refetch}
+            errorMessage="Could not load transactions."
+            emptyMessage="No transactions found"
+            emptyIcon={Wallet}
+            loading={<ResponsiveTable columns={columns} data={[]} rowKey={(t: any) => t.id} isLoading skeletonCount={8} actions={rowActions} />}
+          >
+            <ResponsiveTable columns={columns} data={data?.items ?? []} rowKey={(t: any) => t.id} actions={rowActions} />
+          </QueryState>
           {data && data.total > 20 && (
             <div className="flex justify-between mt-4 text-sm">
               <span className="text-muted-foreground">Page {page} of {Math.ceil(data.total / 20)}</span>

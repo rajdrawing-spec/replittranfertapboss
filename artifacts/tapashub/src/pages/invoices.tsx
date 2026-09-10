@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { Link } from "wouter"
+import { Link, useLocation } from "wouter"
 import { adminApi } from "@/lib/admin-api"
 import { useAuth } from "@/contexts/auth-context"
 import { useCompany } from "@/contexts/company-context"
@@ -11,20 +11,16 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table"
-import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
 import {
-  FileText, Plus, Search, TrendingUp, Clock, CheckCircle, AlertCircle,
-  Eye, Pencil, Trash2, MoreVertical, IndianRupee,
+  FileText, Plus, Search, Clock, CheckCircle, AlertCircle,
+  Eye, Pencil, Trash2, IndianRupee,
 } from "lucide-react"
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { ResponsiveTable, type ResponsiveTableColumn, type ResponsiveTableAction } from "@/components/responsive-table"
+import { QueryState } from "@/components/query-state"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -104,6 +100,7 @@ export default function InvoicesPage() {
   const { activeCompany } = useCompany()
   const qc = useQueryClient()
   const { toast } = useToast()
+  const [, setLocation] = useLocation()
 
   const [activeType, setActiveType] = React.useState("invoice")
   const [search, setSearch] = React.useState("")
@@ -118,7 +115,7 @@ export default function InvoicesPage() {
     enabled: !!activeCompany,
   })
 
-  const { data: invoices = [], isLoading: loadingList } = useQuery<Invoice[]>({
+  const { data: invoices = [], isLoading: loadingList, isError: listError, refetch: refetchList } = useQuery<Invoice[]>({
     queryKey: ["/api/invoices", activeCompany?.id, activeType, statusFilter],
     queryFn: () => {
       const qs = new URLSearchParams()
@@ -147,6 +144,63 @@ export default function InvoicesPage() {
   })
 
   const canManage = hasPermission("finance.manage")
+
+  const columns: ResponsiveTableColumn<Invoice>[] = [
+    {
+      key: "invoiceNumber", header: "Number", card: "title",
+      cell: (inv) => (
+        <>
+          <Link href={`/invoices/${inv.id}`} className="font-mono text-sm font-medium text-primary hover:underline">
+            {inv.invoiceNumber}
+          </Link>
+          {inv.reference && <div className="text-xs text-muted-foreground">Ref: {inv.reference}</div>}
+        </>
+      ),
+      cardCell: (inv) => inv.invoiceNumber,
+    },
+    {
+      key: "customer", header: "Customer", card: "subtitle",
+      cell: (inv) => (
+        <>
+          <div className="font-medium text-sm">{inv.customerName}</div>
+          {inv.customerEmail && <div className="text-xs text-muted-foreground">{inv.customerEmail}</div>}
+        </>
+      ),
+      cardCell: (inv) => inv.customerName,
+    },
+    { key: "issueDate", header: "Date", cell: (inv) => <span className="text-sm">{fmtDate(inv.issueDate)}</span> },
+    {
+      key: "dueDate", header: "Due",
+      cell: (inv) => inv.dueDate ? (
+        <span className={`text-sm ${new Date(inv.dueDate) < new Date() && inv.status !== "paid" ? "text-red-400" : ""}`}>
+          {fmtDate(inv.dueDate)}
+        </span>
+      ) : <span className="text-sm">—</span>,
+    },
+    {
+      key: "status", header: "Status", card: "badge",
+      cell: (inv) => <Badge className={`text-xs border ${STATUS_COLORS[inv.status] ?? ""}`} variant="outline">{inv.status.replace("_", " ")}</Badge>,
+    },
+    {
+      key: "total", header: "Amount", headClassName: "text-right", cellClassName: "text-right",
+      cell: (inv) => (
+        <span className="font-medium text-sm">
+          {fmtCurrency(inv.total, inv.currency)}
+          {inv.paidAmount > 0 && inv.paidAmount < inv.total && (
+            <div className="text-xs text-green-400">{fmtCurrency(inv.paidAmount)} paid</div>
+          )}
+        </span>
+      ),
+    },
+  ]
+
+  const rowActions: ResponsiveTableAction<Invoice>[] = [
+    { label: "View", icon: Eye, onClick: (inv) => setLocation(`/invoices/${inv.id}`) },
+    ...(canManage ? [
+      { label: "Edit", icon: Pencil, onClick: (inv: Invoice) => setLocation(`/invoices/${inv.id}/edit`), hidden: (inv: Invoice) => inv.status !== "draft" },
+      { label: "Delete", icon: Trash2, onClick: (inv: Invoice) => setDeleteTarget(inv), destructive: true },
+    ] : []),
+  ]
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -223,96 +277,24 @@ export default function InvoicesPage() {
 
       {/* Table */}
       <Card>
-        <CardContent className="p-0">
-          {loadingList ? (
-            <div className="p-6 space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
-              <FileText className="w-10 h-10 opacity-30" />
-              <p className="text-sm">No {DOC_TYPES.find(t => t.key === activeType)?.label.toLowerCase() ?? "documents"} found</p>
-              {canManage && (
-                <Link href={`/invoices/new?type=${activeType}`}>
-                  <Button size="sm" variant="outline"><Plus className="w-3 h-3 mr-1" /> Create one</Button>
-                </Link>
-              )}
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Number</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Due</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((inv) => (
-                  <TableRow key={inv.id} className="cursor-pointer hover:bg-muted/40">
-                    <TableCell>
-                      <Link href={`/invoices/${inv.id}`} className="font-mono text-sm font-medium text-primary hover:underline">
-                        {inv.invoiceNumber}
-                      </Link>
-                      {inv.reference && <div className="text-xs text-muted-foreground">Ref: {inv.reference}</div>}
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium text-sm">{inv.customerName}</div>
-                      {inv.customerEmail && <div className="text-xs text-muted-foreground">{inv.customerEmail}</div>}
-                    </TableCell>
-                    <TableCell className="text-sm">{fmtDate(inv.issueDate)}</TableCell>
-                    <TableCell className="text-sm">
-                      {inv.dueDate ? (
-                        <span className={new Date(inv.dueDate) < new Date() && inv.status !== "paid" ? "text-red-400" : ""}>
-                          {fmtDate(inv.dueDate)}
-                        </span>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={`text-xs border ${STATUS_COLORS[inv.status] ?? ""}`} variant="outline">
-                        {inv.status.replace("_", " ")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-medium text-sm">
-                      {fmtCurrency(inv.total, inv.currency)}
-                      {inv.paidAmount > 0 && inv.paidAmount < inv.total && (
-                        <div className="text-xs text-green-400">{fmtCurrency(inv.paidAmount)} paid</div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="w-9 h-9 md:w-7 md:h-7" aria-label="More options">
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <Link href={`/invoices/${inv.id}`}>
-                            <DropdownMenuItem><Eye className="w-4 h-4 mr-2" /> View</DropdownMenuItem>
-                          </Link>
-                          {canManage && inv.status === "draft" && (
-                            <Link href={`/invoices/${inv.id}/edit`}>
-                              <DropdownMenuItem><Pencil className="w-4 h-4 mr-2" /> Edit</DropdownMenuItem>
-                            </Link>
-                          )}
-                          {canManage && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(inv)}>
-                                <Trash2 className="w-4 h-4 mr-2" /> Delete
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+        <CardContent className="p-3 md:p-0">
+          <QueryState
+            isLoading={loadingList}
+            isError={listError}
+            isEmpty={filtered.length === 0}
+            onRetry={refetchList}
+            errorMessage="Could not load documents."
+            emptyIcon={FileText}
+            emptyMessage={`No ${DOC_TYPES.find(t => t.key === activeType)?.label.toLowerCase() ?? "documents"} found`}
+            emptyAction={canManage ? (
+              <Link href={`/invoices/new?type=${activeType}`}>
+                <Button size="sm" variant="outline"><Plus className="w-3 h-3 mr-1" /> Create one</Button>
+              </Link>
+            ) : undefined}
+            loading={<ResponsiveTable columns={columns} data={[]} rowKey={(inv) => inv.id} isLoading skeletonCount={5} actions={rowActions} />}
+          >
+            <ResponsiveTable columns={columns} data={filtered} rowKey={(inv) => inv.id} actions={rowActions} />
+          </QueryState>
         </CardContent>
       </Card>
 

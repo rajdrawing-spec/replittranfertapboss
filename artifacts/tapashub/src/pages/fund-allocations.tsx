@@ -1,10 +1,8 @@
 import * as React from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { adminApi } from "@/lib/admin-api"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -16,6 +14,8 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { RequestAccessGate } from "@/components/access-gate"
+import { ResponsiveTable, type ResponsiveTableColumn, type ResponsiveTableAction } from "@/components/responsive-table"
+import { QueryState } from "@/components/query-state"
 
 interface Company { id: number; name: string; type: string; ownershipPercent: number }
 interface Allocation {
@@ -108,7 +108,7 @@ export default function FundAllocations() {
   const threshold = thresholdData?.threshold ?? 100000
 
   const listKey = ["/api/fund-allocations", statusFilter]
-  const { data, isLoading } = useQuery<{ items: Allocation[]; total: number }>({
+  const { data, isLoading, isError, refetch } = useQuery<{ items: Allocation[]; total: number }>({
     queryKey: listKey,
     queryFn: () => adminApi.get(`/fund-allocations${statusFilter !== "all" ? `?status=${statusFilter}` : ""}`),
     enabled: canView,
@@ -238,6 +238,101 @@ export default function FundAllocations() {
   if (!canView) {
     return <RequestAccessGate module="Fund Allocation" />
   }
+
+  const columns: ResponsiveTableColumn<Allocation>[] = [
+    {
+      key: "allocation", header: "Allocation", card: "title",
+      cell: (a) => (
+        <div className="flex items-center gap-2 font-medium">
+          <span className={a.fromCompanyName === "Unknown" ? "text-amber-400" : ""}>{a.fromCompanyName}</span>
+          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className={a.toCompanyName === "Unknown" ? "text-amber-400" : ""}>{a.toCompanyName}</span>
+        </div>
+      ),
+    },
+    {
+      key: "amount", header: "Amount", card: "subtitle",
+      cardCell: (a) => <span className="font-semibold">{inr(a.amount)}</span>,
+      cell: (a) => (
+        <HoverCard openDelay={200}>
+          <HoverCardTrigger asChild>
+            <button
+              type="button"
+              className="font-semibold underline decoration-dotted decoration-muted-foreground/40 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded"
+            >
+              {inr(a.amount)}
+            </button>
+          </HoverCardTrigger>
+          <HoverCardContent align="start" className="w-72 text-sm">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 font-semibold">
+                <span>{a.fromCompanyName}</span>
+                <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                <span>{a.toCompanyName}</span>
+              </div>
+              <div className="text-xs text-muted-foreground space-y-1.5">
+                <div className="flex justify-between">
+                  <span>Date</span>
+                  <span>{new Date(a.createdAt).toLocaleDateString("en-IN")}</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="shrink-0">Purpose</span>
+                  <span className="text-right">{a.purpose}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Requested by</span>
+                  <span>{a.requestedByName}</span>
+                </div>
+                {a.equityChangePercent && (
+                  <div className="flex justify-between">
+                    <span>Equity change</span>
+                    <span className="text-blue-400">+{a.equityChangePercent}%</span>
+                  </div>
+                )}
+                {a.executedAt && (
+                  <div className="flex justify-between">
+                    <span>Executed</span>
+                    <span>{new Date(a.executedAt).toLocaleDateString("en-IN")}</span>
+                  </div>
+                )}
+                {a.note && (
+                  <div className="text-[11px] text-muted-foreground/80 border-t pt-1 line-clamp-2">{a.note}</div>
+                )}
+              </div>
+              <div className="pt-1.5 border-t flex items-center justify-between font-semibold">
+                <span className="text-xs text-muted-foreground">Amount</span>
+                <span className="text-amber-400">{inr(a.amount)}</span>
+              </div>
+              {runningTotal[a.id] !== undefined && (
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Running total allocated</span>
+                  <span className="text-foreground font-medium">{inr(runningTotal[a.id])}</span>
+                </div>
+              )}
+            </div>
+          </HoverCardContent>
+        </HoverCard>
+      ),
+    },
+    { key: "purpose", header: "Purpose", cell: (a) => <span className="max-w-[220px] truncate block text-muted-foreground">{a.purpose}</span> },
+    {
+      key: "equity", header: "Equity",
+      cell: (a) => a.equityChangePercent
+        ? <span className="text-blue-400">+{a.equityChangePercent}%</span>
+        : <span className="text-muted-foreground">—</span>,
+    },
+    {
+      key: "status", header: "Status", card: "badge",
+      cell: (a) => <Badge variant="outline" className={STATUS_STYLES[a.status] ?? ""}>{STATUS_LABELS[a.status] ?? a.status}</Badge>,
+    },
+    { key: "requestedByName", header: "Requested by", cell: (a) => <span className="text-muted-foreground text-sm">{a.requestedByName}</span> },
+    { key: "createdAt", header: "Date", cell: (a) => <span className="text-muted-foreground text-sm">{new Date(a.createdAt).toLocaleDateString("en-IN")}</span> },
+  ]
+
+  const rowActions: ResponsiveTableAction<Allocation>[] = canManage ? [
+    { label: "Edit allocation", icon: Pencil, onClick: openEdit, hidden: (a) => a.status !== "pending_approval" },
+    { label: "Delete allocation", icon: Trash2, onClick: openDelete, destructive: true },
+  ] : []
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -398,141 +493,19 @@ export default function FundAllocations() {
       </div>
 
       <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Allocation</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Purpose</TableHead>
-                <TableHead>Equity</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Requested by</TableHead>
-                <TableHead>Date</TableHead>
-                {canManage && <TableHead className="w-20" />}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}><TableCell colSpan={canManage ? 8 : 7}><Skeleton className="h-6 w-full" /></TableCell></TableRow>
-                ))
-              ) : items.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={canManage ? 8 : 7} className="py-12 text-center text-muted-foreground">
-                    <Landmark className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                    No fund allocations yet.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                items.map((a) => (
-                  <TableRow key={a.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2 font-medium">
-                        <span className={a.fromCompanyName === "Unknown" ? "text-amber-400" : ""}>{a.fromCompanyName}</span>
-                        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className={a.toCompanyName === "Unknown" ? "text-amber-400" : ""}>{a.toCompanyName}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <HoverCard openDelay={200}>
-                        <HoverCardTrigger asChild>
-                          <button
-                            type="button"
-                            className="font-semibold underline decoration-dotted decoration-muted-foreground/40 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded"
-                          >
-                            {inr(a.amount)}
-                          </button>
-                        </HoverCardTrigger>
-                        <HoverCardContent align="start" className="w-72 text-sm">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 font-semibold">
-                              <span>{a.fromCompanyName}</span>
-                              <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                              <span>{a.toCompanyName}</span>
-                            </div>
-                            <div className="text-xs text-muted-foreground space-y-1.5">
-                              <div className="flex justify-between">
-                                <span>Date</span>
-                                <span>{new Date(a.createdAt).toLocaleDateString("en-IN")}</span>
-                              </div>
-                              <div className="flex justify-between gap-3">
-                                <span className="shrink-0">Purpose</span>
-                                <span className="text-right">{a.purpose}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span>Requested by</span>
-                                <span>{a.requestedByName}</span>
-                              </div>
-                              {a.equityChangePercent && (
-                                <div className="flex justify-between">
-                                  <span>Equity change</span>
-                                  <span className="text-blue-400">+{a.equityChangePercent}%</span>
-                                </div>
-                              )}
-                              {a.executedAt && (
-                                <div className="flex justify-between">
-                                  <span>Executed</span>
-                                  <span>{new Date(a.executedAt).toLocaleDateString("en-IN")}</span>
-                                </div>
-                              )}
-                              {a.note && (
-                                <div className="text-[11px] text-muted-foreground/80 border-t pt-1 line-clamp-2">{a.note}</div>
-                              )}
-                            </div>
-                            <div className="pt-1.5 border-t flex items-center justify-between font-semibold">
-                              <span className="text-xs text-muted-foreground">Amount</span>
-                              <span className="text-amber-400">{inr(a.amount)}</span>
-                            </div>
-                            {runningTotal[a.id] !== undefined && (
-                              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                <span>Running total allocated</span>
-                                <span className="text-foreground font-medium">{inr(runningTotal[a.id])}</span>
-                              </div>
-                            )}
-                          </div>
-                        </HoverCardContent>
-                      </HoverCard>
-                    </TableCell>
-                    <TableCell className="max-w-[220px] truncate text-muted-foreground">{a.purpose}</TableCell>
-                    <TableCell>
-                      {a.equityChangePercent
-                        ? <span className="text-blue-400">+{a.equityChangePercent}%</span>
-                        : <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={STATUS_STYLES[a.status] ?? ""}>
-                        {STATUS_LABELS[a.status] ?? a.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{a.requestedByName}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{new Date(a.createdAt).toLocaleDateString("en-IN")}</TableCell>
-                    {canManage && (
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          {/* Edit: only for pending allocations */}
-                          {a.status === "pending_approval" && (
-                            <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7" title="Edit allocation" onClick={() => openEdit(a)} aria-label="Edit allocation">
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                          {/* Delete: available for all allocations */}
-                          <Button
-                            size="icon" variant="ghost"
-                            className="w-9 h-9 md:w-7 md:h-7 text-red-400 hover:text-red-300"
-                            title="Delete allocation"
-                            onClick={() => openDelete(a)}
-                           aria-label="Delete allocation">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+        <CardContent className="p-3 md:p-0">
+          <QueryState
+            isLoading={isLoading}
+            isError={isError}
+            isEmpty={items.length === 0}
+            onRetry={refetch}
+            errorMessage="Could not load fund allocations."
+            emptyMessage="No fund allocations yet."
+            emptyIcon={Landmark}
+            loading={<ResponsiveTable columns={columns} data={[]} rowKey={(a) => a.id} isLoading skeletonCount={5} actions={rowActions} />}
+          >
+            <ResponsiveTable columns={columns} data={items} rowKey={(a) => a.id} actions={rowActions} />
+          </QueryState>
         </CardContent>
       </Card>
 

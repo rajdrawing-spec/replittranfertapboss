@@ -44,6 +44,30 @@ export default defineConfig({
       devOptions: { enabled: false },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        // Chunks for features most visitors never touch in a session — the
+        // xlsx export library, the recharts internals (+ its Area/BarChart/
+        // Line satellite chunks), and the LiveKit video-call SDK — are
+        // excluded from the precache so the service worker's install download
+        // isn't ~1.4 MB heavier than the app most people are about to use.
+        // They're still fully available: each is a normal lazy `import()`
+        // reached only when that feature is actually opened, and Vite gives
+        // every hashed chunk an immutable, year-long Cache-Control (set in
+        // the API server's static middleware), so the ordinary HTTP cache
+        // covers repeat use just as well as a workbox precache entry would.
+        // The glob matches by chunk-name prefix, which Vite keeps stable
+        // across builds (only the hash suffix changes) — verified against
+        // the current dist/ output, and re-verify here if any of these
+        // libraries' entry chunk naming ever changes.
+        globIgnores: [
+          '**/xlsx-*.js',
+          '**/generateCategoricalChart-*.js',
+          '**/Area-*.js',
+          '**/BarChart-*.js',
+          '**/Line-*.js',
+          '**/livekit-client.esm-*.js',
+          '**/livekit-room-*.js',
+          '**/meeting-recorder-*.js',
+        ],
         navigateFallback: `${basePath}index.html`,
         // Never serve API or auth traffic from the cache.
         navigateFallbackDenylist: [/^\/api/, /\/__clerk/],

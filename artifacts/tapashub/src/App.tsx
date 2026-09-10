@@ -8,12 +8,20 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Route, Switch, Router as WouterRouter, useLocation, Redirect } from 'wouter';
 import { ThemeProvider } from '@/components/theme-provider';
+import { Skeleton } from '@/components/ui/skeleton';
 // Lazy-load the sidebar/topbar shell so the entry chunk stays small and the app
 // shell renders faster on mobile/slow networks.
 const Layout = React.lazy(() => import('@/components/layout').then((m) => ({ default: m.Layout })));
 import { CompanyProvider } from '@/contexts/company-context';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { AiTaskRealtimeProvider } from '@/contexts/ai-task-realtime-context';
+// MeetingProvider itself is a light import (its heavy LiveKit internals are
+// lazy-loaded from within, see meeting-context.tsx) — mounted here so
+// useMeeting() actually has a provider. It previously had none: ai-tasks.tsx
+// calls useMeeting() unconditionally, so every visit to that page threw
+// "useMeeting must be used inside MeetingProvider" and rendered nothing but
+// the route error boundary's fallback.
+import { MeetingProvider } from '@/contexts/meeting-context';
 import { ClerkQueryClientCacheInvalidator } from '@/components/clerk-cache-invalidator';
 import { RouteErrorBoundary } from '@/components/error-boundary';
 
@@ -161,10 +169,43 @@ const clerkAppearance = {
   },
 };
 
+// Shown by Suspense while sign-in.tsx's chunk downloads. This used to be a
+// small centered spinner — nothing like the branded logo/wordmark/card the
+// real page renders a moment later — which was the single largest layout
+// shift Lighthouse found on the site (CLS 0.276 out of the page's 0.278
+// total). Matching the real page's header exactly, and reserving a
+// plausible skeleton footprint for the Clerk card below it, means the swap
+// barely moves anything instead of the whole viewport's content appearing
+// from a standing start.
 function SignInFallback() {
   return (
-    <div className="flex h-[100dvh] w-full items-center justify-center bg-background px-4">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
+      <div className="w-full max-w-[420px]">
+        <div className="mb-8 text-center">
+          <img
+            src={`${basePath}/tapashub-logo.png`}
+            alt="TapasHub"
+            className="mx-auto mb-4 h-20 w-20 object-contain"
+          />
+          <div className="mb-1">
+            <span className="text-3xl font-black tracking-tight text-foreground">TAPAS</span>
+            <span className="text-3xl font-black tracking-tight text-[#1d90e8]">HUB</span>
+          </div>
+          <p className="text-base font-semibold text-foreground">Welcome to TapasHub Business OS</p>
+          <p className="mt-1 text-sm text-muted-foreground">Connect · Empower · Grow · invite-only access</p>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-3">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <div className="flex items-center gap-3 py-1">
+            <div className="h-px flex-1 bg-border" />
+            <Skeleton className="h-3 w-6" />
+            <div className="h-px flex-1 bg-border" />
+          </div>
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-9 w-full mt-2" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -233,6 +274,7 @@ function AuthedApp() {
   return (
     <CompanyProvider>
     <AiTaskRealtimeProvider>
+    <MeetingProvider>
       <React.Suspense fallback={<PageFallback />}>
         <Switch>
           {/* Integrations has its own minimal layout (no sidebar) */}
@@ -285,6 +327,7 @@ function AuthedApp() {
           </Route>
         </Switch>
       </React.Suspense>
+    </MeetingProvider>
     </AiTaskRealtimeProvider>
     </CompanyProvider>
   );

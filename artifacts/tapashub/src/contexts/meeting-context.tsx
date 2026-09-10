@@ -7,12 +7,39 @@ import * as React from "react"
 import * as ReactDOM from "react-dom"
 import { useQueryClient } from "@tanstack/react-query"
 import { io, type Socket } from "socket.io-client"
-import { DisconnectReason } from "livekit-client"
+// Type-only: erased at compile time, so this costs nothing at module load.
+// The runtime enum is resolved from the already-loaded livekit-client module
+// inside handleRoomDisconnected below, which only ever runs once a call is
+// active — by which point LiveKitRoom itself is long since loaded.
+import type { DisconnectReason } from "livekit-client"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
-import { MeetingOverlay } from "@/components/meetings/livekit-room"
 import { IncomingCallPopup, type IncomingCallData } from "@/components/meetings/incoming-call-popup"
-import { finishRecording } from "@/components/meetings/meeting-recorder"
+
+// MeetingOverlay (and the MeetingRecorder it renders) statically import
+// @livekit/components-react and livekit-client — a large WebRTC bundle that
+// has no reason to load for the near-totality of page views where no call is
+// happening. This component used to be mounted at the app root as a plain
+// import, which meant every authenticated page load paid for it. Loaded on
+// demand instead, and only rendered once a call actually exists — see the
+// {activeCall && ...} guard around its usage below, which is what actually
+// defers the import (a bare React.lazy reference still loads eagerly the
+// moment its parent renders).
+const MeetingOverlay = React.lazy(() =>
+  import("@/components/meetings/livekit-room").then((m) => ({ default: m.MeetingOverlay })),
+)
+
+/**
+ * Loads meeting-recorder.tsx on demand rather than at module scope — it also
+ * statically imports livekit-client, for the same reason MeetingOverlay is
+ * lazy above. Both call sites below only run once a call is already active,
+ * so by the time this resolves the module is already warm from
+ * MeetingOverlay's own import.
+ */
+async function finishRecordingLazy(meetingId: string): Promise<void> {
+  const { finishRecording } = await import("@/components/meetings/meeting-recorder")
+  return finishRecording(meetingId)
+}
 
 // Minimum meeting info the context needs
 export interface ActiveCallMeeting {
@@ -101,7 +128,7 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
     const call = activeCallRef.current
     if (call) {
       // Hand the captured audio to the AI Meeting Assistant (best-effort)
-      void finishRecording(call.meeting.meetingId)
+      void finishRecordingLazy(call.meeting.meetingId)
       try {
         await fetch(`/api/meetings/leave/${call.meeting.meetingId}`, {
           method: "POST",
@@ -262,6 +289,10 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
       leavingRef.current = false
       return
     }
+    // Resolved at runtime rather than imported at module scope (see the
+    // import type note above) — by this point a call is active, so
+    // livekit-client is already loaded and this resolves from cache.
+    const { DisconnectReason } = await import("livekit-client")
     if (reason === DisconnectReason.CLIENT_INITIATED) {
       // The user clicked LiveKit's built-in Leave button in the control bar.
       // That disconnects the room directly, bypassing our leaveCall(), so do
@@ -270,7 +301,7 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
       leavingRef.current = false
       setActiveCall(null)
       setIsMinimized(false)
-      void finishRecording(call.meeting.meetingId)
+      void finishRecordingLazy(call.meeting.meetingId)
       fetch(`/api/meetings/leave/${call.meeting.meetingId}`, {
         method: "POST",
         credentials: "include",
@@ -305,7 +336,7 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
             title: "Call ended",
             description: (err as any).error || "The meeting is no longer available.",
           })
-          void finishRecording(call.meeting.meetingId)
+          void finishRecordingLazy(call.meeting.meetingId)
           setActiveCall(null)
           setIsMinimized(false)
           queryClient.invalidateQueries({ queryKey: ["/api/meetings"] })
@@ -324,7 +355,7 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
       description: "Could not reconnect. Please rejoin from the Team page.",
       variant: "destructive",
     })
-    void finishRecording(call.meeting.meetingId)
+    void finishRecordingLazy(call.meeting.meetingId)
     setActiveCall(null)
     setIsMinimized(false)
   }, [queryClient, toast])
@@ -342,15 +373,29 @@ export function MeetingProvider({ children }: { children: React.ReactNode }) {
     >
       {children}
 
-      {/* Single LiveKitRoom — persists across navigation */}
-      <MeetingOverlay
-        activeCall={activeCall}
-        isMinimized={isMinimized}
-        onLeave={leaveCall}
-        onDisconnected={handleRoomDisconnected}
-        onMinimize={() => setIsMinimized(true)}
-        onExpand={() => setIsMinimized(false)}
-      />
+      {/* Single LiveKitRoom — persists across navigation for the lifetime of
+          activeCall. Gating on activeCall here (rather than rendering
+          MeetingOverlay unconditionally and letting its own internal
+          `if (!activeCall) return null` handle it, as before) is what
+          actually defers the lazy import: React starts loading a lazy
+          component's chunk as soon as it's about to render it, not when
+          some later condition inside it becomes true. Unmounting when a
+          call ends is safe — a new call is a fresh LiveKitRoom connection
+          with a new token regardless, so there's no state worth preserving
+          across the gap, and the browser has already cached the chunk for
+          next time. */}
+      {activeCall && (
+        <React.Suspense fallback={null}>
+          <MeetingOverlay
+            activeCall={activeCall}
+            isMinimized={isMinimized}
+            onLeave={leaveCall}
+            onDisconnected={handleRoomDisconnected}
+            onMinimize={() => setIsMinimized(true)}
+            onExpand={() => setIsMinimized(false)}
+          />
+        </React.Suspense>
+      )}
 
       {/* Incoming call popup — portal to body so it floats above everything */}
       {incomingCall &&

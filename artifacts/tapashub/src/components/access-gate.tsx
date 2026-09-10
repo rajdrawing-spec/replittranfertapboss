@@ -24,13 +24,13 @@ export function RequestAccessGate({ module, description }: { module: string; des
 
   return (
     <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
-      <ShieldAlert className="w-10 h-10 text-amber-400" />
+      <ShieldAlert className="w-10 h-10 text-amber-700 dark:text-amber-400" />
       <h2 className="text-lg font-semibold">You don't have permission to access this feature.</h2>
       <p className="text-sm text-muted-foreground max-w-sm">
         {description ?? "Please contact your administrator to request access."}
       </p>
       {sent ? (
-        <div className="flex items-center gap-2 text-sm text-green-400">
+        <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
           <CheckCircle2 className="w-4 h-4" /> Request sent — you'll get access once approved.
         </div>
       ) : (

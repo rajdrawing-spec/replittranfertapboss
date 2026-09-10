@@ -21,13 +21,13 @@ interface Shipment {
 const COURIERS = ["Shiprocket", "Delhivery", "Blue Dart", "DTDC", "India Post"]
 const STATUSES = ["processing", "picked_up", "in_transit", "out_for_delivery", "delivered", "rto", "returned"]
 const STATUS_COLORS: Record<string, string> = {
-  processing: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-  picked_up: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  in_transit: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
-  out_for_delivery: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-  delivered: "bg-green-500/10 text-green-400 border-green-500/20",
-  rto: "bg-orange-500/10 text-orange-400 border-orange-500/20",
-  returned: "bg-red-500/10 text-red-400 border-red-500/20",
+  processing: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20",
+  picked_up: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20",
+  in_transit: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20",
+  out_for_delivery: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20",
+  delivered: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20",
+  rto: "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20",
+  returned: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20",
 }
 const label = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
 const fmtDate = (v: string | null) => (v ? new Date(v).toLocaleString() : null)
@@ -172,7 +172,7 @@ export default function Shipping() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[{ l: "Total", v: stats.total, c: "text-foreground" }, { l: "In Transit", v: stats.inTransit, c: "text-indigo-400" }, { l: "Delivered", v: stats.delivered, c: "text-green-400" }, { l: "RTO / Returns", v: stats.issues, c: "text-orange-400" }].map((s) => (
+        {[{ l: "Total", v: stats.total, c: "text-foreground" }, { l: "In Transit", v: stats.inTransit, c: "text-indigo-700 dark:text-indigo-400" }, { l: "Delivered", v: stats.delivered, c: "text-green-700 dark:text-green-400" }, { l: "RTO / Returns", v: stats.issues, c: "text-orange-700 dark:text-orange-400" }].map((s) => (
           <Card key={s.l}><CardContent className="p-4"><div className="text-xs text-muted-foreground">{s.l}</div><div className={`text-2xl font-bold mt-1 ${s.c}`}>{s.v}</div></CardContent></Card>
         ))}
       </div>

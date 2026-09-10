@@ -77,11 +77,11 @@ const SHARE_TYPE_LABELS: Record<string, string> = {
   institutional: "INSTITUTIONAL SHARES",
 }
 const ROLE_STYLES: Record<string, string> = {
-  founder: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  investor: "bg-green-500/10 text-green-400 border-green-500/20",
-  employee: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-  advisor: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  institutional: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
+  founder: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20",
+  investor: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20",
+  employee: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20",
+  advisor: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
+  institutional: "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border-cyan-500/20",
 }
 const TX_LABELS: Record<string, string> = {
   purchase: "Purchase", sale: "Sale", grant: "Grant", dividend: "Dividend", transfer: "Transfer",
@@ -128,7 +128,7 @@ function MyHoldingsView() {
     {
       key: "status", header: "Status", card: "badge",
       cell: (h) => (
-        <Badge variant="outline" className={h.status === "active" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-muted text-muted-foreground"}>
+        <Badge variant="outline" className={h.status === "active" ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20" : "bg-muted text-muted-foreground"}>
           {h.status === "active" ? "Active" : "Exited"}
         </Badge>
       ),
@@ -160,9 +160,9 @@ function MyHoldingsView() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <SummaryCard icon={Users}     label="Companies" value={String(new Set((holdings ?? []).map((h) => h.companyId)).size)} loading={isLoading} accent="text-purple-400" />
-        <SummaryCard icon={PieChart}  label="Total Shares" value={isLoading ? "—" : num(totalShares)}     loading={isLoading} accent="text-blue-400" />
-        <SummaryCard icon={Wallet}    label="Total Invested" value={isLoading ? "—" : inr(totalInvested)} loading={isLoading} accent="text-amber-400" />
+        <SummaryCard icon={Users}     label="Companies" value={String(new Set((holdings ?? []).map((h) => h.companyId)).size)} loading={isLoading} accent="text-purple-700 dark:text-purple-400" />
+        <SummaryCard icon={PieChart}  label="Total Shares" value={isLoading ? "—" : num(totalShares)}     loading={isLoading} accent="text-blue-700 dark:text-blue-400" />
+        <SummaryCard icon={Wallet}    label="Total Invested" value={isLoading ? "—" : inr(totalInvested)} loading={isLoading} accent="text-amber-700 dark:text-amber-400" />
       </div>
 
       <Card>
@@ -194,19 +194,19 @@ function MyHoldingsView() {
 
 // ── AI Valuation Panel ────────────────────────────────────────────────────────
 const VALUATION_METHODS = [
-  { key: "assetValuation",      label: "Asset-Based",       weight: "20%", color: "text-amber-400" },
-  { key: "revenueMultipleVal",  label: "Revenue Multiple",  weight: "30%", color: "text-blue-400" },
-  { key: "ebitdaValuation",     label: "EBITDA Multiple",   weight: "20%", color: "text-purple-400" },
-  { key: "dcfValuation",        label: "DCF",               weight: "15%", color: "text-cyan-400" },
-  { key: "scorecardValuation",  label: "Scorecard",         weight: "10%", color: "text-green-400" },
+  { key: "assetValuation",      label: "Asset-Based",       weight: "20%", color: "text-amber-700 dark:text-amber-400" },
+  { key: "revenueMultipleVal",  label: "Revenue Multiple",  weight: "30%", color: "text-blue-700 dark:text-blue-400" },
+  { key: "ebitdaValuation",     label: "EBITDA Multiple",   weight: "20%", color: "text-purple-700 dark:text-purple-400" },
+  { key: "dcfValuation",        label: "DCF",               weight: "15%", color: "text-cyan-700 dark:text-cyan-400" },
+  { key: "scorecardValuation",  label: "Scorecard",         weight: "10%", color: "text-green-700 dark:text-green-400" },
   { key: "vcValuation",         label: "VC Method",         weight: "5%",  color: "text-rose-400" },
 ] as const
 
 const RATING_CONFIG: Record<string, { label: string; color: string; bar: string }> = {
-  excellent:         { label: "Excellent Investment Opportunity",  color: "text-green-400",  bar: "bg-green-500" },
-  strong:            { label: "Strong Investment Opportunity",     color: "text-blue-400",   bar: "bg-blue-500" },
-  moderate:          { label: "Moderate Risk",                     color: "text-amber-400",  bar: "bg-amber-500" },
-  needs_improvement: { label: "Needs Improvement",                 color: "text-red-400",    bar: "bg-red-500" },
+  excellent:         { label: "Excellent Investment Opportunity",  color: "text-green-700 dark:text-green-400",  bar: "bg-green-500" },
+  strong:            { label: "Strong Investment Opportunity",     color: "text-blue-700 dark:text-blue-400",   bar: "bg-blue-500" },
+  moderate:          { label: "Moderate Risk",                     color: "text-amber-700 dark:text-amber-400",  bar: "bg-amber-500" },
+  needs_improvement: { label: "Needs Improvement",                 color: "text-red-700 dark:text-red-400",    bar: "bg-red-500" },
 }
 
 function AiValuationPanel({ companyId }: { companyId: string }) {
@@ -243,10 +243,10 @@ function AiValuationPanel({ companyId }: { companyId: string }) {
   const valuation   = runValuation.data ?? cached
   const rating      = valuation?.investorRating ? RATING_CONFIG[valuation.investorRating] : null
   const healthColor = valuation?.healthTrend === "growing"
-    ? "text-green-400 bg-green-500/10 border-green-500/20"
+    ? "text-green-700 dark:text-green-400 bg-green-500/10 border-green-500/20"
     : valuation?.healthTrend === "declining"
-    ? "text-red-400 bg-red-500/10 border-red-500/20"
-    : "text-amber-400 bg-amber-500/10 border-amber-500/20"
+    ? "text-red-700 dark:text-red-400 bg-red-500/10 border-red-500/20"
+    : "text-amber-700 dark:text-amber-400 bg-amber-500/10 border-amber-500/20"
 
   if (!cid) return null
 
@@ -276,7 +276,7 @@ function AiValuationPanel({ companyId }: { companyId: string }) {
           </div>
         </div>
         <CardDescription className="text-xs">
-          Weighted average of 6 investor-grade methods. <span className="text-amber-400">Estimate only — not official financial advice.</span>
+          Weighted average of 6 investor-grade methods. <span className="text-amber-700 dark:text-amber-400">Estimate only — not official financial advice.</span>
         </CardDescription>
       </CardHeader>
 
@@ -314,13 +314,13 @@ function AiValuationPanel({ companyId }: { companyId: string }) {
 
           {/* ── Final estimate + core KPIs ── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <ValKpi label="Est. Company Value"  value={inr(valuation.estimatedValue)}    accent="text-green-400" />
-            <ValKpi label="Enterprise Value"     value={inr(valuation.enterpriseValue)}   accent="text-blue-400" />
-            <ValKpi label="Shareholder Equity"   value={inr(valuation.shareholderEquity)} accent="text-purple-400" />
-            <ValKpi label="Net Asset Value"      value={inr(valuation.nav)}               accent="text-amber-400" />
-            <ValKpi label="Revenue Growth"       value={pct(valuation.revenueGrowthRate)} accent={valuation.revenueGrowthRate != null && valuation.revenueGrowthRate >= 0 ? "text-green-400" : "text-red-400"} />
-            <ValKpi label="Profit Growth"        value={pct(valuation.profitGrowthRate)}  accent={valuation.profitGrowthRate != null && valuation.profitGrowthRate >= 0 ? "text-green-400" : "text-red-400"} />
-            <ValKpi label="Business Growth Score" value={valuation.growthScore != null ? `${valuation.growthScore}/100` : "—"} accent={valuation.growthScore != null && valuation.growthScore >= 70 ? "text-green-400" : valuation.growthScore != null && valuation.growthScore >= 40 ? "text-amber-400" : "text-red-400"} />
+            <ValKpi label="Est. Company Value"  value={inr(valuation.estimatedValue)}    accent="text-green-700 dark:text-green-400" />
+            <ValKpi label="Enterprise Value"     value={inr(valuation.enterpriseValue)}   accent="text-blue-700 dark:text-blue-400" />
+            <ValKpi label="Shareholder Equity"   value={inr(valuation.shareholderEquity)} accent="text-purple-700 dark:text-purple-400" />
+            <ValKpi label="Net Asset Value"      value={inr(valuation.nav)}               accent="text-amber-700 dark:text-amber-400" />
+            <ValKpi label="Revenue Growth"       value={pct(valuation.revenueGrowthRate)} accent={valuation.revenueGrowthRate != null && valuation.revenueGrowthRate >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"} />
+            <ValKpi label="Profit Growth"        value={pct(valuation.profitGrowthRate)}  accent={valuation.profitGrowthRate != null && valuation.profitGrowthRate >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"} />
+            <ValKpi label="Business Growth Score" value={valuation.growthScore != null ? `${valuation.growthScore}/100` : "—"} accent={valuation.growthScore != null && valuation.growthScore >= 70 ? "text-green-700 dark:text-green-400" : valuation.growthScore != null && valuation.growthScore >= 40 ? "text-amber-700 dark:text-amber-400" : "text-red-700 dark:text-red-400"} />
             <div className="rounded-lg border p-3 bg-card">
               <div className="text-xs text-muted-foreground mb-1.5">Health Trend</div>
               {valuation.healthTrend ? (
@@ -352,7 +352,7 @@ function AiValuationPanel({ companyId }: { companyId: string }) {
                 ))}
                 <div className="flex items-center justify-between px-4 py-3 text-sm bg-muted/20">
                   <span className="font-bold">Weighted Average (Final)</span>
-                  <span className="font-extrabold text-green-400 text-base">{inr(valuation.estimatedValue)}</span>
+                  <span className="font-extrabold text-green-700 dark:text-green-400 text-base">{inr(valuation.estimatedValue)}</span>
                 </div>
               </div>
             </div>
@@ -367,19 +367,19 @@ function AiValuationPanel({ companyId }: { companyId: string }) {
               <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0">
                 <div className="p-3 text-center">
                   <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Book Value / Share</div>
-                  <div className="font-bold text-purple-400">{valuation.bookValuePerShare != null && valuation.bookValuePerShare > 0 ? inr(valuation.bookValuePerShare) : "—"}</div>
+                  <div className="font-bold text-purple-700 dark:text-purple-400">{valuation.bookValuePerShare != null && valuation.bookValuePerShare > 0 ? inr(valuation.bookValuePerShare) : "—"}</div>
                 </div>
                 <div className="p-3 text-center">
                   <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Est. Fair Value / Share</div>
-                  <div className="font-bold text-green-400">{valuation.estimatedSharePrice != null && valuation.estimatedSharePrice > 0 ? inr(valuation.estimatedSharePrice) : "—"}</div>
+                  <div className="font-bold text-green-700 dark:text-green-400">{valuation.estimatedSharePrice != null && valuation.estimatedSharePrice > 0 ? inr(valuation.estimatedSharePrice) : "—"}</div>
                 </div>
                 <div className="p-3 text-center">
                   <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Equity / Share</div>
-                  <div className="font-bold text-blue-400">{valuation.shareholderEquity != null && valuation.estimatedSharePrice != null && valuation.estimatedSharePrice > 0 ? inr(valuation.shareholderEquity / (valuation.estimatedValue! / valuation.estimatedSharePrice!)) : "—"}</div>
+                  <div className="font-bold text-blue-700 dark:text-blue-400">{valuation.shareholderEquity != null && valuation.estimatedSharePrice != null && valuation.estimatedSharePrice > 0 ? inr(valuation.shareholderEquity / (valuation.estimatedValue! / valuation.estimatedSharePrice!)) : "—"}</div>
                 </div>
                 <div className="p-3 text-center">
                   <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Growth Score</div>
-                  <div className={cn("font-bold", valuation.growthScore != null && valuation.growthScore >= 70 ? "text-green-400" : "text-amber-400")}>
+                  <div className={cn("font-bold", valuation.growthScore != null && valuation.growthScore >= 70 ? "text-green-700 dark:text-green-400" : "text-amber-700 dark:text-amber-400")}>
                     {valuation.growthScore != null ? `${valuation.growthScore}/100` : "—"}
                   </div>
                 </div>
@@ -437,7 +437,7 @@ function AiValuationPanel({ companyId }: { companyId: string }) {
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">Est. Share Value</div>
-                        <div className="font-semibold text-green-400">{inr(sh.estimatedShareValue)}</div>
+                        <div className="font-semibold text-green-700 dark:text-green-400">{inr(sh.estimatedShareValue)}</div>
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">Capital Invested</div>
@@ -445,7 +445,7 @@ function AiValuationPanel({ companyId }: { companyId: string }) {
                       </div>
                       <div>
                         <div className="text-xs text-muted-foreground">ROI Estimate</div>
-                        <div className={cn("font-semibold", sh.roiEstimate != null && sh.roiEstimate >= 0 ? "text-green-400" : "text-red-400")}>
+                        <div className={cn("font-semibold", sh.roiEstimate != null && sh.roiEstimate >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400")}>
                           {sh.roiEstimate != null ? pct(sh.roiEstimate) : "—"}
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5 truncate" title={sh.roiExplanation}>{sh.roiExplanation}</div>
@@ -616,7 +616,7 @@ function AdminShareholdersView() {
       {
         key: "estMktVal", header: "Est. Mkt Val", headClassName: "text-right", cellClassName: "text-right",
         cell: (h: Shareholder) => (
-          <span className={aiValuation!.estimatedSharePrice && h.investmentAmount > 0 ? (h.shares * aiValuation!.estimatedSharePrice! > h.investmentAmount ? "text-green-400" : "text-red-400") : ""}>
+          <span className={aiValuation!.estimatedSharePrice && h.investmentAmount > 0 ? (h.shares * aiValuation!.estimatedSharePrice! > h.investmentAmount ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400") : ""}>
             {aiValuation!.estimatedSharePrice ? inr(h.shares * aiValuation!.estimatedSharePrice!) : "—"}
           </span>
         ),
@@ -625,7 +625,7 @@ function AdminShareholdersView() {
     {
       key: "status", header: "Status", card: "badge",
       cell: (h) => (
-        <Badge variant="outline" className={h.status === "active" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-muted text-muted-foreground"}>
+        <Badge variant="outline" className={h.status === "active" ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20" : "bg-muted text-muted-foreground"}>
           {h.status === "active" ? "Active" : "Exited"}
         </Badge>
       ),
@@ -686,10 +686,10 @@ function AdminShareholdersView() {
 
       {/* Cap table summary */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <SummaryCard icon={TrendingUp} label="Company Valuation" value={cap ? inr(cap.valuation) : "—"} loading={capLoading} accent="text-green-400" />
-        <SummaryCard icon={PieChart} label="Total Shares Issued" value={cap ? num(cap.totalShares) : "—"} loading={capLoading} accent="text-blue-400" />
-        <SummaryCard icon={Wallet} label="Total Invested" value={cap ? inr(cap.totalInvested) : "—"} loading={capLoading} accent="text-amber-400" />
-        <SummaryCard icon={Users} label="Shareholders" value={cap ? num(cap.shareholderCount) : "—"} loading={capLoading} accent="text-purple-400" />
+        <SummaryCard icon={TrendingUp} label="Company Valuation" value={cap ? inr(cap.valuation) : "—"} loading={capLoading} accent="text-green-700 dark:text-green-400" />
+        <SummaryCard icon={PieChart} label="Total Shares Issued" value={cap ? num(cap.totalShares) : "—"} loading={capLoading} accent="text-blue-700 dark:text-blue-400" />
+        <SummaryCard icon={Wallet} label="Total Invested" value={cap ? inr(cap.totalInvested) : "—"} loading={capLoading} accent="text-amber-700 dark:text-amber-400" />
+        <SummaryCard icon={Users} label="Shareholders" value={cap ? num(cap.shareholderCount) : "—"} loading={capLoading} accent="text-purple-700 dark:text-purple-400" />
       </div>
 
       <Card>
@@ -942,7 +942,7 @@ function ShareholderDetail({ id, onClose, canManage, txForm, setTxForm, onChange
                     { key: "date", header: "Date", card: "subtitle", cell: (t) => new Date(t.date).toLocaleDateString("en-IN") },
                     {
                       key: "shares", header: "Shares", headClassName: "text-right", cellClassName: "text-right",
-                      cell: (t) => <span className={t.shares < 0 ? "text-red-400" : ""}>{t.shares > 0 ? "+" : ""}{num(t.shares)}</span>,
+                      cell: (t) => <span className={t.shares < 0 ? "text-red-700 dark:text-red-400" : ""}>{t.shares > 0 ? "+" : ""}{num(t.shares)}</span>,
                     },
                     { key: "pricePerShare", header: "₹/share", headClassName: "text-right", cellClassName: "text-right", cell: (t) => inr(t.pricePerShare) },
                     { key: "amount", header: "Amount", headClassName: "text-right", cellClassName: "text-right", cell: (t) => inr(t.amount) },

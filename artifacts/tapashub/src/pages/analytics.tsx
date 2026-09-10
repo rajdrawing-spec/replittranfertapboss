@@ -121,9 +121,9 @@ function Kpi({ icon: Icon, label, value, sub, tone }: { icon: React.ElementType;
 function GrowthBadge({ v }: { v: number | null }) {
   if (v == null) return <span className="text-muted-foreground/70">vs last period —</span>
   return v >= 0 ? (
-    <span className="text-green-400 inline-flex items-center gap-1"><TrendingUp className="w-3 h-3" />{pctText(v)}</span>
+    <span className="text-green-700 dark:text-green-400 inline-flex items-center gap-1"><TrendingUp className="w-3 h-3" />{pctText(v)}</span>
   ) : (
-    <span className="text-red-400 inline-flex items-center gap-1"><TrendingDown className="w-3 h-3" />{pctText(v)}</span>
+    <span className="text-red-700 dark:text-red-400 inline-flex items-center gap-1"><TrendingDown className="w-3 h-3" />{pctText(v)}</span>
   )
 }
 
@@ -156,7 +156,7 @@ export default function Analytics() {
     { key: "expenses", header: "Expenses", headClassName: "text-right", cellClassName: "text-right", cell: (r) => <span className="text-muted-foreground">{inr(r.expenses)}</span> },
     {
       key: "profit", header: "Profit", card: "badge", headClassName: "text-right", cellClassName: "text-right",
-      cell: (r) => <span className={`font-medium ${r.profit >= 0 ? "text-green-400" : "text-red-400"}`}>{inr(r.profit)}</span>,
+      cell: (r) => <span className={`font-medium ${r.profit >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>{inr(r.profit)}</span>,
     },
     { key: "margin", header: "Margin", headClassName: "text-right", cellClassName: "text-right", cell: (r) => r.margin != null ? `${r.margin.toFixed(1)}%` : "—" },
   ]
@@ -204,20 +204,20 @@ export default function Analytics() {
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Kpi icon={BarChart3} label={`Revenue (this ${periodWord})`} value={fmtCompact(cur.revenue)} tone="bg-teal-500/10 text-teal-400"
+            <Kpi icon={BarChart3} label={`Revenue (this ${periodWord})`} value={fmtCompact(cur.revenue)} tone="bg-teal-500/10 text-teal-700 dark:text-teal-400"
               sub={<GrowthBadge v={cur.revenueGrowth} />} />
             <Kpi icon={TrendingUp} label={`Net Profit (this ${periodWord})`} value={fmtCompact(cur.netProfit)}
-              tone={cur.netProfit >= 0 ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}
+              tone={cur.netProfit >= 0 ? "bg-green-500/10 text-green-700 dark:text-green-400" : "bg-red-500/10 text-red-700 dark:text-red-400"}
               sub={<span className="text-muted-foreground">{cur.netMargin != null ? `${cur.netMargin.toFixed(1)}% margin` : "—"}</span>} />
             <Kpi icon={DollarSign} label="Company Valuation" value={summary!.equity.valuation > 0 ? fmtCompact(summary!.equity.valuation) : "—"}
-              tone="bg-amber-500/10 text-amber-400"
+              tone="bg-amber-500/10 text-amber-700 dark:text-amber-400"
               sub={<span className="text-muted-foreground">{summary!.equity.capitalInvested > 0 ? `${inr(summary!.equity.capitalInvested)} invested` : "No equity data"}</span>} />
             {companyId !== "all" ? (
               <Kpi icon={Percent} label={`Market Share (this ${periodWord})`} value={cur.marketShare != null ? `${cur.marketShare.toFixed(1)}%` : "—"}
-                tone="bg-purple-500/10 text-purple-400" sub={<span className="text-muted-foreground">of group revenue</span>} />
+                tone="bg-purple-500/10 text-purple-700 dark:text-purple-400" sub={<span className="text-muted-foreground">of group revenue</span>} />
             ) : (
               <Kpi icon={PieChart} label="Unique Shareholders" value={String(summary!.equity.uniqueShareholders)}
-                tone="bg-purple-500/10 text-purple-400"
+                tone="bg-purple-500/10 text-purple-700 dark:text-purple-400"
                 sub={<span className="text-muted-foreground">{summary!.equity.shareholderCount} holding record{summary!.equity.shareholderCount !== 1 ? "s" : ""} across portfolio</span>} />
             )}
           </div>
@@ -246,7 +246,7 @@ export default function Analytics() {
           <div className="grid gap-6 lg:grid-cols-3">
             <Card className="lg:col-span-1">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2"><Lightbulb className="w-4 h-4 text-amber-400" /> Insights</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2"><Lightbulb className="w-4 h-4 text-amber-700 dark:text-amber-400" /> Insights</CardTitle>
                 <CardDescription className="text-xs">Computed from your live data</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">

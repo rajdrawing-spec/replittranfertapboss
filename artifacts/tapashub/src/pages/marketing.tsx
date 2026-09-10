@@ -51,23 +51,23 @@ const LEAD_STATUSES = ["new", "contacted", "qualified", "converted", "lost"]
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
-  active: "bg-green-500/10 text-green-400 border-green-500/20",
-  paused: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-  completed: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  approved: "bg-green-500/10 text-green-400 border-green-500/20",
+  active: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20",
+  paused: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20",
+  completed: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20",
+  approved: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20",
   live: "bg-primary/10 text-primary border-primary/20",
   archived: "bg-muted text-muted-foreground",
-  new: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  contacted: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  qualified: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-  converted: "bg-green-500/10 text-green-400 border-green-500/20",
-  lost: "bg-red-500/10 text-red-400 border-red-500/20",
+  new: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20",
+  contacted: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
+  qualified: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20",
+  converted: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20",
+  lost: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20",
 }
 const CHANNEL_COLORS: Record<string, string> = {
-  meta: "bg-blue-600/10 text-blue-400", google: "bg-red-500/10 text-red-400",
-  instagram: "bg-pink-500/10 text-pink-400", facebook: "bg-indigo-500/10 text-indigo-400",
-  whatsapp: "bg-green-500/10 text-green-400", email: "bg-amber-500/10 text-amber-400",
-  referral: "bg-teal-500/10 text-teal-400", other: "bg-muted text-muted-foreground",
+  meta: "bg-blue-600/10 text-blue-700 dark:text-blue-400", google: "bg-red-500/10 text-red-700 dark:text-red-400",
+  instagram: "bg-pink-500/10 text-pink-700 dark:text-pink-400", facebook: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400",
+  whatsapp: "bg-green-500/10 text-green-700 dark:text-green-400", email: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  referral: "bg-teal-500/10 text-teal-700 dark:text-teal-400", other: "bg-muted text-muted-foreground",
 }
 const CREATIVE_TYPE_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   image: ImageIcon, video: Film, copy: FileText, carousel: LayoutGrid,
@@ -83,11 +83,11 @@ const campaignRoiColumns: ResponsiveTableColumn<PerfCampaign>[] = [
     cell: (c) => <span className={`text-[10px] font-semibold px-2 py-0.5 rounded uppercase ${CHANNEL_COLORS[c.channel] || "bg-muted"}`}>{c.channel}</span>,
   },
   { key: "spent", header: "Spent", cellClassName: "text-right", headClassName: "text-right", cell: (c) => fmtINR(c.spent) },
-  { key: "revenue", header: "Revenue", cellClassName: "text-right", headClassName: "text-right", cell: (c) => <span className="text-green-400">{fmtINR(c.revenue)}</span> },
+  { key: "revenue", header: "Revenue", cellClassName: "text-right", headClassName: "text-right", cell: (c) => <span className="text-green-700 dark:text-green-400">{fmtINR(c.revenue)}</span> },
   {
     key: "roi", header: "ROI", cellClassName: "text-right", headClassName: "text-right",
     cell: (c) => (
-      <span className={`font-semibold ${c.roi == null ? "text-muted-foreground" : c.roi >= 0 ? "text-green-400" : "text-red-400"}`}>
+      <span className={`font-semibold ${c.roi == null ? "text-muted-foreground" : c.roi >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
         {fmtROI(c.roi)}
       </span>
     ),
@@ -158,10 +158,10 @@ function PerformanceTab() {
 
   const t = perf.totals
   const stats = [
-    { l: "Budget", v: fmtINR(t.budget), sub: `${t.campaignCount} campaigns`, icon: IndianRupee, c: "text-blue-400" },
-    { l: "Ad Spend", v: fmtINR(t.spent), sub: t.budget > 0 ? `${Math.round((t.spent / t.budget) * 100)}% of budget` : "—", icon: TrendingUp, c: "text-orange-400" },
-    { l: "Revenue", v: fmtINR(t.revenue), sub: `ROI ${fmtROI(t.roi)}`, icon: IndianRupee, c: "text-green-400" },
-    { l: "Conversions", v: t.conversions.toLocaleString("en-IN"), sub: `${t.leads.toLocaleString("en-IN")} leads`, icon: Users, c: "text-purple-400" },
+    { l: "Budget", v: fmtINR(t.budget), sub: `${t.campaignCount} campaigns`, icon: IndianRupee, c: "text-blue-700 dark:text-blue-400" },
+    { l: "Ad Spend", v: fmtINR(t.spent), sub: t.budget > 0 ? `${Math.round((t.spent / t.budget) * 100)}% of budget` : "—", icon: TrendingUp, c: "text-orange-700 dark:text-orange-400" },
+    { l: "Revenue", v: fmtINR(t.revenue), sub: `ROI ${fmtROI(t.roi)}`, icon: IndianRupee, c: "text-green-700 dark:text-green-400" },
+    { l: "Conversions", v: t.conversions.toLocaleString("en-IN"), sub: `${t.leads.toLocaleString("en-IN")} leads`, icon: Users, c: "text-purple-700 dark:text-purple-400" },
   ]
   const maxSpent = Math.max(...perf.channels.map((c) => c.spent), 1)
 
@@ -190,7 +190,7 @@ function PerformanceTab() {
                   <div className="flex items-center gap-4 text-xs text-muted-foreground">
                     <span>Spend {fmtINR(ch.spent)}</span>
                     <span>Rev {fmtINR(ch.revenue)}</span>
-                    <span className={ch.roi == null ? "" : ch.roi >= 0 ? "text-green-400" : "text-red-400"}>ROI {fmtROI(ch.roi)}</span>
+                    <span className={ch.roi == null ? "" : ch.roi >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}>ROI {fmtROI(ch.roi)}</span>
                   </div>
                 </div>
                 <div className="h-2 rounded bg-muted overflow-hidden">
@@ -314,13 +314,13 @@ function CampaignsTab() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                     <div><div className="text-sm font-bold">{c.leads}</div><div className="text-[10px] text-muted-foreground">Leads</div></div>
                     <div><div className="text-sm font-bold">{c.conversions}</div><div className="text-[10px] text-muted-foreground">Conv.</div></div>
-                    <div><div className="text-sm font-bold text-green-400">{fmtINR(c.revenue)}</div><div className="text-[10px] text-muted-foreground">Revenue</div></div>
-                    <div><div className={`text-sm font-bold ${roas >= 1 ? "text-green-400" : "text-red-400"}`}>{c.spent > 0 ? `${roas.toFixed(1)}x` : "—"}</div><div className="text-[10px] text-muted-foreground">ROAS</div></div>
+                    <div><div className="text-sm font-bold text-green-700 dark:text-green-400">{fmtINR(c.revenue)}</div><div className="text-[10px] text-muted-foreground">Revenue</div></div>
+                    <div><div className={`text-sm font-bold ${roas >= 1 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>{c.spent > 0 ? `${roas.toFixed(1)}x` : "—"}</div><div className="text-[10px] text-muted-foreground">ROAS</div></div>
                   </div>
 
                   <div className="flex gap-2 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => openEdit(c)}><Pencil className="w-3.5 h-3.5 mr-1" /> Edit</Button>
-                    <Button variant="outline" size="sm" className="text-red-400" onClick={() => del(c.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    <Button variant="outline" size="sm" className="text-red-700 dark:text-red-400" onClick={() => del(c.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                   </div>
                 </CardContent>
               </Card>
@@ -474,7 +474,7 @@ function CreativesTab() {
                     {c.url && <a href={assetSrc(c.url)} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1"><ExternalLink className="w-3 h-3" /> View</a>}
                     <div className="ml-auto flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button variant="ghost" size="icon" className="w-9 h-9 md:w-7 md:h-7" onClick={() => openEdit(c)} aria-label="Edit"><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button variant="ghost" size="icon" className="w-9 h-9 md:w-7 md:h-7 text-red-400" onClick={() => del(c.id)} aria-label="Delete"><Trash2 className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="w-9 h-9 md:w-7 md:h-7 text-red-700 dark:text-red-400" onClick={() => del(c.id)} aria-label="Delete"><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </div>
                 </CardContent>
@@ -753,7 +753,7 @@ function LeadsTab() {
                           </div>
                           <div className="flex gap-1 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openEdit(l)} aria-label="Edit"><Pencil className="w-3 h-3" /></Button>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-red-400" onClick={() => del(l.id)} aria-label="Delete"><Trash2 className="w-3 h-3" /></Button>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-red-700 dark:text-red-400" onClick={() => del(l.id)} aria-label="Delete"><Trash2 className="w-3 h-3" /></Button>
                           </div>
                         </CardContent>
                       </Card>

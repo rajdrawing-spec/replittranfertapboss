@@ -99,17 +99,17 @@ function ApproverStrip({ approval }: { approval: Approval }) {
         </div>
         <div className="flex items-center gap-2 text-[10px]">
           {approvedCount > 0 && (
-            <span className="flex items-center gap-0.5 text-green-400">
+            <span className="flex items-center gap-0.5 text-green-700 dark:text-green-400">
               <CheckCircle2 className="w-3 h-3" /> {approvedCount} approved
             </span>
           )}
           {pendingCount > 0 && (
-            <span className="flex items-center gap-0.5 text-amber-400">
+            <span className="flex items-center gap-0.5 text-amber-700 dark:text-amber-400">
               <Clock className="w-3 h-3" /> {pendingCount} pending
             </span>
           )}
           {rejectedCount > 0 && (
-            <span className="flex items-center gap-0.5 text-red-400">
+            <span className="flex items-center gap-0.5 text-red-700 dark:text-red-400">
               <XCircle className="w-3 h-3" /> {rejectedCount} rejected
             </span>
           )}
@@ -161,15 +161,15 @@ function ApproverStrip({ approval }: { approval: Approval }) {
                   </span>
                 )}
                 {decision === "approved" ? (
-                  <span className="flex items-center gap-1 text-[10px] font-semibold text-green-400">
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-green-700 dark:text-green-400">
                     <CheckCircle2 className="w-3.5 h-3.5" /> Approved
                   </span>
                 ) : decision === "rejected" ? (
-                  <span className="flex items-center gap-1 text-[10px] font-semibold text-red-400">
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-red-700 dark:text-red-400">
                     <XCircle className="w-3.5 h-3.5" /> Rejected
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 text-[10px] font-medium text-amber-400">
+                  <span className="flex items-center gap-1 text-[10px] font-medium text-amber-700 dark:text-amber-400">
                     <Clock className="w-3 h-3" /> Pending
                   </span>
                 )}
@@ -212,10 +212,10 @@ function ApprovalCard({
 
   const statusColor =
     approval.status === "approved"
-      ? "bg-green-500/10 text-green-400 border-green-500/20"
+      ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20"
       : approval.status === "rejected"
-      ? "bg-red-500/10 text-red-400 border-red-500/20"
-      : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+      ? "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20"
+      : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"
 
   return (
     <Card
@@ -280,7 +280,7 @@ function ApprovalCard({
                 </span>
               )}
               {approval.dueDate && (
-                <span className="flex items-center gap-1 text-amber-400">
+                <span className="flex items-center gap-1 text-amber-700 dark:text-amber-400">
                   <AlertCircle className="w-3 h-3" />
                   Due {approval.dueDate}
                 </span>
@@ -415,11 +415,11 @@ export default function Approvals() {
         {!isLoading && (
           <div className="flex items-center gap-4 text-sm shrink-0">
             <div className="text-center">
-              <div className="text-2xl font-bold text-amber-400">{pending.length}</div>
+              <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">{pending.length}</div>
               <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Pending</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-400">
+              <div className="text-2xl font-bold text-green-700 dark:text-green-400">
                 {approvals.filter((a) => a.status === "approved").length}
               </div>
               <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Approved</div>
@@ -431,7 +431,7 @@ export default function Approvals() {
       {/* Company context reminder */}
       {!activeCompany && (
         <div className="flex items-start gap-3 bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
-          <Building2 className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+          <Building2 className="w-5 h-5 text-blue-700 dark:text-blue-400 shrink-0 mt-0.5" />
           <div className="text-sm text-muted-foreground">
             <span className="font-semibold text-blue-300">Showing all companies. </span>
             Select a company to filter.

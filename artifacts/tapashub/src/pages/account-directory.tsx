@@ -191,7 +191,7 @@ export default function AccountDirectory() {
 
                 <div className="flex gap-2 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button variant="outline" size="sm" className="flex-1" onClick={() => openEdit(e)}><Pencil className="w-3.5 h-3.5 mr-1" /> Edit</Button>
-                  <Button variant="outline" size="sm" className="text-red-400 hover:text-red-300" onClick={() => del(e.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  <Button variant="outline" size="sm" className="text-red-700 dark:text-red-400 hover:text-red-300" onClick={() => del(e.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                 </div>
               </CardContent>
             </Card>

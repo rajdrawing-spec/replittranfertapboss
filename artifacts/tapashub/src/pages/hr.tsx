@@ -99,10 +99,10 @@ export default function HR() {
 
   const f = (k: keyof EmpForm, v: string) => setForm(frm => ({ ...frm, [k]: v }))
   const statusColor: Record<string, string> = {
-    active: "bg-green-500/10 text-green-400 border-green-500/20",
-    on_leave: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-    inactive: "bg-slate-500/10 text-slate-400 border-slate-500/20",
-    terminated: "bg-red-500/10 text-red-400 border-red-500/20",
+    active: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20",
+    on_leave: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20",
+    inactive: "bg-slate-500/10 text-slate-700 dark:text-slate-400 border-slate-500/20",
+    terminated: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20",
   }
 
   const columns: ResponsiveTableColumn<any>[] = [

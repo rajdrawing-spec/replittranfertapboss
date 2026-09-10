@@ -30,10 +30,10 @@ import { QueryState } from "@/components/query-state"
 const API_BASE = ""
 
 const TYPE_COLORS: Record<string, string> = {
-  income:            "bg-green-500/10  text-green-400  border-green-500/20",
-  expense:           "bg-red-500/10    text-red-400    border-red-500/20",
-  transfer:          "bg-blue-500/10   text-blue-400   border-blue-500/20",
-  capital_injection: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+  income:            "bg-green-500/10  text-green-700 dark:text-green-400  border-green-500/20",
+  expense:           "bg-red-500/10    text-red-700 dark:text-red-400    border-red-500/20",
+  transfer:          "bg-blue-500/10   text-blue-700 dark:text-blue-400   border-blue-500/20",
+  capital_injection: "bg-violet-500/10 text-violet-700 dark:text-violet-400 border-violet-500/20",
 }
 const CATEGORIES_INCOME  = ["Sales Revenue","Service Income","Consulting","Royalties","Investment Returns","Other Income"]
 const CATEGORIES_EXPENSE = [
@@ -83,34 +83,34 @@ function BalanceSection({ balance, loading }: { balance: BalanceData | undefined
     {
       label: "Total Income",  value: balance.totalIncome,
       sub: balance.pendingIncome > 0 ? `+${fmt(balance.pendingIncome)} pending` : undefined,
-      icon: TrendingUp, color: "text-green-400", bg: "bg-green-500/10",
+      icon: TrendingUp, color: "text-green-700 dark:text-green-400", bg: "bg-green-500/10",
     },
     {
       label: "Total Expenses", value: balance.totalExpenses,
       sub: balance.pendingExpenses > 0 ? `${fmt(balance.pendingExpenses)} pending` : undefined,
-      icon: TrendingDown, color: "text-red-400", bg: "bg-red-500/10",
+      icon: TrendingDown, color: "text-red-700 dark:text-red-400", bg: "bg-red-500/10",
     },
     {
       label: "Net Operating", value: balance.netOperating, signed: true,
       icon: Wallet,
-      color: balance.netOperating >= 0 ? "text-blue-400" : "text-orange-400",
+      color: balance.netOperating >= 0 ? "text-blue-700 dark:text-blue-400" : "text-orange-700 dark:text-orange-400",
       bg:    balance.netOperating >= 0 ? "bg-blue-500/10" : "bg-orange-500/10",
     },
     {
       label: "Fund Allocations In", value: balance.fundAllocationsIn,
       sub: "Approved transfers received",
-      icon: ArrowDownLeft, color: "text-emerald-400", bg: "bg-emerald-500/10",
+      icon: ArrowDownLeft, color: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-500/10",
     },
     {
       label: "Fund Allocations Out", value: balance.fundAllocationsOut,
       sub: "Approved transfers sent",
-      icon: ArrowUpRight, color: "text-amber-400", bg: "bg-amber-500/10",
+      icon: ArrowUpRight, color: "text-amber-700 dark:text-amber-400", bg: "bg-amber-500/10",
     },
     {
       label: "Net Cash Position", value: balance.netCashPosition, signed: true,
       sub: "Operating + allocations",
       icon: Scale,
-      color: balance.netCashPosition >= 0 ? "text-green-400" : "text-red-400",
+      color: balance.netCashPosition >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400",
       bg:    balance.netCashPosition >= 0 ? "bg-green-500/10" : "bg-red-500/10",
     },
   ]
@@ -150,7 +150,7 @@ function BalanceSection({ balance, loading }: { balance: BalanceData | undefined
               (Income − Expenses + Alloc. In − Alloc. Out)
             </span>
           </div>
-          <div className={`text-xl font-bold ${balance.netCashPosition >= 0 ? "text-green-400" : "text-red-400"}`}>
+          <div className={`text-xl font-bold ${balance.netCashPosition >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
             {balance.netCashPosition >= 0 ? "+" : "−"}{fmt(balance.netCashPosition)}
           </div>
         </div>
@@ -158,7 +158,7 @@ function BalanceSection({ balance, loading }: { balance: BalanceData | undefined
         {/* Pending note */}
         {(balance.pendingIncome > 0 || balance.pendingExpenses > 0) && (
           <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground bg-amber-500/5 border border-amber-500/15 rounded-lg px-3 py-2">
-            <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <Clock className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
             <span>
               {fmt(balance.pendingIncome)} income and {fmt(balance.pendingExpenses)} in expenses are pending — not included in the balance above.
             </span>
@@ -360,22 +360,22 @@ export default function Finance() {
   const kpis = pnl ? [
     {
       label: "Revenue", value: fmt(Number(pnl.revenue)),
-      icon: TrendingUp, color: "text-green-400 bg-green-500/10",
+      icon: TrendingUp, color: "text-green-700 dark:text-green-400 bg-green-500/10",
     },
     {
       label: "Gross Profit",
       value: pnl.grossProfit != null ? fmt(Number(pnl.grossProfit)) : "—",
       sub: pnl.grossMargin != null ? `Margin: ${Number(pnl.grossMargin).toFixed(1)}%` : "COGS not tracked",
-      icon: Wallet, color: "text-blue-400 bg-blue-500/10",
+      icon: Wallet, color: "text-blue-700 dark:text-blue-400 bg-blue-500/10",
     },
     {
       label: "Net Profit", value: fmt(Number(pnl.netProfit)),
       sub: pnl.netMargin != null ? `Margin: ${Number(pnl.netMargin).toFixed(1)}%` : undefined,
-      icon: TrendingUp, color: "text-purple-400 bg-purple-500/10",
+      icon: TrendingUp, color: "text-purple-700 dark:text-purple-400 bg-purple-500/10",
     },
     {
       label: "Expenses", value: fmt(Number(pnl.operatingExpenses)),
-      icon: TrendingDown, color: "text-red-400 bg-red-500/10",
+      icon: TrendingDown, color: "text-red-700 dark:text-red-400 bg-red-500/10",
     },
   ] : []
 
@@ -410,7 +410,7 @@ export default function Finance() {
     {
       key: "amount", header: "Amount",
       cell: (t) => (
-        <span className={`font-semibold ${t.category === "Capital Injection" ? "text-violet-400" : t.type === "income" ? "text-green-400" : t.type === "expense" ? "text-red-400" : ""}`}>
+        <span className={`font-semibold ${t.category === "Capital Injection" ? "text-violet-700 dark:text-violet-400" : t.type === "income" ? "text-green-700 dark:text-green-400" : t.type === "expense" ? "text-red-700 dark:text-red-400" : ""}`}>
           {t.type === "expense" ? "−" : "+"}₹{Number(t.amount).toLocaleString("en-IN")}
         </span>
       ),
@@ -456,7 +456,7 @@ export default function Finance() {
       {isSubsidiary && balance && !balanceLoading && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-indigo-400" />
+            <Building2 className="w-4 h-4 text-indigo-700 dark:text-indigo-400" />
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
               Subsidiary Finance Overview
             </h2>
@@ -468,7 +468,7 @@ export default function Finance() {
             <Card className="bg-card/60">
               <CardContent className="pt-4 pb-4">
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3 bg-indigo-500/10">
-                  <ArrowDownLeft className="w-4 h-4 text-indigo-400" />
+                  <ArrowDownLeft className="w-4 h-4 text-indigo-700 dark:text-indigo-400" />
                 </div>
                 <div className="text-xl font-bold">{fmt(balance.fundAllocationsIn)}</div>
                 <div className="text-xs text-muted-foreground mt-0.5">Funds from TapasHub</div>
@@ -480,9 +480,9 @@ export default function Finance() {
             <Card className="bg-card/60">
               <CardContent className="pt-4 pb-4">
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3 bg-red-500/10">
-                  <TrendingDown className="w-4 h-4 text-red-400" />
+                  <TrendingDown className="w-4 h-4 text-red-700 dark:text-red-400" />
                 </div>
-                <div className="text-xl font-bold text-red-400">{fmt(balance.totalExpenses)}</div>
+                <div className="text-xl font-bold text-red-700 dark:text-red-400">{fmt(balance.totalExpenses)}</div>
                 <div className="text-xs text-muted-foreground mt-0.5">Total Expenses</div>
                 <div className="text-[11px] text-muted-foreground/60">Completed expense transactions</div>
               </CardContent>
@@ -495,9 +495,9 @@ export default function Finance() {
                 <Card className="bg-card/60">
                   <CardContent className="pt-4 pb-4">
                     <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${avail >= 0 ? "bg-green-500/10" : "bg-red-500/10"}`}>
-                      <Wallet className={`w-4 h-4 ${avail >= 0 ? "text-green-400" : "text-red-400"}`} />
+                      <Wallet className={`w-4 h-4 ${avail >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`} />
                     </div>
-                    <div className={`text-xl font-bold ${avail >= 0 ? "text-green-400" : "text-red-400"}`}>{fmt(avail, true)}</div>
+                    <div className={`text-xl font-bold ${avail >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>{fmt(avail, true)}</div>
                     <div className="text-xs text-muted-foreground mt-0.5">Available Balance</div>
                     <div className="text-[11px] text-muted-foreground/60">Received minus expenses</div>
                   </CardContent>
@@ -514,9 +514,9 @@ export default function Finance() {
                 <Card className="bg-card/60">
                   <CardContent className="pt-4 pb-4">
                     <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${utilPct > 90 ? "bg-red-500/10" : utilPct > 70 ? "bg-amber-500/10" : "bg-blue-500/10"}`}>
-                      <PieChart className={`w-4 h-4 ${utilPct > 90 ? "text-red-400" : utilPct > 70 ? "text-amber-400" : "text-blue-400"}`} />
+                      <PieChart className={`w-4 h-4 ${utilPct > 90 ? "text-red-700 dark:text-red-400" : utilPct > 70 ? "text-amber-700 dark:text-amber-400" : "text-blue-700 dark:text-blue-400"}`} />
                     </div>
-                    <div className={`text-xl font-bold ${utilPct > 90 ? "text-red-400" : utilPct > 70 ? "text-amber-400" : "text-blue-400"}`}>{utilPct}%</div>
+                    <div className={`text-xl font-bold ${utilPct > 90 ? "text-red-700 dark:text-red-400" : utilPct > 70 ? "text-amber-700 dark:text-amber-400" : "text-blue-700 dark:text-blue-400"}`}>{utilPct}%</div>
                     <div className="text-xs text-muted-foreground mt-0.5">Budget Utilization</div>
                     <Progress value={utilPct} className="h-1.5 mt-2" />
                   </CardContent>
@@ -528,11 +528,11 @@ export default function Finance() {
           {/* Allocation info note */}
           {balance.fundAllocationsIn === 0 && (
             <div className="flex items-center gap-2 rounded-lg bg-indigo-500/5 border border-indigo-500/15 px-4 py-3 text-xs text-muted-foreground">
-              <ArrowDownLeft className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+              <ArrowDownLeft className="w-3.5 h-3.5 text-indigo-700 dark:text-indigo-400 shrink-0" />
               <span>
                 No funds have been allocated to {activeCompany?.name} from TapasHub yet.
                 Allocations are managed in{" "}
-                <a href="/fund-allocation" className="text-indigo-400 hover:underline">Fund Allocation</a>.
+                <a href="/fund-allocation" className="text-indigo-700 dark:text-indigo-400 hover:underline">Fund Allocation</a>.
               </span>
             </div>
           )}

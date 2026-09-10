@@ -83,16 +83,16 @@ const METRIC_LABELS: Record<string, string> = {
   valuation: "Valuation", headcount: "Headcount",
 }
 const REC_TYPE_COLORS: Record<string, string> = {
-  launch: "bg-green-500/10 text-green-400 border-green-500/20",
-  enter: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  discontinue: "bg-red-500/10 text-red-400 border-red-500/20",
-  pricing: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-  operational: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  launch: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20",
+  enter: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20",
+  discontinue: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20",
+  pricing: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20",
+  operational: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
 }
 const PRIORITY_COLORS: Record<string, string> = {
-  critical: "bg-red-500/10 text-red-400 border-red-500/20",
-  high:     "bg-orange-500/10 text-orange-400 border-orange-500/20",
-  medium:   "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  critical: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20",
+  high:     "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20",
+  medium:   "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
   low:      "bg-muted text-muted-foreground",
 }
 
@@ -135,7 +135,7 @@ function GrowthPredictionsPanel({ companyId }: { companyId: number }) {
   const cell = (metric: string, horizon: number) => {
     const p = data?.predictions.find(p => p.metric === metric && p.horizon === horizon)
     if (!p) return <td key={horizon} className="px-3 py-2 text-muted-foreground text-center">—</td>
-    const riskColor = p.riskLevel === "high" ? "text-red-400" : p.riskLevel === "medium" ? "text-amber-400" : "text-green-400"
+    const riskColor = p.riskLevel === "high" ? "text-red-700 dark:text-red-400" : p.riskLevel === "medium" ? "text-amber-700 dark:text-amber-400" : "text-green-700 dark:text-green-400"
     return (
       <td key={horizon} className="px-3 py-2 text-center">
         <div className="font-semibold text-sm">{formatMetricValue(p.metric, p.value)}</div>
@@ -175,7 +175,7 @@ function GrowthPredictionsPanel({ companyId }: { companyId: number }) {
             )}
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">3, 6, and 12-month AI forecasts with confidence scores. <span className="text-amber-400">AI estimate — not financial advice.</span></p>
+        <p className="text-xs text-muted-foreground">3, 6, and 12-month AI forecasts with confidence scores. <span className="text-amber-700 dark:text-amber-400">AI estimate — not financial advice.</span></p>
       </CardHeader>
       <CardContent>
         {(cacheLoading || runPred.isPending) && (
@@ -279,7 +279,7 @@ function MarketAnalysisPanel({ companyId }: { companyId: number }) {
             )}
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">Industry demand, competitor positioning, and product/market recommendations. <span className="text-amber-400">AI estimate.</span></p>
+        <p className="text-xs text-muted-foreground">Industry demand, competitor positioning, and product/market recommendations. <span className="text-amber-700 dark:text-amber-400">AI estimate.</span></p>
       </CardHeader>
       <CardContent>
         {(cacheLoading || runMarket.isPending) && (
@@ -319,11 +319,11 @@ function MarketAnalysisPanel({ companyId }: { companyId: number }) {
                         <div className="text-xs text-muted-foreground mt-0.5">{c.marketPosition}</div>
                       </div>
                       <div>
-                        <div className="text-xs font-medium text-green-400 mb-0.5">Strength</div>
+                        <div className="text-xs font-medium text-green-700 dark:text-green-400 mb-0.5">Strength</div>
                         <div className="text-xs text-muted-foreground">{c.strength}</div>
                       </div>
                       <div>
-                        <div className="text-xs font-medium text-red-400 mb-0.5">Weakness</div>
+                        <div className="text-xs font-medium text-red-700 dark:text-red-400 mb-0.5">Weakness</div>
                         <div className="text-xs text-muted-foreground">{c.weakness}</div>
                       </div>
                     </div>
@@ -657,10 +657,10 @@ export default function AiAssistant() {
                         <SwotCard title="Threats"       items={analysis.threats}       color="red"   icon={<AlertTriangle className="w-4 h-4 text-red-500" />} />
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <InsightCard title="Revenue Leaks"       items={analysis.revenueleaks}       icon={<TrendingDown className="w-4 h-4 text-red-400" />} />
-                        <InsightCard title="Cost Opportunities"  items={analysis.costOpportunities}  icon={<Target className="w-4 h-4 text-green-400" />} />
-                        <InsightCard title="Cash Flow Risks"     items={analysis.cashRisks}          icon={<AlertTriangle className="w-4 h-4 text-amber-400" />} />
-                        <InsightCard title="Growth Opportunities" items={analysis.growthOpportunities} icon={<Zap className="w-4 h-4 text-blue-400" />} />
+                        <InsightCard title="Revenue Leaks"       items={analysis.revenueleaks}       icon={<TrendingDown className="w-4 h-4 text-red-700 dark:text-red-400" />} />
+                        <InsightCard title="Cost Opportunities"  items={analysis.costOpportunities}  icon={<Target className="w-4 h-4 text-green-700 dark:text-green-400" />} />
+                        <InsightCard title="Cash Flow Risks"     items={analysis.cashRisks}          icon={<AlertTriangle className="w-4 h-4 text-amber-700 dark:text-amber-400" />} />
+                        <InsightCard title="Growth Opportunities" items={analysis.growthOpportunities} icon={<Zap className="w-4 h-4 text-blue-700 dark:text-blue-400" />} />
                       </div>
                       {analysis.summary && (
                         <Card className="border-primary/20 bg-primary/5">
@@ -875,9 +875,9 @@ function ReportsTab({ companies }: { companies: { id: number; name: string }[] }
   }
 
   const STATUS_STYLES: Record<string, string> = {
-    sent:       "bg-green-500/10 text-green-400 border-green-500/20",
-    generating: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    failed:     "bg-red-500/10 text-red-400 border-red-500/20",
+    sent:       "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20",
+    generating: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20",
+    failed:     "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20",
   }
 
   return (
@@ -949,17 +949,17 @@ function ReportsTab({ companies }: { companies: { id: number; name: string }[] }
             )}
           </div>
           {generateNow.isSuccess && (
-            <div className="text-xs text-green-400 flex items-center gap-1.5">
+            <div className="text-xs text-green-700 dark:text-green-400 flex items-center gap-1.5">
               <CheckCircle2 className="w-3 h-3" /> Report queued — check history below in a few seconds.
             </div>
           )}
           {generateNow.isError && (
-            <div className="text-xs text-red-400 flex items-center gap-1.5">
+            <div className="text-xs text-red-700 dark:text-red-400 flex items-center gap-1.5">
               ✗ {generateNow.error?.message ?? "Report generation failed. Please try again."}
             </div>
           )}
           {createSchedule.isError && (
-            <div className="text-xs text-red-400 flex items-center gap-1.5">
+            <div className="text-xs text-red-700 dark:text-red-400 flex items-center gap-1.5">
               ✗ {createSchedule.error?.message ?? "Failed to create schedule."}
             </div>
           )}
@@ -1006,7 +1006,7 @@ function ReportsTab({ companies }: { companies: { id: number; name: string }[] }
                     <div className="flex items-center gap-2 shrink-0">
                       <Badge
                         variant="outline"
-                        className={cn("text-[10px] cursor-pointer", s.enabled ? "bg-green-500/10 text-green-400 border-green-500/20" : "text-muted-foreground")}
+                        className={cn("text-[10px] cursor-pointer", s.enabled ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20" : "text-muted-foreground")}
                         onClick={() => toggleSchedule.mutate({ id: s.id, enabled: !s.enabled })}
                       >
                         {s.enabled ? "Active" : "Paused"}
@@ -1014,7 +1014,7 @@ function ReportsTab({ companies }: { companies: { id: number; name: string }[] }
                       <Button
                         variant="ghost" size="icon"
                         onClick={() => { if (confirm("Delete this schedule?")) deleteSchedule.mutate(s.id) }}
-                        className="w-9 h-9 md:w-7 md:h-7 text-red-400 hover:text-red-300"
+                        className="w-9 h-9 md:w-7 md:h-7 text-red-700 dark:text-red-400 hover:text-red-300"
                       >
                         ✕
                       </Button>
@@ -1078,7 +1078,7 @@ function ReportsTab({ companies }: { companies: { id: number; name: string }[] }
                     </div>
                   </div>
                   {r.errorMessage && (
-                    <div className="text-xs text-red-400 bg-red-500/5 rounded p-2">{r.errorMessage}</div>
+                    <div className="text-xs text-red-700 dark:text-red-400 bg-red-500/5 rounded p-2">{r.errorMessage}</div>
                   )}
                   {r.aiSummary && r.status !== "generating" && (
                     <div className="text-xs text-muted-foreground line-clamp-2 bg-muted/30 rounded p-2">{r.aiSummary}</div>

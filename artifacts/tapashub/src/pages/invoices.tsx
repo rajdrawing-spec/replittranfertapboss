@@ -53,14 +53,14 @@ const DOC_TYPES = [
 ]
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-slate-500/15 text-slate-400 border-slate-500/30",
-  sent: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  viewed: "bg-purple-500/15 text-purple-400 border-purple-500/30",
-  partially_paid: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-  paid: "bg-green-500/15 text-green-400 border-green-500/30",
-  overdue: "bg-red-500/15 text-red-400 border-red-500/30",
-  cancelled: "bg-gray-500/15 text-gray-400 border-gray-500/30",
-  refunded: "bg-orange-500/15 text-orange-400 border-orange-500/30",
+  draft: "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-500/30",
+  sent: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30",
+  viewed: "bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/30",
+  partially_paid: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
+  paid: "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30",
+  overdue: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30",
+  cancelled: "bg-gray-500/15 text-gray-700 dark:text-gray-400 border-gray-500/30",
+  refunded: "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30",
 }
 
 const fmtCurrency = (n: number, currency = "INR") => {
@@ -172,7 +172,7 @@ export default function InvoicesPage() {
     {
       key: "dueDate", header: "Due",
       cell: (inv) => inv.dueDate ? (
-        <span className={`text-sm ${new Date(inv.dueDate) < new Date() && inv.status !== "paid" ? "text-red-400" : ""}`}>
+        <span className={`text-sm ${new Date(inv.dueDate) < new Date() && inv.status !== "paid" ? "text-red-700 dark:text-red-400" : ""}`}>
           {fmtDate(inv.dueDate)}
         </span>
       ) : <span className="text-sm">—</span>,
@@ -187,7 +187,7 @@ export default function InvoicesPage() {
         <span className="font-medium text-sm">
           {fmtCurrency(inv.total, inv.currency)}
           {inv.paidAmount > 0 && inv.paidAmount < inv.total && (
-            <div className="text-xs text-green-400">{fmtCurrency(inv.paidAmount)} paid</div>
+            <div className="text-xs text-green-700 dark:text-green-400">{fmtCurrency(inv.paidAmount)} paid</div>
           )}
         </span>
       ),
@@ -226,10 +226,10 @@ export default function InvoicesPage() {
             Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20" />)
           ) : (
             <>
-              <KpiCard icon={IndianRupee} label="Total Revenue" value={fmtCurrency(dashboard?.totalRevenue ?? 0)} tone="bg-teal-500/10 text-teal-400" />
-              <KpiCard icon={Clock} label="Outstanding" value={fmtCurrency(dashboard?.pendingAmount ?? 0)} tone="bg-amber-500/10 text-amber-400" sub={`${dashboard?.draftCount ?? 0} drafts`} />
-              <KpiCard icon={CheckCircle} label="Paid Invoices" value={String(dashboard?.paidCount ?? 0)} tone="bg-green-500/10 text-green-400" sub={fmtCurrency(dashboard?.collectedAmount ?? 0) + " collected"} />
-              <KpiCard icon={AlertCircle} label="Overdue" value={String(dashboard?.overdueCount ?? 0)} tone="bg-red-500/10 text-red-400" />
+              <KpiCard icon={IndianRupee} label="Total Revenue" value={fmtCurrency(dashboard?.totalRevenue ?? 0)} tone="bg-teal-500/10 text-teal-700 dark:text-teal-400" />
+              <KpiCard icon={Clock} label="Outstanding" value={fmtCurrency(dashboard?.pendingAmount ?? 0)} tone="bg-amber-500/10 text-amber-700 dark:text-amber-400" sub={`${dashboard?.draftCount ?? 0} drafts`} />
+              <KpiCard icon={CheckCircle} label="Paid Invoices" value={String(dashboard?.paidCount ?? 0)} tone="bg-green-500/10 text-green-700 dark:text-green-400" sub={fmtCurrency(dashboard?.collectedAmount ?? 0) + " collected"} />
+              <KpiCard icon={AlertCircle} label="Overdue" value={String(dashboard?.overdueCount ?? 0)} tone="bg-red-500/10 text-red-700 dark:text-red-400" />
             </>
           )}
         </div>

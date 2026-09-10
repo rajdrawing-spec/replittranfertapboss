@@ -30,9 +30,9 @@ interface Allocation {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  executed:         "bg-green-500/10 text-green-400 border-green-500/20",
-  pending_approval: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  rejected:         "bg-red-500/10  text-red-400  border-red-500/20",
+  executed:         "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20",
+  pending_approval: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
+  rejected:         "bg-red-500/10  text-red-700 dark:text-red-400  border-red-500/20",
 }
 const STATUS_LABELS: Record<string, string> = {
   executed:         "Executed",
@@ -244,9 +244,9 @@ export default function FundAllocations() {
       key: "allocation", header: "Allocation", card: "title",
       cell: (a) => (
         <div className="flex items-center gap-2 font-medium">
-          <span className={a.fromCompanyName === "Unknown" ? "text-amber-400" : ""}>{a.fromCompanyName}</span>
+          <span className={a.fromCompanyName === "Unknown" ? "text-amber-700 dark:text-amber-400" : ""}>{a.fromCompanyName}</span>
           <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className={a.toCompanyName === "Unknown" ? "text-amber-400" : ""}>{a.toCompanyName}</span>
+          <span className={a.toCompanyName === "Unknown" ? "text-amber-700 dark:text-amber-400" : ""}>{a.toCompanyName}</span>
         </div>
       ),
     },
@@ -286,7 +286,7 @@ export default function FundAllocations() {
                 {a.equityChangePercent && (
                   <div className="flex justify-between">
                     <span>Equity change</span>
-                    <span className="text-blue-400">+{a.equityChangePercent}%</span>
+                    <span className="text-blue-700 dark:text-blue-400">+{a.equityChangePercent}%</span>
                   </div>
                 )}
                 {a.executedAt && (
@@ -301,7 +301,7 @@ export default function FundAllocations() {
               </div>
               <div className="pt-1.5 border-t flex items-center justify-between font-semibold">
                 <span className="text-xs text-muted-foreground">Amount</span>
-                <span className="text-amber-400">{inr(a.amount)}</span>
+                <span className="text-amber-700 dark:text-amber-400">{inr(a.amount)}</span>
               </div>
               {runningTotal[a.id] !== undefined && (
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -318,7 +318,7 @@ export default function FundAllocations() {
     {
       key: "equity", header: "Equity",
       cell: (a) => a.equityChangePercent
-        ? <span className="text-blue-400">+{a.equityChangePercent}%</span>
+        ? <span className="text-blue-700 dark:text-blue-400">+{a.equityChangePercent}%</span>
         : <span className="text-muted-foreground">—</span>,
     },
     {
@@ -350,7 +350,7 @@ export default function FundAllocations() {
 
       <Card>
         <CardHeader className="flex flex-row items-center gap-3 space-y-0">
-          <ShieldCheck className="h-5 w-5 text-amber-400 shrink-0" />
+          <ShieldCheck className="h-5 w-5 text-amber-700 dark:text-amber-400 shrink-0" />
           <div>
             <CardTitle className="text-base">Approval threshold</CardTitle>
             <CardDescription>
@@ -412,7 +412,7 @@ export default function FundAllocations() {
                     <div className="space-y-1">
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Own expenses</span>
-                        <span className="font-semibold text-amber-400">{inr(co.spent ?? 0)}</span>
+                        <span className="font-semibold text-amber-700 dark:text-amber-400">{inr(co.spent ?? 0)}</span>
                       </div>
                       <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                         <div className="h-full rounded-full bg-indigo-500" style={{ width: `${selfSpentPct}%`, opacity: 0.8 }} />
@@ -444,7 +444,7 @@ export default function FundAllocations() {
                     <div className="space-y-1">
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Allocated</span>
-                        <span className="font-semibold text-indigo-400">{inr(co.allocated)}</span>
+                        <span className="font-semibold text-indigo-700 dark:text-indigo-400">{inr(co.allocated)}</span>
                       </div>
                       <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                         <div className="h-full rounded-full" style={{ width: `${allocPct}%`, background: co.color }} />
@@ -454,7 +454,7 @@ export default function FundAllocations() {
                     <div className="space-y-1">
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Spent (Finance)</span>
-                        <span className={`font-semibold ${spentPct > 90 ? "text-red-400" : "text-amber-400"}`}>{inr(co.spent ?? 0)}</span>
+                        <span className={`font-semibold ${spentPct > 90 ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}>{inr(co.spent ?? 0)}</span>
                       </div>
                       <div className="h-1 bg-muted rounded-full overflow-hidden">
                         <div
@@ -465,16 +465,16 @@ export default function FundAllocations() {
                     </div>
                     <div className="flex justify-between text-[11px] pt-0.5">
                       <span className="text-muted-foreground">Remaining budget</span>
-                      <span className={remaining < 0 ? "text-red-400 font-semibold" : "text-green-400 font-semibold"}>{inr(remaining)}</span>
+                      <span className={remaining < 0 ? "text-red-700 dark:text-red-400 font-semibold" : "text-green-700 dark:text-green-400 font-semibold"}>{inr(remaining)}</span>
                     </div>
                   </div>
                 )
               })}
             </div>
             <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground pt-2 border-t">
-              <span>Available: <span className="text-green-400 font-medium">{inr(wcData.available)}</span></span>
-              <span>Total spent: <span className="text-amber-400 font-medium">{inr(wcData.totalSpent ?? 0)}</span></span>
-              <span>Utilisation: <span className="text-amber-400 font-medium">{wcData.utilizationPercent}%</span></span>
+              <span>Available: <span className="text-green-700 dark:text-green-400 font-medium">{inr(wcData.available)}</span></span>
+              <span>Total spent: <span className="text-amber-700 dark:text-amber-400 font-medium">{inr(wcData.totalSpent ?? 0)}</span></span>
+              <span>Utilisation: <span className="text-amber-700 dark:text-amber-400 font-medium">{wcData.utilizationPercent}%</span></span>
             </div>
           </CardContent>
         </Card>
@@ -575,7 +575,7 @@ export default function FundAllocations() {
               <Textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} rows={2} />
             </div>
             {willNeedApproval && form.amount && (
-              <div className="rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
+              <div className="rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
                 This allocation requires director approval before the funds move.
               </div>
             )}
@@ -594,7 +594,7 @@ export default function FundAllocations() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Trash2 className="h-5 w-5 text-red-400" />
+              <Trash2 className="h-5 w-5 text-red-700 dark:text-red-400" />
               Delete Fund Allocation
             </DialogTitle>
             <DialogDescription>
@@ -616,7 +616,7 @@ export default function FundAllocations() {
               </div>
 
               {deleteTarget.status === "executed" && (
-                <div className="rounded-md border border-red-500/20 bg-red-500/8 px-3 py-2 text-xs text-red-400">
+                <div className="rounded-md border border-red-500/20 bg-red-500/8 px-3 py-2 text-xs text-red-700 dark:text-red-400">
                   This allocation has already been executed. Deleting it will also remove the outgoing and incoming finance transactions, correcting subsidiary balances.
                 </div>
               )}

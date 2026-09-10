@@ -59,14 +59,14 @@ interface InvoiceDetail {
 const STATUS_OPTIONS = ["draft","sent","viewed","partially_paid","paid","overdue","cancelled","refunded"]
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-slate-500/15 text-slate-400 border-slate-500/30",
-  sent: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  viewed: "bg-purple-500/15 text-purple-400 border-purple-500/30",
-  partially_paid: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-  paid: "bg-green-500/15 text-green-400 border-green-500/30",
-  overdue: "bg-red-500/15 text-red-400 border-red-500/30",
-  cancelled: "bg-gray-500/15 text-gray-400 border-gray-500/30",
-  refunded: "bg-orange-500/15 text-orange-400 border-orange-500/30",
+  draft: "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-500/30",
+  sent: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30",
+  viewed: "bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/30",
+  partially_paid: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
+  paid: "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30",
+  overdue: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30",
+  cancelled: "bg-gray-500/15 text-gray-700 dark:text-gray-400 border-gray-500/30",
+  refunded: "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30",
 }
 
 const DOC_LABELS: Record<string, string> = {
@@ -138,7 +138,7 @@ function InvoicePrint({ inv }: { inv: InvoiceDetail }) {
       {/* Bill To / Dates */}
       <div className="flex gap-8 mb-8">
         <div className="flex-1">
-          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Bill To</div>
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Bill To</div>
           <div className="font-semibold">{inv.customerName}</div>
           {inv.customerGstin && <div className="text-xs text-gray-500">GSTIN: {inv.customerGstin}</div>}
           {inv.customerPan && <div className="text-xs text-gray-500">PAN: {inv.customerPan}</div>}
@@ -147,10 +147,10 @@ function InvoicePrint({ inv }: { inv: InvoiceDetail }) {
           {inv.customerEmail && <div className="text-xs text-gray-500">{inv.customerEmail}</div>}
         </div>
         <div className="shrink-0 text-right space-y-1">
-          <div><span className="text-xs text-gray-400 uppercase">Date</span><div className="font-medium">{fmtDate(inv.issueDate)}</div></div>
-          {inv.dueDate && <div><span className="text-xs text-gray-400 uppercase">Due</span><div className="font-medium">{fmtDate(inv.dueDate)}</div></div>}
-          {inv.placeOfSupply && <div><span className="text-xs text-gray-400 uppercase">Place of Supply</span><div className="font-medium">{inv.placeOfSupply}</div></div>}
-          {inv.reference && <div><span className="text-xs text-gray-400 uppercase">Ref</span><div className="font-medium text-xs">{inv.reference}</div></div>}
+          <div><span className="text-xs text-gray-500 uppercase">Date</span><div className="font-medium">{fmtDate(inv.issueDate)}</div></div>
+          {inv.dueDate && <div><span className="text-xs text-gray-500 uppercase">Due</span><div className="font-medium">{fmtDate(inv.dueDate)}</div></div>}
+          {inv.placeOfSupply && <div><span className="text-xs text-gray-500 uppercase">Place of Supply</span><div className="font-medium">{inv.placeOfSupply}</div></div>}
+          {inv.reference && <div><span className="text-xs text-gray-500 uppercase">Ref</span><div className="font-medium text-xs">{inv.reference}</div></div>}
         </div>
       </div>
 
@@ -231,7 +231,7 @@ function InvoicePrint({ inv }: { inv: InvoiceDetail }) {
       {/* Bank Details */}
       {(inv.settings.bankName || inv.settings.upiId) && (
         <div className="border-t border-gray-200 pt-4 mb-4">
-          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Payment Details</div>
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Payment Details</div>
           <div className="grid grid-cols-2 gap-4 text-xs text-gray-600">
             {inv.settings.bankName && (
               <div>
@@ -249,13 +249,13 @@ function InvoicePrint({ inv }: { inv: InvoiceDetail }) {
       {/* Notes / Terms */}
       {(inv.notes || inv.terms) && (
         <div className="grid grid-cols-2 gap-6 text-xs text-gray-600 border-t border-gray-200 pt-4">
-          {inv.notes && <div><div className="font-semibold text-gray-400 uppercase tracking-wider mb-1">Notes</div><p className="whitespace-pre-wrap">{inv.notes}</p></div>}
-          {inv.terms && <div><div className="font-semibold text-gray-400 uppercase tracking-wider mb-1">Terms & Conditions</div><p className="whitespace-pre-wrap">{inv.terms}</p></div>}
+          {inv.notes && <div><div className="font-semibold text-gray-500 uppercase tracking-wider mb-1">Notes</div><p className="whitespace-pre-wrap">{inv.notes}</p></div>}
+          {inv.terms && <div><div className="font-semibold text-gray-500 uppercase tracking-wider mb-1">Terms & Conditions</div><p className="whitespace-pre-wrap">{inv.terms}</p></div>}
         </div>
       )}
 
       {/* Footer */}
-      <div className="mt-8 pt-4 border-t border-gray-200 flex justify-between items-end text-xs text-gray-400">
+      <div className="mt-8 pt-4 border-t border-gray-200 flex justify-between items-end text-xs text-gray-500">
         <div>Generated by Tapashub Business OS</div>
         <div className="font-semibold text-gray-600">Thank you for your business!</div>
       </div>

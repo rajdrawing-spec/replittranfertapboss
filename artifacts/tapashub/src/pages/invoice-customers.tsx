@@ -135,7 +135,7 @@ export default function InvoiceCustomersPage() {
       key: "outstanding", header: "Outstanding", card: "badge", headClassName: "text-right", cellClassName: "text-right",
       cell: (c) => (
         <span className="text-sm font-medium">
-          {c.outstanding > 0 ? <span className="text-amber-400">₹{Math.round(c.outstanding).toLocaleString("en-IN")}</span> : "₹0"}
+          {c.outstanding > 0 ? <span className="text-amber-700 dark:text-amber-400">₹{Math.round(c.outstanding).toLocaleString("en-IN")}</span> : "₹0"}
         </span>
       ),
     },

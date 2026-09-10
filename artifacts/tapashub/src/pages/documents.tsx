@@ -43,12 +43,12 @@ const CATEGORIES = [
   { v: "certificate", l: "Certificate" }, { v: "other", l: "Other" },
 ]
 const CAT_COLORS: Record<string, string> = {
-  gst: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  trademark: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-  invoice: "bg-green-500/10 text-green-400 border-green-500/20",
-  vendor_agreement: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  brand_asset: "bg-pink-500/10 text-pink-400 border-pink-500/20",
-  certificate: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+  gst: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20",
+  trademark: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20",
+  invoice: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20",
+  vendor_agreement: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
+  brand_asset: "bg-pink-500/10 text-pink-700 dark:text-pink-400 border-pink-500/20",
+  certificate: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20",
   other: "bg-muted text-muted-foreground",
 }
 const catLabel = (v: string) => CATEGORIES.find((c) => c.v === v)?.l ?? v
@@ -181,8 +181,8 @@ export default function Documents() {
                 <div className="space-y-1 text-xs text-muted-foreground">
                   {d.issuer && <div className="flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> {d.issuer}</div>}
                   {d.expiresAt && (
-                    <div className={`flex items-center gap-1.5 ${isExpiringSoon(d.expiresAt) ? "text-orange-400" : ""}`}>
-                      <Calendar className="w-3.5 h-3.5" /> Expires {new Date(d.expiresAt).toLocaleDateString()} {isExpiringSoon(d.expiresAt) && "· soon"}
+                    <div className={`flex items-center gap-1.5 ${isExpiringSoon(d.expiresAt) ? "text-orange-700 dark:text-orange-400" : ""}`}>
+                      <Calendar className="w-3.5 h-3.5" /> Expires {new Date(d.expiresAt).toLocaleDateString("en-IN")} {isExpiringSoon(d.expiresAt) && "· soon"}
                     </div>
                   )}
                   {d.fileUrl && (
@@ -194,7 +194,7 @@ export default function Documents() {
                 <div className="flex gap-2 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button variant="outline" size="sm" className="flex-1" onClick={() => setDetail(d)}><Eye className="w-3.5 h-3.5 mr-1" /> Details</Button>
                   <Button variant="outline" size="sm" onClick={() => openEdit(d)}><Pencil className="w-3.5 h-3.5" /></Button>
-                  <Button variant="outline" size="sm" className="text-red-400" onClick={() => del(d.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  <Button variant="outline" size="sm" className="text-red-700 dark:text-red-400" onClick={() => del(d.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                 </div>
               </CardContent>
             </Card>
@@ -296,8 +296,8 @@ export default function Documents() {
                   {detail.expiresAt && (
                     <>
                       <dt className="text-muted-foreground">Expires</dt>
-                      <dd className={`col-span-2 ${isExpiringSoon(detail.expiresAt) ? "text-orange-400" : ""}`}>
-                        {new Date(detail.expiresAt).toLocaleDateString()}{isExpiringSoon(detail.expiresAt) && " · expiring soon"}
+                      <dd className={`col-span-2 ${isExpiringSoon(detail.expiresAt) ? "text-orange-700 dark:text-orange-400" : ""}`}>
+                        {new Date(detail.expiresAt).toLocaleDateString("en-IN")}{isExpiringSoon(detail.expiresAt) && " · expiring soon"}
                       </dd>
                     </>
                   )}

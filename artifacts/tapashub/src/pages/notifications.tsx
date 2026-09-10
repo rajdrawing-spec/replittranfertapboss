@@ -79,7 +79,7 @@ export default function Notifications() {
                       {notification.title}
                     </h4>
                     <span className="text-xs text-muted-foreground whitespace-nowrap ml-4">
-                      {new Date(notification.createdAt).toLocaleDateString()}
+                      {new Date(notification.createdAt).toLocaleDateString("en-IN")}
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">{notification.message}</p>

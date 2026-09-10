@@ -13,19 +13,19 @@ interface Result {
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  Order: "text-blue-400 bg-blue-500/10",
-  Customer: "text-green-400 bg-green-500/10",
-  Product: "text-purple-400 bg-purple-500/10",
-  Brand: "text-orange-400 bg-orange-500/10",
-  Account: "text-cyan-400 bg-cyan-500/10",
-  Document: "text-amber-400 bg-amber-500/10",
-  Shipment: "text-indigo-400 bg-indigo-500/10",
-  Task: "text-lime-400 bg-lime-500/10",
-  Meeting: "text-pink-400 bg-pink-500/10",
-  Channel: "text-violet-400 bg-violet-500/10",
-  Chat: "text-teal-400 bg-teal-500/10",
-  Employee: "text-fuchsia-400 bg-fuchsia-500/10",
-  Template: "text-sky-400 bg-sky-500/10",
+  Order: "text-blue-700 dark:text-blue-400 bg-blue-500/10",
+  Customer: "text-green-700 dark:text-green-400 bg-green-500/10",
+  Product: "text-purple-700 dark:text-purple-400 bg-purple-500/10",
+  Brand: "text-orange-700 dark:text-orange-400 bg-orange-500/10",
+  Account: "text-cyan-700 dark:text-cyan-400 bg-cyan-500/10",
+  Document: "text-amber-700 dark:text-amber-400 bg-amber-500/10",
+  Shipment: "text-indigo-700 dark:text-indigo-400 bg-indigo-500/10",
+  Task: "text-lime-700 dark:text-lime-400 bg-lime-500/10",
+  Meeting: "text-pink-700 dark:text-pink-400 bg-pink-500/10",
+  Channel: "text-violet-700 dark:text-violet-400 bg-violet-500/10",
+  Chat: "text-teal-700 dark:text-teal-400 bg-teal-500/10",
+  Employee: "text-fuchsia-700 dark:text-fuchsia-400 bg-fuchsia-500/10",
+  Template: "text-sky-700 dark:text-sky-400 bg-sky-500/10",
 }
 
 export interface GlobalSearchProps {

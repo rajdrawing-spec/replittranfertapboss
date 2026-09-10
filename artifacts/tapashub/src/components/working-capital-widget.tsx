@@ -54,7 +54,7 @@ export function WorkingCapitalWidget() {
         className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 transition-colors"
       >
         <div className="flex items-center gap-1.5">
-          <Landmark className="w-3 h-3 text-indigo-400" />
+          <Landmark className="w-3 h-3 text-indigo-700 dark:text-indigo-400" />
           <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
             Working Capital
           </span>
@@ -80,11 +80,11 @@ export function WorkingCapitalWidget() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Deployed</span>
-                  <span className="text-indigo-400 tabular-nums">{compact(data.allocated)}</span>
+                  <span className="text-indigo-700 dark:text-indigo-400 tabular-nums">{compact(data.allocated)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Available</span>
-                  <span className={cn("font-semibold tabular-nums", data.available < 0 ? "text-red-400" : "text-green-400")}>
+                  <span className={cn("font-semibold tabular-nums", data.available < 0 ? "text-red-700 dark:text-red-400" : "text-green-700 dark:text-green-400")}>
                     {compact(data.available)}
                   </span>
                 </div>
@@ -121,7 +121,7 @@ export function WorkingCapitalWidget() {
                             </div>
                             <span className="text-muted-foreground truncate">{co.name}</span>
                           </div>
-                          <span className="text-indigo-400 tabular-nums shrink-0 ml-1">{compact(co.allocated)}</span>
+                          <span className="text-indigo-700 dark:text-indigo-400 tabular-nums shrink-0 ml-1">{compact(co.allocated)}</span>
                         </div>
                         <div className="h-1 bg-muted rounded-full overflow-hidden">
                           <div

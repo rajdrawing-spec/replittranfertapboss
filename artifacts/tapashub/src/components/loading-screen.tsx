@@ -43,7 +43,7 @@ export function LoadingScreen() {
         <div>
           <div className="flex items-baseline justify-center gap-1.5 mb-1">
             <span className="text-3xl font-black text-white tracking-[-0.03em]">TAPAS</span>
-            <span className="text-3xl font-black text-violet-400 tracking-[-0.03em]">HUB</span>
+            <span className="text-3xl font-black text-violet-700 dark:text-violet-400 tracking-[-0.03em]">HUB</span>
           </div>
           <div className="text-[11px] font-semibold text-white/40 tracking-[0.22em] uppercase mb-2">
             CONNECT · EMPOWER · GROW

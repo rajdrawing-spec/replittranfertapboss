@@ -417,7 +417,7 @@ export default function AiProductPanel({ product, onChange }: { product: Product
               <div className="text-3xl font-bold">{healthScore}/100</div>
               <div className="flex">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <Star key={i} className={`w-5 h-5 ${i < stars ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"}`} />
+                  <Star key={i} className={`w-5 h-5 ${i < stars ? "fill-yellow-400 text-yellow-700 dark:text-yellow-400" : "text-muted-foreground"}`} />
                 ))}
               </div>
               <Button onClick={computeHealth} disabled={loading === "health"}><ScanLine className="w-4 h-4 mr-1" /> Recompute</Button>
@@ -440,7 +440,7 @@ export default function AiProductPanel({ product, onChange }: { product: Product
                 { label: "Variants", ok: (metadata?.variants?.length || 0) > 0 },
               ].map(item => (
                 <div key={item.label} className="flex items-center gap-2">
-                  {item.ok ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-red-400" />}
+                  {item.ok ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-red-700 dark:text-red-400" />}
                   {item.label}
                 </div>
               ))}

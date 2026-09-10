@@ -664,7 +664,7 @@ export default function InvoiceForm() {
                 <span>₹{fmtINR(subtotal)}</span>
               </div>
               {discountTotal > 0 && (
-                <div className="flex justify-between text-green-400">
+                <div className="flex justify-between text-green-700 dark:text-green-400">
                   <span>Discount</span>
                   <span>-₹{fmtINR(discountTotal)}</span>
                 </div>

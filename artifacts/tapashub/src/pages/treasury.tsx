@@ -127,9 +127,9 @@ const SOURCE_COLORS = [
 ]
 
 const STATUS_STYLES: Record<string, string> = {
-  approved: "bg-green-500/10 text-green-400 border-green-500/20",
-  pending:  "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  rejected: "bg-red-500/10  text-red-400  border-red-500/20",
+  approved: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20",
+  pending:  "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
+  rejected: "bg-red-500/10  text-red-700 dark:text-red-400  border-red-500/20",
 }
 
 const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`
@@ -378,7 +378,7 @@ export default function Treasury() {
       cell: (e) => (
         <div>
           <div className="text-sm font-medium max-w-[220px] truncate">{e.description}</div>
-          {e.isReversed && <div className="text-[11px] text-red-400/80 mt-0.5">Reversed · {e.reversalReason}</div>}
+          {e.isReversed && <div className="text-[11px] text-red-700 dark:text-red-400/80 mt-0.5">Reversed · {e.reversalReason}</div>}
         </div>
       ),
       cardCell: (e) => e.description,
@@ -390,7 +390,7 @@ export default function Treasury() {
       ) : (
         <HoverCard openDelay={200}>
           <HoverCardTrigger asChild>
-            <button type="button" className="font-semibold text-green-400 underline decoration-dotted decoration-green-400/40 focus:outline-none focus-visible:ring-1 focus-visible:ring-green-400 rounded whitespace-nowrap">{inr(e.amount)}</button>
+            <button type="button" className="font-semibold text-green-700 dark:text-green-400 underline decoration-dotted decoration-green-400/40 focus:outline-none focus-visible:ring-1 focus-visible:ring-green-400 rounded whitespace-nowrap">{inr(e.amount)}</button>
           </HoverCardTrigger>
           <HoverCardContent align="start" className="w-64 text-sm">
             <div className="space-y-2">
@@ -405,7 +405,7 @@ export default function Treasury() {
               </div>
               <div className="pt-1.5 border-t flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Amount</span>
-                <span className="font-bold text-green-400">{inr(e.amount)}</span>
+                <span className="font-bold text-green-700 dark:text-green-400">{inr(e.amount)}</span>
               </div>
               {(() => {
                   const ir = getInterestRate(e.notes)
@@ -416,13 +416,13 @@ export default function Treasury() {
                         <div className="pt-1.5 border-t space-y-1">
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">Interest Rate</span>
-                            <span className="text-xs font-semibold text-amber-400">{ir}% p.a.</span>
+                            <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">{ir}% p.a.</span>
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">Annual Interest Expense</span>
-                            <span className="text-xs font-bold text-amber-400">{inr(e.amount * ir / 100)}</span>
+                            <span className="text-xs font-bold text-amber-700 dark:text-amber-400">{inr(e.amount * ir / 100)}</span>
                           </div>
-                          <div className="text-[10px] text-amber-400/70">TapasHub repays this as an expense</div>
+                          <div className="text-[10px] text-amber-700 dark:text-amber-400/70">TapasHub repays this as an expense</div>
                         </div>
                       )}
                       {cleanNotes && (
@@ -458,7 +458,7 @@ export default function Treasury() {
   if (summaryError) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
-        <AlertCircle className="w-10 h-10 text-red-400" />
+        <AlertCircle className="w-10 h-10 text-red-700 dark:text-red-400" />
         <h2 className="text-lg font-semibold">Failed to load Treasury</h2>
         <p className="text-sm text-muted-foreground max-w-xs">
           Could not fetch treasury data. Please refresh the page or contact support.
@@ -480,7 +480,7 @@ export default function Treasury() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Landmark className="w-5 h-5 text-indigo-400" />
+            <Landmark className="w-5 h-5 text-indigo-700 dark:text-indigo-400" />
             <h1 className="text-2xl font-bold tracking-tight">TapasHub Treasury</h1>
           </div>
           <p className="text-sm text-muted-foreground">
@@ -504,30 +504,30 @@ export default function Treasury() {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <KpiCard label="Capital Raised" value={summaryLoading ? "…" : inr(summary?.totalRaised ?? 0)}
           sub="Investor & grant funding"
-          icon={Landmark} color="text-green-400" bg="bg-green-500/10" loading={summaryLoading} />
+          icon={Landmark} color="text-green-700 dark:text-green-400" bg="bg-green-500/10" loading={summaryLoading} />
         <KpiCard
           label="Deployed to Sub-brands"
           value={summaryLoading ? "…" : inr(summary?.allocated ?? 0)}
           sub="Capital moved via Fund Allocations"
-          icon={ArrowRight} color="text-indigo-400" bg="bg-indigo-500/10" loading={summaryLoading} />
+          icon={ArrowRight} color="text-indigo-700 dark:text-indigo-400" bg="bg-indigo-500/10" loading={summaryLoading} />
         <KpiCard
           label="Treasury Available"
           value={summaryLoading ? "…" : inr(summary?.available ?? 0)}
           sub="Raised − deployed (unallocated)"
           icon={Wallet}
-          color={!summaryLoading && (summary?.available ?? 0) < 0 ? "text-red-400" : "text-blue-400"}
+          color={!summaryLoading && (summary?.available ?? 0) < 0 ? "text-red-700 dark:text-red-400" : "text-blue-700 dark:text-blue-400"}
           bg={!summaryLoading && (summary?.available ?? 0) < 0 ? "bg-red-500/10" : "bg-blue-500/10"}
           loading={summaryLoading} />
         <KpiCard
           label="Group Revenue"
           value={summaryLoading ? "…" : inr(summary?.groupRevenue ?? 0)}
           sub="Sales & income across all sub-brands"
-          icon={TrendingUp} color="text-emerald-400" bg="bg-emerald-500/10" loading={summaryLoading} />
+          icon={TrendingUp} color="text-emerald-700 dark:text-emerald-400" bg="bg-emerald-500/10" loading={summaryLoading} />
         <KpiCard
           label="Total Expenses"
           value={summaryLoading ? "…" : inr(summary?.totalExpenses ?? 0)}
           sub="Spend across all sub-brands"
-          icon={CheckCircle2} color="text-amber-400" bg="bg-amber-500/10" loading={summaryLoading} />
+          icon={CheckCircle2} color="text-amber-700 dark:text-amber-400" bg="bg-amber-500/10" loading={summaryLoading} />
       </div>
 
       {/* Capital deployment bar — allocated vs capital raised */}
@@ -539,7 +539,7 @@ export default function Treasury() {
                 <span className="text-sm font-medium">Capital Deployment Rate</span>
                 <span className="ml-2 text-xs text-muted-foreground">(deployed to sub-brands vs total raised)</span>
               </div>
-              <span className={`text-sm font-bold ${utilPct > 90 ? "text-red-400" : utilPct > 70 ? "text-amber-400" : "text-green-400"}`}>
+              <span className={`text-sm font-bold ${utilPct > 90 ? "text-red-700 dark:text-red-400" : utilPct > 70 ? "text-amber-700 dark:text-amber-400" : "text-green-700 dark:text-green-400"}`}>
                 {utilPct}%
               </span>
             </div>
@@ -547,9 +547,9 @@ export default function Treasury() {
             <div className="flex justify-between text-xs text-muted-foreground mt-2">
               <span className="flex items-center gap-3">
                 <span>{inr(summary.totalRaised)} raised</span>
-                <span className="text-indigo-400">{inr(summary.allocated)} deployed</span>
+                <span className="text-indigo-700 dark:text-indigo-400">{inr(summary.allocated)} deployed</span>
               </span>
-              <span className="text-blue-400">{inr(summary.available)} available</span>
+              <span className="text-blue-700 dark:text-blue-400">{inr(summary.available)} available</span>
             </div>
           </CardContent>
         </Card>
@@ -656,11 +656,11 @@ export default function Treasury() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
-                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                <TrendingUp className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <CardTitle className="text-sm text-emerald-400">Group Revenue from Operations</CardTitle>
+                  <CardTitle className="text-sm text-emerald-700 dark:text-emerald-400">Group Revenue from Operations</CardTitle>
                   <span className="inline-flex items-center rounded-full border border-emerald-500/30 px-2 py-0.5 text-[10px] font-medium text-emerald-500">
                     Separate from capital
                   </span>
@@ -674,7 +674,7 @@ export default function Treasury() {
               <Skeleton className="h-8 w-24" />
             ) : (
               <div className="text-right">
-                <div className="text-xl font-bold text-emerald-400">{inr(summary?.groupRevenue ?? 0)}</div>
+                <div className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{inr(summary?.groupRevenue ?? 0)}</div>
                 <div className="text-[11px] text-muted-foreground">Total group revenue</div>
               </div>
             )}
@@ -696,7 +696,7 @@ export default function Treasury() {
                       </div>
                       <div className="min-w-0">
                         <div className="text-[11px] font-medium truncate">{co.companyName}</div>
-                        <div className="text-[11px] text-emerald-400 font-semibold">{inr(co.income)}</div>
+                        <div className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold">{inr(co.income)}</div>
                       </div>
                     </div>
                   ))}
@@ -884,7 +884,7 @@ export default function Treasury() {
             {/* Bank loan: annual interest rate */}
             {form.fundingSource === "bank_loan" && (
               <div className="col-span-2 rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 space-y-2">
-                <div className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Loan Interest Details</div>
+                <div className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Loan Interest Details</div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Annual Interest Rate (% p.a.)</Label>
@@ -902,8 +902,8 @@ export default function Treasury() {
                   <div className="flex flex-col justify-end pb-0.5">
                     {form.interestRate && Number(form.amount) > 0 && Number(form.interestRate) > 0 && (
                       <div className="rounded bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-sm">
-                        <div className="text-[10px] text-amber-400/80 uppercase tracking-wide mb-0.5">Annual interest expense</div>
-                        <div className="font-bold text-amber-400">
+                        <div className="text-[10px] text-amber-700 dark:text-amber-400/80 uppercase tracking-wide mb-0.5">Annual interest expense</div>
+                        <div className="font-bold text-amber-700 dark:text-amber-400">
                           {inr(Number(form.amount) * Number(form.interestRate) / 100)}
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5">
@@ -948,7 +948,7 @@ export default function Treasury() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-amber-400" />
+              <AlertCircle className="w-5 h-5 text-amber-700 dark:text-amber-400" />
               Reverse Treasury Entry
             </DialogTitle>
             <DialogDescription>

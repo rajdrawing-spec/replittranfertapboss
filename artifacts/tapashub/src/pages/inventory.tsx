@@ -539,7 +539,7 @@ export default function Inventory() {
         <div className="text-xs text-muted-foreground flex items-center gap-1.5">
           <span>{p.companyName}</span>
           {p.sourceLink && (
-            <a href={p.sourceLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-blue-400 hover:text-blue-300" onClick={e => e.stopPropagation()}>
+            <a href={p.sourceLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-blue-700 dark:text-blue-400 hover:text-blue-300" onClick={e => e.stopPropagation()}>
               <Link className="w-3 h-3" />
             </a>
           )}
@@ -556,7 +556,7 @@ export default function Inventory() {
         return (
           <div className="flex items-center gap-1.5">
             {lowStock && <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />}
-            <span className={lowStock ? "text-yellow-400 font-medium" : ""}>{p.stockQuantity}</span>
+            <span className={lowStock ? "text-yellow-700 dark:text-yellow-400 font-medium" : ""}>{p.stockQuantity}</span>
             <span className="text-xs text-muted-foreground">/ min {p.reorderLevel}</span>
           </div>
         )

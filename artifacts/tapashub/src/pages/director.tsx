@@ -32,9 +32,9 @@ const companyTableColumns: ResponsiveTableColumn<PortfolioCompany>[] = [
   { key: "expenses", header: "Expenses", cell: (c) => <span className="text-muted-foreground">{fmtINR(c.expenses)}</span> },
   {
     key: "netProfit", header: "Net Profit",
-    cell: (c) => <span className={`font-medium ${c.netProfit >= 0 ? "text-green-400" : "text-red-400"}`}>{fmtINR(c.netProfit)}</span>,
+    cell: (c) => <span className={`font-medium ${c.netProfit >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>{fmtINR(c.netProfit)}</span>,
   },
-  { key: "directorShare", header: "Your Share", cell: (c) => <span className="font-semibold text-purple-400">{fmtMoney(c.directorShare)}</span> },
+  { key: "directorShare", header: "Your Share", cell: (c) => <span className="font-semibold text-purple-700 dark:text-purple-400">{fmtMoney(c.directorShare)}</span> },
 ]
 
 function fmtINR(n: number) {
@@ -195,10 +195,10 @@ export default function DirectorPortal() {
   const profitTrend = prevProfit !== 0 ? ((lastProfit - prevProfit) / Math.abs(prevProfit)) * 100 : 0
 
   const kpis = [
-    { label: "Group Revenue", value: summary.totalRevenue, icon: BarChart3, color: "text-teal-400", bg: "bg-teal-500/10", sub: "All subsidiaries" },
-    { label: "Group Expenses", value: summary.totalExpenses, icon: PieChart, color: "text-blue-400", bg: "bg-blue-500/10", sub: "All subsidiaries" },
-    { label: "Net Profit", value: summary.totalNetProfit, icon: TrendingUp, color: "text-green-400", bg: "bg-green-500/10", sub: summary.totalRevenue > 0 ? `${profitTrend >= 0 ? "+" : ""}${profitTrend.toFixed(1)}% this month` : "Revenue − expenses" },
-    { label: "Director Earnings", value: summary.totalDirectorShare, icon: DollarSign, color: "text-purple-400", bg: "bg-purple-500/10", sub: "Your profit share" },
+    { label: "Group Revenue", value: summary.totalRevenue, icon: BarChart3, color: "text-teal-700 dark:text-teal-400", bg: "bg-teal-500/10", sub: "All subsidiaries" },
+    { label: "Group Expenses", value: summary.totalExpenses, icon: PieChart, color: "text-blue-700 dark:text-blue-400", bg: "bg-blue-500/10", sub: "All subsidiaries" },
+    { label: "Net Profit", value: summary.totalNetProfit, icon: TrendingUp, color: "text-green-700 dark:text-green-400", bg: "bg-green-500/10", sub: summary.totalRevenue > 0 ? `${profitTrend >= 0 ? "+" : ""}${profitTrend.toFixed(1)}% this month` : "Revenue − expenses" },
+    { label: "Director Earnings", value: summary.totalDirectorShare, icon: DollarSign, color: "text-purple-700 dark:text-purple-400", bg: "bg-purple-500/10", sub: "Your profit share" },
   ]
 
   return (
@@ -207,7 +207,7 @@ export default function DirectorPortal() {
       <div>
         <div className="flex items-center gap-3 mb-1">
           <h1 className="text-3xl font-bold tracking-tight">Director Portal</h1>
-          <Badge variant="outline" className="text-purple-400 border-purple-500/30 bg-purple-500/10 capitalize">{user?.role?.replace(/_/g, " ")}</Badge>
+          <Badge variant="outline" className="text-purple-700 dark:text-purple-400 border-purple-500/30 bg-purple-500/10 capitalize">{user?.role?.replace(/_/g, " ")}</Badge>
         </div>
         <p className="text-muted-foreground">Personal portfolio overview — {user?.name}</p>
       </div>
@@ -262,8 +262,8 @@ export default function DirectorPortal() {
             <CardTitle className="text-base flex items-center gap-2">
               Profit Trend
               {profitTrend >= 0
-                ? <span className="text-xs text-green-400 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5" />+{profitTrend.toFixed(1)}%</span>
-                : <span className="text-xs text-red-400 flex items-center gap-1"><TrendingDown className="w-3.5 h-3.5" />{profitTrend.toFixed(1)}%</span>
+                ? <span className="text-xs text-green-700 dark:text-green-400 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5" />+{profitTrend.toFixed(1)}%</span>
+                : <span className="text-xs text-red-700 dark:text-red-400 flex items-center gap-1"><TrendingDown className="w-3.5 h-3.5" />{profitTrend.toFixed(1)}%</span>
               }
             </CardTitle>
             <CardDescription className="text-xs">Net profit over last 6 months</CardDescription>
@@ -295,7 +295,7 @@ export default function DirectorPortal() {
                   </div>
                   <div className="flex justify-between mt-1">
                     <span className="text-[10px] text-muted-foreground">Revenue: {fmtINR(c.revenue)}</span>
-                    <span className={`text-[10px] font-medium ${c.netProfit >= 0 ? "text-green-400" : "text-red-400"}`}>
+                    <span className={`text-[10px] font-medium ${c.netProfit >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
                       Your share: {fmtMoney(c.directorShare)}
                     </span>
                   </div>

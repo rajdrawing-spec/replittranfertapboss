@@ -16,13 +16,13 @@ import { QueryState } from "@/components/query-state"
 
 const API_BASE = ""
 const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-  confirmed: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  processing: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-  shipped: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
-  delivered: "bg-green-500/10 text-green-400 border-green-500/20",
-  cancelled: "bg-red-500/10 text-red-400 border-red-500/20",
-  returned: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  pending: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20",
+  confirmed: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20",
+  processing: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20",
+  shipped: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20",
+  delivered: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20",
+  cancelled: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20",
+  returned: "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20",
 }
 const STATUSES = ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled", "returned"]
 const CHANNELS = ["direct", "shopify", "shopdeck", "amazon", "flipkart", "whatsapp", "website"]

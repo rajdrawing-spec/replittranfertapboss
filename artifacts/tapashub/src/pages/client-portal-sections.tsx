@@ -5,6 +5,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
+import { ResponsiveTable, type ResponsiveTableColumn } from "@/components/responsive-table"
 import { Sparkles, Image as ImageIcon, Download, Printer, TrendingUp, TrendingDown } from "lucide-react"
 import {
   ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
@@ -238,48 +239,43 @@ export function CampaignsSection({ projectId }: { projectId: number }) {
   if (isError || !data) return <ErrorState />
   if (data.campaigns.length === 0 && page === 1) return <Empty text="No campaigns have been shared with you yet." />
 
+  const columns: ResponsiveTableColumn<ClientCampaign>[] = [
+    {
+      key: "name", header: "Campaign", card: "title",
+      cell: (c) => <span className="font-medium">{c.name}</span>,
+    },
+    {
+      key: "channel", header: "Channel", card: "subtitle",
+      cell: (c) => <span className="uppercase">{c.channel}</span>,
+    },
+    {
+      key: "status", header: "Status", card: "badge",
+      cell: (c) => <span className="rounded-full bg-muted px-2 py-0.5 text-xs capitalize">{c.status}</span>,
+    },
+    { key: "spend", header: "Spend", cellClassName: "text-right", headClassName: "text-right", cell: (c) => fmtINR(c.spend) },
+    { key: "impressions", header: "Impressions", cellClassName: "text-right", headClassName: "text-right", cell: (c) => fmtNum(c.impressions) },
+    { key: "clicks", header: "Clicks", cellClassName: "text-right", headClassName: "text-right", cell: (c) => fmtNum(c.clicks) },
+    { key: "ctr", header: "CTR", cellClassName: "text-right", headClassName: "text-right", cell: (c) => c.ctr != null ? `${c.ctr.toFixed(1)}%` : "—" },
+    { key: "leads", header: "Leads", cellClassName: "text-right", headClassName: "text-right", cell: (c) => fmtNum(c.leads) },
+    { key: "conversions", header: "Conv.", cellClassName: "text-right", headClassName: "text-right", cell: (c) => fmtNum(c.conversions) },
+    {
+      key: "revenue", header: "Revenue", cellClassName: "text-right", headClassName: "text-right",
+      cell: (c) => <span className="text-green-500">{fmtINR(c.revenue)}</span>,
+    },
+    {
+      key: "roas", header: "ROAS", cellClassName: "text-right", headClassName: "text-right",
+      cell: (c) => (
+        <span className={`font-semibold ${c.roas == null ? "text-muted-foreground" : c.roas >= 1 ? "text-green-500" : "text-red-500"}`}>
+          {c.roas != null ? `${c.roas.toFixed(2)}x` : "—"}
+        </span>
+      ),
+    },
+  ]
+
   return (
     <div className="rounded-lg border p-4">
       <p className="mb-3 text-xs text-muted-foreground">Campaign performance shows lifetime totals since launch.</p>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-xs text-muted-foreground">
-              <th className="py-2 pr-4 font-medium">Campaign</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 text-right font-medium">Spend</th>
-              <th className="px-3 py-2 text-right font-medium">Impressions</th>
-              <th className="px-3 py-2 text-right font-medium">Clicks</th>
-              <th className="px-3 py-2 text-right font-medium">CTR</th>
-              <th className="px-3 py-2 text-right font-medium">Leads</th>
-              <th className="px-3 py-2 text-right font-medium">Conv.</th>
-              <th className="px-3 py-2 text-right font-medium">Revenue</th>
-              <th className="py-2 pl-3 text-right font-medium">ROAS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.campaigns.map((c) => (
-              <tr key={c.id} className="border-b border-border/50">
-                <td className="py-2 pr-4">
-                  <div className="font-medium">{c.name}</div>
-                  <div className="text-xs uppercase text-muted-foreground">{c.channel}</div>
-                </td>
-                <td className="px-3 py-2"><span className="rounded-full bg-muted px-2 py-0.5 text-xs capitalize">{c.status}</span></td>
-                <td className="px-3 py-2 text-right">{fmtINR(c.spend)}</td>
-                <td className="px-3 py-2 text-right">{fmtNum(c.impressions)}</td>
-                <td className="px-3 py-2 text-right">{fmtNum(c.clicks)}</td>
-                <td className="px-3 py-2 text-right">{c.ctr != null ? `${c.ctr.toFixed(1)}%` : "—"}</td>
-                <td className="px-3 py-2 text-right">{fmtNum(c.leads)}</td>
-                <td className="px-3 py-2 text-right">{fmtNum(c.conversions)}</td>
-                <td className="px-3 py-2 text-right text-green-500">{fmtINR(c.revenue)}</td>
-                <td className={`py-2 pl-3 text-right font-semibold ${c.roas == null ? "text-muted-foreground" : c.roas >= 1 ? "text-green-500" : "text-red-500"}`}>
-                  {c.roas != null ? `${c.roas.toFixed(2)}x` : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ResponsiveTable columns={columns} data={data.campaigns} rowKey={(c) => c.id} />
       <Pager p={data.pagination} onPage={setPage} />
     </div>
   )
@@ -292,6 +288,15 @@ interface SalesData {
   orders: { id: number; orderNumber: string; date: string; itemCount: number; totalAmount: number; status: string; channel: string }[]
   pagination: any
 }
+
+const salesColumns: ResponsiveTableColumn<SalesData["orders"][number]>[] = [
+  { key: "orderNumber", header: "Order", card: "title", cell: (o) => <span className="font-mono text-xs">{o.orderNumber}</span> },
+  { key: "date", header: "Date", card: "subtitle", cell: (o) => new Date(o.date).toLocaleDateString("en-IN") },
+  { key: "status", header: "Status", card: "badge", cell: (o) => <span className="rounded-full bg-muted px-2 py-0.5 text-xs capitalize">{o.status}</span> },
+  { key: "itemCount", header: "Items", cellClassName: "text-right", headClassName: "text-right", cell: (o) => o.itemCount },
+  { key: "totalAmount", header: "Value", cellClassName: "text-right", headClassName: "text-right", cell: (o) => fmtINR(o.totalAmount) },
+  { key: "channel", header: "Channel", cell: (o) => <span className="capitalize">{o.channel}</span> },
+]
 
 export function SalesSection({ projectId }: { projectId: number }) {
   const range = useDateRange()
@@ -327,32 +332,7 @@ export function SalesSection({ projectId }: { projectId: number }) {
           </div>
           {data.orders.length === 0 ? <Empty text="No orders in this period." /> : (
             <div className="rounded-lg border p-4">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-xs text-muted-foreground">
-                      <th className="py-2 pr-4 font-medium">Order</th>
-                      <th className="px-3 py-2 font-medium">Date</th>
-                      <th className="px-3 py-2 text-right font-medium">Items</th>
-                      <th className="px-3 py-2 text-right font-medium">Value</th>
-                      <th className="px-3 py-2 font-medium">Channel</th>
-                      <th className="py-2 pl-3 font-medium">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.orders.map((o) => (
-                      <tr key={o.id} className="border-b border-border/50">
-                        <td className="py-2 pr-4 font-mono text-xs">{o.orderNumber}</td>
-                        <td className="px-3 py-2">{new Date(o.date).toLocaleDateString("en-IN")}</td>
-                        <td className="px-3 py-2 text-right">{o.itemCount}</td>
-                        <td className="px-3 py-2 text-right">{fmtINR(o.totalAmount)}</td>
-                        <td className="px-3 py-2 capitalize">{o.channel}</td>
-                        <td className="py-2 pl-3"><span className="rounded-full bg-muted px-2 py-0.5 text-xs capitalize">{o.status}</span></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ResponsiveTable columns={salesColumns} data={data.orders} rowKey={(o) => o.id} />
               <Pager p={data.pagination} onPage={setPage} />
             </div>
           )}
@@ -377,32 +357,17 @@ export function LeadsSection({ projectId }: { projectId: number }) {
   if (isError || !data) return <ErrorState />
   if (data.leads.length === 0 && page === 1) return <Empty text="No leads have been shared with you yet." />
 
+  const columns: ResponsiveTableColumn<ClientLead>[] = [
+    { key: "name", header: "Lead", card: "title", cell: (l) => <span className="font-medium">{l.name}</span> },
+    { key: "campaign", header: "Campaign", card: "subtitle", cell: (l) => l.campaign ?? "—" },
+    { key: "status", header: "Status", card: "badge", cell: (l) => <span className="rounded-full bg-muted px-2 py-0.5 text-xs capitalize">{l.status}</span> },
+    { key: "source", header: "Source", cell: (l) => <span className="capitalize">{l.source ?? "—"}</span> },
+    { key: "createdAt", header: "Date", cell: (l) => new Date(l.createdAt).toLocaleDateString("en-IN") },
+  ]
+
   return (
     <div className="rounded-lg border p-4">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-xs text-muted-foreground">
-              <th className="py-2 pr-4 font-medium">Lead</th>
-              <th className="px-3 py-2 font-medium">Source</th>
-              <th className="px-3 py-2 font-medium">Campaign</th>
-              <th className="px-3 py-2 font-medium">Date</th>
-              <th className="py-2 pl-3 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.leads.map((l) => (
-              <tr key={l.id} className="border-b border-border/50">
-                <td className="py-2 pr-4 font-medium">{l.name}</td>
-                <td className="px-3 py-2 capitalize">{l.source ?? "—"}</td>
-                <td className="px-3 py-2">{l.campaign ?? "—"}</td>
-                <td className="px-3 py-2">{new Date(l.createdAt).toLocaleDateString("en-IN")}</td>
-                <td className="py-2 pl-3"><span className="rounded-full bg-muted px-2 py-0.5 text-xs capitalize">{l.status}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ResponsiveTable columns={columns} data={data.leads} rowKey={(l) => l.id} />
       <Pager p={data.pagination} onPage={setPage} />
     </div>
   )
@@ -540,7 +505,14 @@ export function ReportsSection({ projectId }: { projectId: number }) {
         </div>
 
         <h3 className="mb-3 font-semibold">Period comparison</h3>
-        <table className="mb-6 w-full text-sm">
+        {/* Only 2 fixed rows of Metric/This/Previous/Change — a small enough,
+            fixed-shape table that the ResponsiveTable card layout would be
+            more machinery than it's worth. Still needs its own scroll
+            container though: unlike its siblings on this page it was
+            missing one, and "Previous period" alone is wide enough to
+            overflow a 375px screen. */}
+        <div className="mb-6 overflow-x-auto">
+        <table className="w-full text-sm">
           <thead><tr className="border-b text-left text-xs text-muted-foreground">
             <th className="py-2 font-medium">Metric</th><th className="py-2 text-right font-medium">This period</th>
             <th className="py-2 text-right font-medium">Previous period</th><th className="py-2 text-right font-medium">Change</th>
@@ -564,6 +536,7 @@ export function ReportsSection({ projectId }: { projectId: number }) {
             )}
           </tbody>
         </table>
+        </div>
 
         <h3 className="mb-3 font-semibold">Campaign highlights <span className="text-xs font-normal text-muted-foreground">(lifetime totals)</span></h3>
         <div className="grid gap-3 sm:grid-cols-2">

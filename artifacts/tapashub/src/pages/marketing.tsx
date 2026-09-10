@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
+import { ResponsiveTable, type ResponsiveTableColumn } from "@/components/responsive-table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useUpload } from "@workspace/object-storage-web"
@@ -74,6 +75,24 @@ const CREATIVE_TYPE_ICON: Record<string, React.ComponentType<{ className?: strin
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 const fmtINR = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN")
 const fmtROI = (roi: number | null) => (roi == null ? "—" : `${(roi * 100).toFixed(0)}%`)
+
+const campaignRoiColumns: ResponsiveTableColumn<PerfCampaign>[] = [
+  { key: "name", header: "Campaign", card: "title", cell: (c) => <span className="font-medium">{c.name}</span> },
+  {
+    key: "channel", header: "Channel", card: "subtitle",
+    cell: (c) => <span className={`text-[10px] font-semibold px-2 py-0.5 rounded uppercase ${CHANNEL_COLORS[c.channel] || "bg-muted"}`}>{c.channel}</span>,
+  },
+  { key: "spent", header: "Spent", cellClassName: "text-right", headClassName: "text-right", cell: (c) => fmtINR(c.spent) },
+  { key: "revenue", header: "Revenue", cellClassName: "text-right", headClassName: "text-right", cell: (c) => <span className="text-green-400">{fmtINR(c.revenue)}</span> },
+  {
+    key: "roi", header: "ROI", cellClassName: "text-right", headClassName: "text-right",
+    cell: (c) => (
+      <span className={`font-semibold ${c.roi == null ? "text-muted-foreground" : c.roi >= 0 ? "text-green-400" : "text-red-400"}`}>
+        {fmtROI(c.roi)}
+      </span>
+    ),
+  },
+]
 
 // Assets stored via object storage return an /objects path served by the storage API.
 function assetSrc(url?: string | null): string | undefined {
@@ -185,28 +204,7 @@ function PerformanceTab() {
 
       <Card><CardContent className="p-5">
         <h3 className="font-semibold mb-4 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" /> Campaign ROI</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="text-left text-xs text-muted-foreground border-b">
-              <th className="py-2 pr-4 font-medium">Campaign</th>
-              <th className="py-2 px-4 font-medium">Channel</th>
-              <th className="py-2 px-4 font-medium text-right">Spent</th>
-              <th className="py-2 px-4 font-medium text-right">Revenue</th>
-              <th className="py-2 pl-4 font-medium text-right">ROI</th>
-            </tr></thead>
-            <tbody>
-              {perf.campaigns.map((c) => (
-                <tr key={c.id} className="border-b border-border/50">
-                  <td className="py-2 pr-4 font-medium">{c.name}</td>
-                  <td className="py-2 px-4"><span className={`text-[10px] font-semibold px-2 py-0.5 rounded uppercase ${CHANNEL_COLORS[c.channel] || "bg-muted"}`}>{c.channel}</span></td>
-                  <td className="py-2 px-4 text-right">{fmtINR(c.spent)}</td>
-                  <td className="py-2 px-4 text-right text-green-400">{fmtINR(c.revenue)}</td>
-                  <td className={`py-2 pl-4 text-right font-semibold ${c.roi == null ? "text-muted-foreground" : c.roi >= 0 ? "text-green-400" : "text-red-400"}`}>{fmtROI(c.roi)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ResponsiveTable columns={campaignRoiColumns} data={perf.campaigns} rowKey={(c) => c.id} />
       </CardContent></Card>
     </div>
   )

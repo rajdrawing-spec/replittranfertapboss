@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/empty-state"
+import { ResponsiveTable, type ResponsiveTableColumn } from "@/components/responsive-table"
 import { TrendingUp, TrendingDown, Building2, DollarSign, BarChart3, PieChart } from "lucide-react"
 
 const API_BASE = ""
@@ -17,6 +18,24 @@ interface PortfolioData {
   }>
   monthlyPnl: Array<{ month: string; revenue: number; expenses: number; profit: number }>
 }
+
+type PortfolioCompany = PortfolioData["companies"][number]
+
+const companyTableColumns: ResponsiveTableColumn<PortfolioCompany>[] = [
+  { key: "name", header: "Company", card: "title", cell: (c) => c.name },
+  { key: "industry", header: "Industry", card: "subtitle", cell: (c) => c.industry ?? "—" },
+  {
+    key: "ownershipPercent", header: "Your Stake", card: "badge",
+    cell: (c) => <Badge variant="outline" className="text-xs">{c.ownershipPercent != null ? `${c.ownershipPercent}%` : "—"}</Badge>,
+  },
+  { key: "revenue", header: "Revenue", cell: (c) => fmtINR(c.revenue) },
+  { key: "expenses", header: "Expenses", cell: (c) => <span className="text-muted-foreground">{fmtINR(c.expenses)}</span> },
+  {
+    key: "netProfit", header: "Net Profit",
+    cell: (c) => <span className={`font-medium ${c.netProfit >= 0 ? "text-green-400" : "text-red-400"}`}>{fmtINR(c.netProfit)}</span>,
+  },
+  { key: "directorShare", header: "Your Share", cell: (c) => <span className="font-semibold text-purple-400">{fmtMoney(c.directorShare)}</span> },
+]
 
 function fmtINR(n: number) {
   if (Math.abs(n) >= 10_00_000) return `₹${(n / 10_00_000).toFixed(2)}L`
@@ -294,32 +313,7 @@ export default function DirectorPortal() {
           <CardDescription className="text-xs">Full financial breakdown across portfolio</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-muted/50">
-                  {["Company", "Industry", "Your Stake", "Revenue", "Expenses", "Net Profit", "Your Share"].map(h => (
-                    <th key={h} className="text-left py-2 px-3 text-xs text-muted-foreground font-semibold uppercase tracking-wider first:pl-0">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {companies.map(c => (
-                  <tr key={c.id} className="border-b border-muted/20 hover:bg-muted/20 transition-colors">
-                    <td className="py-3 px-3 first:pl-0 font-medium">{c.name}</td>
-                    <td className="py-3 px-3 text-muted-foreground">{c.industry ?? "—"}</td>
-                    <td className="py-3 px-3">
-                      <Badge variant="outline" className="text-xs">{c.ownershipPercent != null ? `${c.ownershipPercent}%` : "—"}</Badge>
-                    </td>
-                    <td className="py-3 px-3">{fmtINR(c.revenue)}</td>
-                    <td className="py-3 px-3 text-muted-foreground">{fmtINR(c.expenses)}</td>
-                    <td className={`py-3 px-3 font-medium ${c.netProfit >= 0 ? "text-green-400" : "text-red-400"}`}>{fmtINR(c.netProfit)}</td>
-                    <td className="py-3 px-3 font-semibold text-purple-400">{fmtMoney(c.directorShare)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ResponsiveTable columns={companyTableColumns} data={companies} rowKey={(c) => c.id} />
         </CardContent>
       </Card>
     </div>

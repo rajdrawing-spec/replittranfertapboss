@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { adminApi } from "@/lib/admin-api"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -16,6 +15,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
 import { ShareCertificateModal, type ShareCertificateData } from "@/components/share-certificate"
+import { ResponsiveTable, type ResponsiveTableColumn, type ResponsiveTableAction } from "@/components/responsive-table"
+import { QueryState } from "@/components/query-state"
 
 interface Company { id: number; name: string; type: string }
 interface Shareholder {
@@ -100,7 +101,7 @@ const emptyTxForm = (): TxForm => ({ type: "purchase", shares: "", pricePerShare
 
 /** Self-service view for users who can only view their own holdings (no manage permission). */
 function MyHoldingsView() {
-  const { data: holdings, isLoading } = useQuery<Shareholder[]>({
+  const { data: holdings, isLoading, isError, refetch } = useQuery<Shareholder[]>({
     queryKey: ["/api/shareholders", "self"],
     queryFn: () => adminApi.get("/shareholders"),
   })
@@ -108,6 +109,48 @@ function MyHoldingsView() {
 
   const totalInvested = (holdings ?? []).reduce((s, h) => s + (h.investmentAmount ?? 0), 0)
   const totalShares   = (holdings ?? []).reduce((s, h) => s + (h.shares ?? 0), 0)
+
+  const holdingColumns: ResponsiveTableColumn<Shareholder>[] = [
+    {
+      key: "company", header: "Company", card: "title",
+      cell: (h) => (
+        <div>
+          <div className="font-medium">{h.companyName}</div>
+          <div className="text-xs text-muted-foreground">{h.name}</div>
+        </div>
+      ),
+      cardCell: (h) => h.companyName,
+    },
+    { key: "role", header: "Role", card: "subtitle", cell: (h) => <Badge variant="outline" className={ROLE_STYLES[h.role] ?? ""}>{ROLE_LABELS[h.role] ?? h.role}</Badge> },
+    { key: "shares", header: "Shares", headClassName: "text-right", cellClassName: "text-right", cell: (h) => num(h.shares) },
+    { key: "ownershipPercent", header: "Ownership", headClassName: "text-right", cellClassName: "text-right", cell: (h) => <span className="font-semibold">{h.ownershipPercent.toFixed(2)}%</span> },
+    { key: "investmentAmount", header: "Invested", headClassName: "text-right", cellClassName: "text-right", cell: (h) => <span className="text-muted-foreground">{inr(h.investmentAmount)}</span> },
+    {
+      key: "status", header: "Status", card: "badge",
+      cell: (h) => (
+        <Badge variant="outline" className={h.status === "active" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-muted text-muted-foreground"}>
+          {h.status === "active" ? "Active" : "Exited"}
+        </Badge>
+      ),
+    },
+  ]
+
+  const holdingActions: ResponsiveTableAction<Shareholder>[] = [
+    {
+      label: "Download certificate", icon: FileDown,
+      onClick: (h) => setCertData({
+        id: h.id,
+        holderName: h.name,
+        companyName: h.companyName,
+        shares: h.shares,
+        sharePrice: h.sharePrice,
+        investmentAmount: h.investmentAmount,
+        shareType: SHARE_TYPE_LABELS[h.role] ?? "EQUITY SHARES",
+        ownershipPercent: h.ownershipPercent,
+        joinedDate: h.joinedDate,
+      }),
+    },
+  ]
 
   return (
     <div className="space-y-6">
@@ -124,71 +167,19 @@ function MyHoldingsView() {
 
       <Card>
         <CardHeader><CardTitle className="text-base">Holdings</CardTitle></CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Company</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead className="text-right">Shares</TableHead>
-                <TableHead className="text-right">Ownership</TableHead>
-                <TableHead className="text-right">Invested</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Certificate</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-6 w-full" /></TableCell></TableRow>
-                ))
-              ) : !holdings || holdings.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
-                    <PieChart className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                    No shareholdings recorded for your email address yet.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                holdings.map((h) => (
-                  <TableRow key={h.id}>
-                    <TableCell>
-                      <div className="font-medium">{h.companyName}</div>
-                      <div className="text-xs text-muted-foreground">{h.name}</div>
-                    </TableCell>
-                    <TableCell><Badge variant="outline" className={ROLE_STYLES[h.role] ?? ""}>{ROLE_LABELS[h.role] ?? h.role}</Badge></TableCell>
-                    <TableCell className="text-right">{num(h.shares)}</TableCell>
-                    <TableCell className="text-right font-semibold">{h.ownershipPercent.toFixed(2)}%</TableCell>
-                    <TableCell className="text-right text-muted-foreground">{inr(h.investmentAmount)}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={h.status === "active" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-muted text-muted-foreground"}>
-                        {h.status === "active" ? "Active" : "Exited"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost" size="icon"
-                        title="Download your share certificate PDF"
-                        onClick={() => setCertData({
-                          id: h.id,
-                          holderName: h.name,
-                          companyName: h.companyName,
-                          shares: h.shares,
-                          sharePrice: h.sharePrice,
-                          investmentAmount: h.investmentAmount,
-                          shareType: SHARE_TYPE_LABELS[h.role] ?? "EQUITY SHARES",
-                          ownershipPercent: h.ownershipPercent,
-                          joinedDate: h.joinedDate,
-                        })}
-                      >
-                        <FileDown className="h-4 w-4 text-blue-400" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+        <CardContent className="p-3 md:p-0">
+          <QueryState
+            isLoading={isLoading}
+            isError={isError}
+            isEmpty={!holdings || holdings.length === 0}
+            onRetry={refetch}
+            errorMessage="Could not load your shareholdings."
+            emptyMessage="No shareholdings recorded for your email address yet."
+            emptyIcon={PieChart}
+            loading={<ResponsiveTable columns={holdingColumns} data={[]} rowKey={(h) => h.id} isLoading skeletonCount={3} actions={holdingActions} />}
+          >
+            <ResponsiveTable columns={holdingColumns} data={holdings ?? []} rowKey={(h) => h.id} actions={holdingActions} />
+          </QueryState>
         </CardContent>
       </Card>
 
@@ -515,7 +506,7 @@ function AdminShareholdersView() {
   })
 
   const listKey = ["/api/shareholders", companyId]
-  const { data: holders, isLoading } = useQuery<Shareholder[]>({
+  const { data: holders, isLoading, isError, refetch } = useQuery<Shareholder[]>({
     queryKey: listKey,
     queryFn: () => adminApi.get(`/shareholders?companyId=${companyId}`),
     enabled: !!companyId,
@@ -594,6 +585,85 @@ function AdminShareholdersView() {
     save.mutate(body)
   }
 
+  const capColumns: ResponsiveTableColumn<Shareholder>[] = [
+    {
+      key: "name", header: "Shareholder", card: "title",
+      cell: (h) => (
+        <div>
+          <div className="font-medium">{h.name}</div>
+          {h.email && <div className="text-xs text-muted-foreground">{h.email}</div>}
+        </div>
+      ),
+      cardCell: (h) => h.name,
+    },
+    { key: "role", header: "Role", card: "subtitle", cell: (h) => <Badge variant="outline" className={ROLE_STYLES[h.role] ?? ""}>{ROLE_LABELS[h.role] ?? h.role}</Badge> },
+    { key: "shares", header: "Shares", headClassName: "text-right", cellClassName: "text-right", cell: (h) => num(h.shares) },
+    { key: "ownershipPercent", header: "Ownership", headClassName: "text-right", cellClassName: "text-right", cell: (h) => <span className="font-semibold">{h.ownershipPercent.toFixed(2)}%</span> },
+    { key: "investmentAmount", header: "Invested", headClassName: "text-right", cellClassName: "text-right", cell: (h) => <span className="text-muted-foreground">{inr(h.investmentAmount)}</span> },
+    {
+      key: "equityValue", header: "Equity Value", headClassName: "text-right", cellClassName: "text-right",
+      cell: (h) => cap && cap.totalShares > 0 ? inr((h.shares / cap.totalShares) * cap.valuation) : "—",
+    },
+    {
+      key: "sharePremium", header: "Share Premium", headClassName: "text-right", cellClassName: "text-right",
+      cell: (h) => <span className="text-muted-foreground">{h.investmentAmount > 0 && h.sharePrice > 0 ? inr(h.investmentAmount - h.shares * h.sharePrice) : "—"}</span>,
+    },
+    ...(aiValuation ? [
+      {
+        key: "bookValue", header: "Book Value", headClassName: "text-right", cellClassName: "text-right",
+        cell: (h: Shareholder) => aiValuation!.bookValuePerShare ? inr(h.shares * aiValuation!.bookValuePerShare) : "—",
+      },
+      {
+        key: "estMktVal", header: "Est. Mkt Val", headClassName: "text-right", cellClassName: "text-right",
+        cell: (h: Shareholder) => (
+          <span className={aiValuation!.estimatedSharePrice && h.investmentAmount > 0 ? (h.shares * aiValuation!.estimatedSharePrice! > h.investmentAmount ? "text-green-400" : "text-red-400") : ""}>
+            {aiValuation!.estimatedSharePrice ? inr(h.shares * aiValuation!.estimatedSharePrice!) : "—"}
+          </span>
+        ),
+      },
+    ] as ResponsiveTableColumn<Shareholder>[] : []),
+    {
+      key: "status", header: "Status", card: "badge",
+      cell: (h) => (
+        <Badge variant="outline" className={h.status === "active" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-muted text-muted-foreground"}>
+          {h.status === "active" ? "Active" : "Exited"}
+        </Badge>
+      ),
+    },
+  ]
+
+  const capActions: ResponsiveTableAction<Shareholder>[] = [
+    {
+      label: "Download certificate", icon: FileDown,
+      onClick: (h) => setCertData({
+        id: h.id,
+        holderName: h.name,
+        companyName: h.companyName,
+        shares: h.shares,
+        sharePrice: h.sharePrice,
+        investmentAmount: h.investmentAmount,
+        // AI estimated price preferred; fall back to cap-table derived price
+        estimatedSharePrice: aiValuation?.estimatedSharePrice ?? (cap && cap.totalShares > 0 ? cap.valuation / cap.totalShares : undefined),
+        bookValuePerShare: aiValuation?.bookValuePerShare ?? undefined,
+        shareType: SHARE_TYPE_LABELS[h.role] ?? "EQUITY SHARES",
+        ownershipPercent: h.ownershipPercent,
+        joinedDate: h.joinedDate,
+      }),
+    },
+    ...(canManage ? [
+      {
+        label: "Send invite", icon: Send,
+        onClick: (h: Shareholder) => invite.mutate(h.id),
+        disabled: (h: Shareholder) => !h.email || (invite.isPending && invite.variables === h.id),
+      },
+      { label: "Edit", icon: Pencil, onClick: openEdit },
+      {
+        label: "Delete", icon: Trash2, destructive: true,
+        onClick: (h: Shareholder) => { if (confirm(`Remove ${h.name}?`)) remove.mutate(h.id) },
+      },
+    ] as ResponsiveTableAction<Shareholder>[] : []),
+  ]
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -627,99 +697,25 @@ function AdminShareholdersView() {
           <CardTitle className="text-base">Cap Table</CardTitle>
           <CardDescription>Ownership breakdown{cap ? ` — share price ${inr(cap.pricePerShare)}` : ""}.</CardDescription>
         </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Shareholder</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead className="text-right">Shares</TableHead>
-                <TableHead className="text-right">Ownership</TableHead>
-                <TableHead className="text-right">Invested</TableHead>
-                <TableHead className="text-right">Equity Value</TableHead>
-                <TableHead className="text-right">Share Premium</TableHead>
-                {aiValuation && <TableHead className="text-right">Book Value</TableHead>}
-                {aiValuation && <TableHead className="text-right">Est. Mkt Val</TableHead>}
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Certificate</TableHead>
-                {canManage && <TableHead className="text-right">Actions</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <TableRow key={i}><TableCell colSpan={canManage ? 9 : 8}><Skeleton className="h-6 w-full" /></TableCell></TableRow>
-                ))
-              ) : !holders || holders.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={canManage ? 9 : 8} className="py-12 text-center text-muted-foreground">
-                    <PieChart className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                    No shareholders recorded for this company yet.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                holders.map((h) => (
-                  <TableRow key={h.id} className="cursor-pointer" onClick={() => { setDetailId(h.id); setTxForm(emptyTxForm()) }}>
-                    <TableCell>
-                      <div className="font-medium">{h.name}</div>
-                      {h.email && <div className="text-xs text-muted-foreground">{h.email}</div>}
-                    </TableCell>
-                    <TableCell><Badge variant="outline" className={ROLE_STYLES[h.role] ?? ""}>{ROLE_LABELS[h.role] ?? h.role}</Badge></TableCell>
-                    <TableCell className="text-right">{num(h.shares)}</TableCell>
-                    <TableCell className="text-right font-semibold">{h.ownershipPercent.toFixed(2)}%</TableCell>
-                    <TableCell className="text-right text-muted-foreground">{inr(h.investmentAmount)}</TableCell>
-                    <TableCell className="text-right">{cap && cap.totalShares > 0 ? inr((h.shares / cap.totalShares) * cap.valuation) : "—"}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {h.investmentAmount > 0 && h.sharePrice > 0 ? inr(h.investmentAmount - h.shares * h.sharePrice) : "—"}
-                    </TableCell>
-                    {aiValuation && <TableCell className="text-right">{aiValuation.bookValuePerShare ? inr(h.shares * aiValuation.bookValuePerShare) : "—"}</TableCell>}
-                    {aiValuation && <TableCell className={`text-right ${aiValuation.estimatedSharePrice && h.investmentAmount > 0 ? (h.shares * aiValuation.estimatedSharePrice > h.investmentAmount ? "text-green-400" : "text-red-400") : ""}`}>{aiValuation.estimatedSharePrice ? inr(h.shares * aiValuation.estimatedSharePrice) : "—"}</TableCell>}
-                    <TableCell>
-                      <Badge variant="outline" className={h.status === "active" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-muted text-muted-foreground"}>
-                        {h.status === "active" ? "Active" : "Exited"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        variant="ghost" size="icon"
-                        title="Download share certificate PDF"
-                        onClick={() => setCertData({
-                          id: h.id,
-                          holderName: h.name,
-                          companyName: h.companyName,
-                          shares: h.shares,
-                          sharePrice: h.sharePrice,
-                          investmentAmount: h.investmentAmount,
-                          // AI estimated price preferred; fall back to cap-table derived price
-                          estimatedSharePrice: aiValuation?.estimatedSharePrice ?? (cap && cap.totalShares > 0 ? cap.valuation / cap.totalShares : undefined),
-                          bookValuePerShare: aiValuation?.bookValuePerShare ?? undefined,
-                          shareType: SHARE_TYPE_LABELS[h.role] ?? "EQUITY SHARES",
-                          ownershipPercent: h.ownershipPercent,
-                          joinedDate: h.joinedDate,
-                        })}
-                      >
-                        <FileDown className="h-4 w-4 text-blue-400" />
-                      </Button>
-                    </TableCell>
-                    {canManage && (
-                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost" size="icon"
-                          title={h.email ? (h.invitedAt ? `Invited ${new Date(h.invitedAt).toLocaleDateString("en-IN")} — resend` : "Send invite email") : "Add an email address to invite"}
-                          disabled={!h.email || (invite.isPending && invite.variables === h.id)}
-                          onClick={() => invite.mutate(h.id)}
-                         aria-label="Send">
-                          <Send className={`h-4 w-4 ${h.invitedAt ? "text-green-400" : ""}`} />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(h)} aria-label="Edit"><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => { if (confirm(`Remove ${h.name}?`)) remove.mutate(h.id) }} aria-label="Delete"><Trash2 className="h-4 w-4 text-red-400" /></Button>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+        <CardContent className="p-3 md:p-0">
+          <QueryState
+            isLoading={isLoading}
+            isError={isError}
+            isEmpty={!holders || holders.length === 0}
+            onRetry={refetch}
+            errorMessage="Could not load shareholders."
+            emptyMessage="No shareholders recorded for this company yet."
+            emptyIcon={PieChart}
+            loading={<ResponsiveTable columns={capColumns} data={[]} rowKey={(h) => h.id} isLoading skeletonCount={4} actions={capActions} />}
+          >
+            <ResponsiveTable
+              columns={capColumns}
+              data={holders ?? []}
+              rowKey={(h) => h.id}
+              actions={capActions}
+              onRowClick={(h) => { setDetailId(h.id); setTxForm(emptyTxForm()) }}
+            />
+          </QueryState>
         </CardContent>
       </Card>
 
@@ -940,29 +936,21 @@ function ShareholderDetail({ id, onClose, canManage, txForm, setTxForm, onChange
               {data.history.length === 0 ? (
                 <p className="py-6 text-center text-sm text-muted-foreground">No transactions recorded yet.</p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead><TableHead>Type</TableHead>
-                      <TableHead className="text-right">Shares</TableHead>
-                      <TableHead className="text-right">₹/share</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead>Note</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.history.map((t) => (
-                      <TableRow key={t.id}>
-                        <TableCell className="text-muted-foreground">{new Date(t.date).toLocaleDateString("en-IN")}</TableCell>
-                        <TableCell>{TX_LABELS[t.type] ?? t.type}</TableCell>
-                        <TableCell className={`text-right ${t.shares < 0 ? "text-red-400" : ""}`}>{t.shares > 0 ? "+" : ""}{num(t.shares)}</TableCell>
-                        <TableCell className="text-right">{inr(t.pricePerShare)}</TableCell>
-                        <TableCell className="text-right">{inr(t.amount)}</TableCell>
-                        <TableCell className="max-w-[160px] truncate text-muted-foreground">{t.note ?? "—"}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <ResponsiveTable
+                  columns={[
+                    { key: "type", header: "Type", card: "title", cell: (t) => TX_LABELS[t.type] ?? t.type },
+                    { key: "date", header: "Date", card: "subtitle", cell: (t) => new Date(t.date).toLocaleDateString("en-IN") },
+                    {
+                      key: "shares", header: "Shares", headClassName: "text-right", cellClassName: "text-right",
+                      cell: (t) => <span className={t.shares < 0 ? "text-red-400" : ""}>{t.shares > 0 ? "+" : ""}{num(t.shares)}</span>,
+                    },
+                    { key: "pricePerShare", header: "₹/share", headClassName: "text-right", cellClassName: "text-right", cell: (t) => inr(t.pricePerShare) },
+                    { key: "amount", header: "Amount", headClassName: "text-right", cellClassName: "text-right", cell: (t) => inr(t.amount) },
+                    { key: "note", header: "Note", cell: (t) => <span className="max-w-[160px] truncate block text-muted-foreground">{t.note ?? "—"}</span> },
+                  ]}
+                  data={data.history}
+                  rowKey={(t) => t.id}
+                />
               )}
             </div>
           </div>

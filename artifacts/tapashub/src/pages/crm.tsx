@@ -1,11 +1,11 @@
 import { useListCustomers, getListCustomersQueryKey, useListLeads, getListLeadsQueryKey } from "@workspace/api-client-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
-import { UsersRound, Phone, Mail } from "lucide-react"
+import { UsersRound, Handshake, Phone, Mail } from "lucide-react"
 import { useCompany } from "@/contexts/company-context"
+import { ResponsiveTable, type ResponsiveTableColumn } from "@/components/responsive-table"
+import { QueryState } from "@/components/query-state"
 
 export default function CRM() {
   const { activeCompany } = useCompany()
@@ -15,13 +15,54 @@ export default function CRM() {
   const leadParams: Record<string, string | number> = { limit: 50 }
   if (activeCompany) leadParams.companyId = activeCompany.id
 
-  const { data: customers, isLoading: loadingCustomers } = useListCustomers(customerParams, {
+  const { data: customers, isLoading: loadingCustomers, isError: customersError, refetch: refetchCustomers } = useListCustomers(customerParams, {
     query: { enabled: true, queryKey: getListCustomersQueryKey(customerParams) }
   })
 
-  const { data: leads, isLoading: loadingLeads } = useListLeads(leadParams, {
+  const { data: leads, isLoading: loadingLeads, isError: leadsError, refetch: refetchLeads } = useListLeads(leadParams, {
     query: { enabled: true, queryKey: getListLeadsQueryKey(leadParams) }
   })
+
+  const customerColumns: ResponsiveTableColumn<NonNullable<typeof customers>["items"][number]>[] = [
+    { key: "name", header: "Customer", card: "title", cell: (c) => <span className="font-medium">{c.name}</span> },
+    {
+      key: "contact", header: "Contact", card: "subtitle",
+      cell: (c) => (
+        <div className="text-sm">
+          <div className="flex items-center gap-1"><Mail className="w-3 h-3 text-muted-foreground" /> {c.email}</div>
+          {c.phone && <div className="flex items-center gap-1 mt-1 text-muted-foreground"><Phone className="w-3 h-3" /> {c.phone}</div>}
+        </div>
+      ),
+      cardCell: (c) => c.email,
+    },
+    { key: "companyName", header: "Company", cell: (c) => <Badge variant="outline" className="font-normal">{c.companyName}</Badge> },
+    { key: "totalOrders", header: "Total Orders", headClassName: "text-right", cellClassName: "text-right", cell: (c) => <span className="font-medium">{c.totalOrders}</span> },
+    { key: "totalSpend", header: "Total Spend", headClassName: "text-right", cellClassName: "text-right", cell: (c) => <span className="font-medium text-success">₹{c.totalSpend.toLocaleString('en-IN')}</span> },
+    {
+      key: "status", header: "Status", card: "badge",
+      cell: (c) => <Badge variant={c.status === 'active' ? 'success' : c.status === 'vip' ? 'default' : 'secondary'} className="capitalize text-[10px]">{c.status}</Badge>,
+    },
+  ]
+
+  const leadColumns: ResponsiveTableColumn<NonNullable<typeof leads>["items"][number]>[] = [
+    {
+      key: "name", header: "Lead Name", card: "title",
+      cell: (l) => (
+        <div>
+          <div className="font-medium">{l.name}</div>
+          <div className="text-xs text-muted-foreground">{l.email}</div>
+        </div>
+      ),
+      cardCell: (l) => l.name,
+    },
+    { key: "source", header: "Source", card: "subtitle", cell: (l) => <span className="capitalize text-sm text-muted-foreground">{l.source.replace('_', ' ')}</span> },
+    { key: "companyName", header: "Target Company", cell: (l) => <Badge variant="outline">{l.companyName}</Badge> },
+    { key: "value", header: "Est. Value", headClassName: "text-right", cellClassName: "text-right", cell: (l) => <span className="font-medium">₹{l.value.toLocaleString('en-IN')}</span> },
+    {
+      key: "stage", header: "Stage", card: "badge",
+      cell: (l) => <Badge variant="secondary" className="capitalize">{l.stage}</Badge>,
+    },
+  ]
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -40,60 +81,19 @@ export default function CRM() {
         
         <TabsContent value="customers" className="mt-4">
           <Card className="overflow-hidden">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Company</TableHead>
-                    <TableHead className="text-right">Total Orders</TableHead>
-                    <TableHead className="text-right">Total Spend</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loadingCustomers ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <TableRow key={i}>
-                        <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                        <TableCell><Skeleton className="h-5 w-48" /></TableCell>
-                        <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                        <TableCell className="text-right"><Skeleton className="h-5 w-12 ml-auto" /></TableCell>
-                        <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
-                        <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                      </TableRow>
-                    ))
-                  ) : customers?.items?.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                        <UsersRound className="mx-auto h-8 w-8 opacity-20 mb-2" />
-                        No customers found
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    customers?.items?.map((customer) => (
-                      <TableRow key={customer.id} className="hover:bg-muted/30">
-                        <TableCell className="font-medium">{customer.name}</TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            <div className="flex items-center gap-1"><Mail className="w-3 h-3 text-muted-foreground"/> {customer.email}</div>
-                            {customer.phone && <div className="flex items-center gap-1 mt-1 text-muted-foreground"><Phone className="w-3 h-3"/> {customer.phone}</div>}
-                          </div>
-                        </TableCell>
-                        <TableCell><Badge variant="outline" className="font-normal">{customer.companyName}</Badge></TableCell>
-                        <TableCell className="text-right font-medium">{customer.totalOrders}</TableCell>
-                        <TableCell className="text-right font-medium text-success">₹{customer.totalSpend.toLocaleString('en-IN')}</TableCell>
-                        <TableCell>
-                           <Badge variant={customer.status === 'active' ? 'success' : customer.status === 'vip' ? 'default' : 'secondary'} className="capitalize text-[10px]">
-                            {customer.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+            <div className="p-3 md:p-0">
+              <QueryState
+                isLoading={loadingCustomers}
+                isError={customersError}
+                isEmpty={(customers?.items?.length ?? 0) === 0}
+                onRetry={refetchCustomers}
+                errorMessage="Could not load customers."
+                emptyMessage="No customers found"
+                emptyIcon={UsersRound}
+                loading={<ResponsiveTable columns={customerColumns} data={[]} rowKey={(c) => c.id} isLoading skeletonCount={5} />}
+              >
+                <ResponsiveTable columns={customerColumns} data={customers?.items ?? []} rowKey={(c) => c.id} />
+              </QueryState>
             </div>
           </Card>
         </TabsContent>
@@ -101,53 +101,20 @@ export default function CRM() {
         <TabsContent value="leads" className="mt-4">
           {/* Simple table for leads for now instead of kanban to ensure robustness */}
           <Card className="overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead>Lead Name</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Target Company</TableHead>
-                  <TableHead className="text-right">Est. Value</TableHead>
-                  <TableHead>Stage</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loadingLeads ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                    </TableRow>
-                  ))
-                ) : leads?.items?.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
-                      No leads found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  leads?.items?.map((lead) => (
-                    <TableRow key={lead.id} className="hover:bg-muted/30">
-                      <TableCell>
-                        <div className="font-medium">{lead.name}</div>
-                        <div className="text-xs text-muted-foreground">{lead.email}</div>
-                      </TableCell>
-                      <TableCell className="capitalize text-sm text-muted-foreground">{lead.source.replace('_', ' ')}</TableCell>
-                      <TableCell><Badge variant="outline">{lead.companyName}</Badge></TableCell>
-                      <TableCell className="text-right font-medium">₹{lead.value.toLocaleString('en-IN')}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="capitalize">
-                          {lead.stage}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+            <div className="p-3 md:p-0">
+              <QueryState
+                isLoading={loadingLeads}
+                isError={leadsError}
+                isEmpty={(leads?.items?.length ?? 0) === 0}
+                onRetry={refetchLeads}
+                errorMessage="Could not load leads."
+                emptyMessage="No leads found"
+                emptyIcon={Handshake}
+                loading={<ResponsiveTable columns={leadColumns} data={[]} rowKey={(l) => l.id} isLoading skeletonCount={5} />}
+              >
+                <ResponsiveTable columns={leadColumns} data={leads?.items ?? []} rowKey={(l) => l.id} />
+              </QueryState>
+            </div>
           </Card>
         </TabsContent>
       </Tabs>

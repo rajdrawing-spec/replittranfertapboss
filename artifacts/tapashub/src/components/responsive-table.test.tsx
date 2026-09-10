@@ -135,4 +135,21 @@ describe("ResponsiveTable", () => {
     const amountLabels = screen.getAllByText("Amount");
     expect(amountLabels.length).toBeGreaterThanOrEqual(1);
   });
+
+  it("applies rowClassName to both the desktop row and the mobile card", () => {
+    // e.g. dimming a voided/reversed entry — a per-row visual cue several
+    // finance pages need and that got dropped from Treasury's migration
+    // until this was added.
+    const { container } = render(
+      <ResponsiveTable
+        columns={columns}
+        data={rows}
+        rowKey={(r) => r.id}
+        rowClassName={(r) => (r.status === "Overdue" ? "opacity-50" : undefined)}
+      />,
+    );
+    const dimmed = container.querySelectorAll(".opacity-50");
+    // One desktop <tr> + one mobile <Card> for the single "Overdue" row.
+    expect(dimmed.length).toBe(2);
+  });
 });

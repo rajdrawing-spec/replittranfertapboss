@@ -24,7 +24,6 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
 import {
@@ -37,6 +36,8 @@ import { adminApi } from "@/lib/admin-api"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { RequestAccessGate } from "@/components/access-gate"
+import { ResponsiveTable, type ResponsiveTableColumn, type ResponsiveTableAction } from "@/components/responsive-table"
+import { QueryState } from "@/components/query-state"
 
 /* ─────────────────────────────── Types ─────────────────────────────── */
 
@@ -243,7 +244,7 @@ export default function Treasury() {
   })
 
   const listKey = ["/api/treasury/entries", page, statusFilter, sourceFilter]
-  const { data: list, isLoading: listLoading, isError: listError } = useQuery<EntryList>({
+  const { data: list, isLoading: listLoading, isError: listError, refetch: refetchList } = useQuery<EntryList>({
     queryKey: listKey,
     queryFn: () => adminApi.get(
       `/treasury/entries?page=${page}&limit=25${statusFilter !== "all" ? `&status=${statusFilter}` : ""}${sourceFilter !== "all" ? `&fundingSource=${sourceFilter}` : ""}`
@@ -358,6 +359,96 @@ export default function Treasury() {
 
   const f = (k: keyof EntryForm, v: string) => setForm(frm => ({ ...frm, [k]: v }))
   const totalPages = Math.ceil((list?.total ?? 0) / 25)
+
+  const entryColumns: ResponsiveTableColumn<TreasuryEntry>[] = [
+    { key: "date", header: "Date", card: "hidden", cell: (e) => <span className="text-xs text-muted-foreground whitespace-nowrap">{e.date}</span> },
+    {
+      key: "source", header: "Source", card: "subtitle",
+      cell: (e) => (
+        <div className="flex items-center gap-1.5">
+          <Building2 className="w-3 h-3 text-muted-foreground shrink-0" />
+          <span className="text-xs font-medium">{sourceLabel(e.fundingSource)}</span>
+        </div>
+      ),
+      cardCell: (e) => <>{sourceLabel(e.fundingSource)} · {e.date}</>,
+    },
+    { key: "investorName", header: "Investor / Lender", cell: (e) => <span className="text-sm text-muted-foreground">{e.investorName ?? "—"}</span> },
+    {
+      key: "description", header: "Description", card: "title",
+      cell: (e) => (
+        <div>
+          <div className="text-sm font-medium max-w-[220px] truncate">{e.description}</div>
+          {e.isReversed && <div className="text-[11px] text-red-400/80 mt-0.5">Reversed · {e.reversalReason}</div>}
+        </div>
+      ),
+      cardCell: (e) => e.description,
+    },
+    {
+      key: "amount", header: "Amount",
+      cell: (e) => e.isReversed ? (
+        <span className="font-semibold line-through text-muted-foreground whitespace-nowrap">{inr(e.amount)}</span>
+      ) : (
+        <HoverCard openDelay={200}>
+          <HoverCardTrigger asChild>
+            <button type="button" className="font-semibold text-green-400 underline decoration-dotted decoration-green-400/40 focus:outline-none focus-visible:ring-1 focus-visible:ring-green-400 rounded whitespace-nowrap">{inr(e.amount)}</button>
+          </HoverCardTrigger>
+          <HoverCardContent align="start" className="w-64 text-sm">
+            <div className="space-y-2">
+              <div className="font-semibold">{sourceLabel(e.fundingSource)}</div>
+              <div className="text-xs text-muted-foreground space-y-1.5">
+                <div className="flex justify-between"><span>Date</span><span className="font-mono">{e.date}</span></div>
+                {e.investorName && <div className="flex justify-between"><span>Source</span><span>{e.investorName}</span></div>}
+                {e.paymentMethod && <div className="flex justify-between"><span>Method</span><span className="capitalize">{e.paymentMethod.replace(/_/g, " ")}</span></div>}
+                {e.referenceNumber && <div className="flex justify-between"><span>Ref #</span><span className="font-mono text-[11px]">{e.referenceNumber}</span></div>}
+                <div className="flex justify-between"><span>Recorded by</span><span>{e.createdByName}</span></div>
+                <div className="flex justify-between"><span>Status</span><span className="capitalize">{e.status}</span></div>
+              </div>
+              <div className="pt-1.5 border-t flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Amount</span>
+                <span className="font-bold text-green-400">{inr(e.amount)}</span>
+              </div>
+              {(() => {
+                  const ir = getInterestRate(e.notes)
+                  const { cleanNotes } = parseInterestFromNotes(e.notes)
+                  return (
+                    <>
+                      {ir != null && (
+                        <div className="pt-1.5 border-t space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Interest Rate</span>
+                            <span className="text-xs font-semibold text-amber-400">{ir}% p.a.</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Annual Interest Expense</span>
+                            <span className="text-xs font-bold text-amber-400">{inr(e.amount * ir / 100)}</span>
+                          </div>
+                          <div className="text-[10px] text-amber-400/70">TapasHub repays this as an expense</div>
+                        </div>
+                      )}
+                      {cleanNotes && (
+                        <div className="text-[11px] text-muted-foreground border-t pt-1.5 line-clamp-2">{cleanNotes}</div>
+                      )}
+                    </>
+                  )
+              })()}
+            </div>
+          </HoverCardContent>
+        </HoverCard>
+      ),
+    },
+    {
+      key: "status", header: "Status", card: "badge",
+      cell: (e) => e.isReversed
+        ? <Badge variant="outline" className="bg-muted text-muted-foreground border-border text-[11px]">Reversed</Badge>
+        : <Badge variant="outline" className={`${STATUS_STYLES[e.status] ?? ""} text-[11px]`}>{e.status}</Badge>,
+    },
+    { key: "referenceNumber", header: "Ref #", cell: (e) => <span className="text-xs text-muted-foreground font-mono">{e.referenceNumber ?? "—"}</span> },
+  ]
+
+  const entryActions: ResponsiveTableAction<TreasuryEntry>[] = canManage ? [
+    { label: "Edit entry", icon: Pencil, onClick: openEdit, hidden: (e) => e.isReversed },
+    { label: "Reverse entry", icon: RotateCcw, onClick: openReverse, hidden: (e) => e.isReversed },
+  ] : []
 
   /* ─────────── Access guard ────────── */
   if (!canView) {
@@ -681,129 +772,25 @@ export default function Treasury() {
           </div>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="overflow-x-auto rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Investor / Lender</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Ref #</TableHead>
-                  {canManage && <TableHead className="w-20" />}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {listLoading ? (
-                  Array.from({ length: 6 }).map((_, i) => (
-                    <TableRow key={i}><TableCell colSpan={canManage ? 8 : 7}><Skeleton className="h-7 w-full" /></TableCell></TableRow>
-                  ))
-                ) : !list?.items?.length ? (
-                  <TableRow>
-                    <TableCell colSpan={canManage ? 8 : 7} className="h-32 text-center text-muted-foreground">
-                      <Landmark className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                      No treasury entries yet. Add your first funding source.
-                    </TableCell>
-                  </TableRow>
-                ) : list.items.map(e => (
-                  <TableRow key={e.id} className={`hover:bg-muted/30 ${e.isReversed ? "opacity-50" : ""}`}>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{e.date}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <Building2 className="w-3 h-3 text-muted-foreground shrink-0" />
-                        <span className="text-xs font-medium">{sourceLabel(e.fundingSource)}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{e.investorName ?? "—"}</TableCell>
-                    <TableCell>
-                      <div className="text-sm font-medium max-w-[220px] truncate">{e.description}</div>
-                      {e.isReversed && (
-                        <div className="text-[11px] text-red-400/80 mt-0.5">
-                          Reversed · {e.reversalReason}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-semibold text-green-400 whitespace-nowrap">
-                      {e.isReversed ? (
-                        <span className="line-through text-muted-foreground">{inr(e.amount)}</span>
-                      ) : (
-                        <HoverCard openDelay={200}>
-                          <HoverCardTrigger asChild>
-                            <button type="button" className="font-semibold text-green-400 underline decoration-dotted decoration-green-400/40 focus:outline-none focus-visible:ring-1 focus-visible:ring-green-400 rounded">{inr(e.amount)}</button>
-                          </HoverCardTrigger>
-                          <HoverCardContent align="start" className="w-64 text-sm">
-                            <div className="space-y-2">
-                              <div className="font-semibold">{sourceLabel(e.fundingSource)}</div>
-                              <div className="text-xs text-muted-foreground space-y-1.5">
-                                <div className="flex justify-between"><span>Date</span><span className="font-mono">{e.date}</span></div>
-                                {e.investorName && <div className="flex justify-between"><span>Source</span><span>{e.investorName}</span></div>}
-                                {e.paymentMethod && <div className="flex justify-between"><span>Method</span><span className="capitalize">{e.paymentMethod.replace(/_/g, " ")}</span></div>}
-                                {e.referenceNumber && <div className="flex justify-between"><span>Ref #</span><span className="font-mono text-[11px]">{e.referenceNumber}</span></div>}
-                                <div className="flex justify-between"><span>Recorded by</span><span>{e.createdByName}</span></div>
-                                <div className="flex justify-between"><span>Status</span><span className="capitalize">{e.status}</span></div>
-                              </div>
-                              <div className="pt-1.5 border-t flex items-center justify-between">
-                                <span className="text-xs text-muted-foreground">Amount</span>
-                                <span className="font-bold text-green-400">{inr(e.amount)}</span>
-                              </div>
-                              {(() => {
-                                  const ir = getInterestRate(e.notes)
-                                  const { cleanNotes } = parseInterestFromNotes(e.notes)
-                                  return (
-                                    <>
-                                      {ir != null && (
-                                        <div className="pt-1.5 border-t space-y-1">
-                                          <div className="flex items-center justify-between">
-                                            <span className="text-xs text-muted-foreground">Interest Rate</span>
-                                            <span className="text-xs font-semibold text-amber-400">{ir}% p.a.</span>
-                                          </div>
-                                          <div className="flex items-center justify-between">
-                                            <span className="text-xs text-muted-foreground">Annual Interest Expense</span>
-                                            <span className="text-xs font-bold text-amber-400">{inr(e.amount * ir / 100)}</span>
-                                          </div>
-                                          <div className="text-[10px] text-amber-400/70">TapasHub repays this as an expense</div>
-                                        </div>
-                                      )}
-                                      {cleanNotes && (
-                                        <div className="text-[11px] text-muted-foreground border-t pt-1.5 line-clamp-2">{cleanNotes}</div>
-                                      )}
-                                    </>
-                                  )
-                              })()}
-                            </div>
-                          </HoverCardContent>
-                        </HoverCard>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {e.isReversed
-                        ? <Badge variant="outline" className="bg-muted text-muted-foreground border-border text-[11px]">Reversed</Badge>
-                        : <Badge variant="outline" className={`${STATUS_STYLES[e.status] ?? ""} text-[11px]`}>{e.status}</Badge>
-                      }
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground font-mono">{e.referenceNumber ?? "—"}</TableCell>
-                    {canManage && (
-                      <TableCell>
-                        {!e.isReversed && (
-                          <div className="flex gap-1">
-                            <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7" title="Edit entry" onClick={() => openEdit(e)} aria-label="Edit entry">
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="w-9 h-9 md:w-7 md:h-7 text-amber-400 hover:text-amber-300"
-                              title="Reverse entry" onClick={() => openReverse(e)}>
-                              <RotateCcw className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        )}
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <QueryState
+            isLoading={listLoading}
+            isError={listError}
+            isEmpty={!list?.items?.length}
+            onRetry={refetchList}
+            errorMessage="Could not load treasury entries."
+            emptyMessage="No treasury entries yet."
+            emptyHint="Add your first funding source."
+            emptyIcon={Landmark}
+            loading={<ResponsiveTable columns={entryColumns} data={[]} rowKey={(e) => e.id} isLoading skeletonCount={6} actions={entryActions} />}
+          >
+            <ResponsiveTable
+              columns={entryColumns}
+              data={list?.items ?? []}
+              rowKey={(e) => e.id}
+              actions={entryActions}
+              rowClassName={(e) => (e.isReversed ? "opacity-50" : undefined)}
+            />
+          </QueryState>
 
           {/* Pagination */}
           {totalPages > 1 && (

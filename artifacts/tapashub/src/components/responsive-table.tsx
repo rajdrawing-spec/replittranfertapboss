@@ -64,6 +64,8 @@ export interface ResponsiveTableProps<T> {
   rowKey: (row: T) => React.Key
   actions?: ResponsiveTableAction<T>[]
   onRowClick?: (row: T) => void
+  /** Extra classes for a row's <TableRow>/<Card> — e.g. dimming a voided entry. */
+  rowClassName?: (row: T) => string | undefined
   /** Skeleton rows/cards shown while `isLoading`. */
   isLoading?: boolean
   skeletonCount?: number
@@ -158,6 +160,7 @@ export function ResponsiveTable<T>({
   rowKey,
   actions = [],
   onRowClick,
+  rowClassName,
   isLoading,
   skeletonCount = 6,
   className,
@@ -193,7 +196,7 @@ export function ResponsiveTable<T>({
               data.map((row) => (
                 <TableRow
                   key={rowKey(row)}
-                  className={cn("hover:bg-muted/30", onRowClick && "cursor-pointer")}
+                  className={cn("hover:bg-muted/30", onRowClick && "cursor-pointer", rowClassName?.(row))}
                   onClick={() => onRowClick?.(row)}
                 >
                   {columns.map((c) => (
@@ -225,7 +228,7 @@ export function ResponsiveTable<T>({
           : data.map((row) => (
               <Card
                 key={rowKey(row)}
-                className={cn(onRowClick && "cursor-pointer active:bg-muted/40")}
+                className={cn(onRowClick && "cursor-pointer active:bg-muted/40", rowClassName?.(row))}
                 onClick={() => onRowClick?.(row)}
               >
                 <CardContent className="p-3">

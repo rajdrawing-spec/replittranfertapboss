@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { EmptyState } from "@/components/empty-state"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { EmptyState, ErrorState } from "@/components/empty-state"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TrendingUp, TrendingDown, DollarSign, BarChart3, PieChart, Percent, Lightbulb } from "lucide-react"
+import { ResponsiveTable, type ResponsiveTableColumn } from "@/components/responsive-table"
 
 interface Company { id: number; name: string }
 interface SeriesRow { label: string; revenue: number; expenses: number; profit: number }
@@ -137,7 +137,7 @@ export default function Analytics() {
   })
 
   const qs = `?period=${period}${companyId !== "all" ? `&companyId=${companyId}` : ""}`
-  const { data: summary, isLoading } = useQuery<Summary>({
+  const { data: summary, isLoading, isError, refetch } = useQuery<Summary>({
     queryKey: ["/api/analytics/summary", companyId, period],
     queryFn: () => adminApi.get(`/analytics/summary${qs}`),
   })
@@ -148,6 +148,18 @@ export default function Analytics() {
 
   const periodWord = period === "year" ? "year" : period === "quarter" ? "quarter" : "month"
   const cur = summary?.current
+
+  const reportColumns: ResponsiveTableColumn<ReportRow>[] = [
+    { key: "label", header: "Period", card: "title", cell: (r) => <span className="font-medium">{r.label}</span> },
+    { key: "growth", header: "Growth", card: "subtitle", headClassName: "text-right", cellClassName: "text-right", cell: (r) => <GrowthBadge v={r.growth} /> },
+    { key: "revenue", header: "Revenue", headClassName: "text-right", cellClassName: "text-right", cell: (r) => inr(r.revenue) },
+    { key: "expenses", header: "Expenses", headClassName: "text-right", cellClassName: "text-right", cell: (r) => <span className="text-muted-foreground">{inr(r.expenses)}</span> },
+    {
+      key: "profit", header: "Profit", card: "badge", headClassName: "text-right", cellClassName: "text-right",
+      cell: (r) => <span className={`font-medium ${r.profit >= 0 ? "text-green-400" : "text-red-400"}`}>{inr(r.profit)}</span>,
+    },
+    { key: "margin", header: "Margin", headClassName: "text-right", cellClassName: "text-right", cell: (r) => r.margin != null ? `${r.margin.toFixed(1)}%` : "—" },
+  ]
 
   return (
     <div className="space-y-6">
@@ -174,11 +186,22 @@ export default function Analytics() {
         </div>
       </div>
 
+      {/*
+        This block intentionally stays a plain ternary rather than <QueryState>.
+        QueryState's `children` is a normal prop — React evaluates it while
+        building the element tree for the *call*, before QueryState's own
+        conditional logic ever runs, exactly like any other function argument.
+        A ternary is real control flow: the branch that isn't taken is never
+        evaluated. The content below reads `cur.x` without a null check, which
+        only a real short-circuit makes safe.
+      */}
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-32" />)}</div>
-      ) : summary?.empty ? (
+      ) : isError ? (
+        <ErrorState className="h-56" message="Could not load analytics." onRetry={refetch} />
+      ) : summary?.empty || !cur ? (
         <EmptyState className="h-56" />
-      ) : cur ? (
+      ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi icon={BarChart3} label={`Revenue (this ${periodWord})`} value={fmtCompact(cur.revenue)} tone="bg-teal-500/10 text-teal-400"
@@ -241,31 +264,8 @@ export default function Analytics() {
                 <CardTitle className="text-base">{PERIODS.find((p) => p.value === period)?.label} Report</CardTitle>
                 <CardDescription className="text-xs">Revenue, expenses, profit and margin per {periodWord}</CardDescription>
               </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Period</TableHead>
-                      <TableHead className="text-right">Revenue</TableHead>
-                      <TableHead className="text-right">Expenses</TableHead>
-                      <TableHead className="text-right">Profit</TableHead>
-                      <TableHead className="text-right">Margin</TableHead>
-                      <TableHead className="text-right">Growth</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(report?.rows ?? []).map((r) => (
-                      <TableRow key={r.label}>
-                        <TableCell className="font-medium">{r.label}</TableCell>
-                        <TableCell className="text-right">{inr(r.revenue)}</TableCell>
-                        <TableCell className="text-right text-muted-foreground">{inr(r.expenses)}</TableCell>
-                        <TableCell className={`text-right font-medium ${r.profit >= 0 ? "text-green-400" : "text-red-400"}`}>{inr(r.profit)}</TableCell>
-                        <TableCell className="text-right">{r.margin != null ? `${r.margin.toFixed(1)}%` : "—"}</TableCell>
-                        <TableCell className="text-right"><GrowthBadge v={r.growth} /></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <CardContent className="p-3 md:p-0">
+                <ResponsiveTable columns={reportColumns} data={report?.rows ?? []} rowKey={(r) => r.label} />
               </CardContent>
             </Card>
           </div>
@@ -276,8 +276,6 @@ export default function Analytics() {
             </p>
           )}
         </>
-      ) : (
-        <EmptyState className="h-56" />
       )}
     </div>
   )

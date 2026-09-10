@@ -6,7 +6,6 @@ import {
 } from "@workspace/api-client-react"
 import { useAuth } from "@/contexts/auth-context"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -17,12 +16,59 @@ import { Label } from "@/components/ui/label"
 import { Settings2, Shield, Users, Brain, CheckCircle2, XCircle, Loader2, ChevronDown, ChevronRight } from "lucide-react"
 import { MeetingSettings } from "@/components/meetings/meeting-settings"
 import { useQueryClient } from "@tanstack/react-query"
+import { ResponsiveTable, type ResponsiveTableColumn } from "@/components/responsive-table"
+import { QueryState } from "@/components/query-state"
 
 export default function Settings() {
   const { isSuperAdmin } = useAuth()
-  const { data: users, isLoading } = useListUsers({}, {
+  const { data: users, isLoading, isError, refetch } = useListUsers({}, {
     query: { enabled: true, queryKey: getListUsersQueryKey({}) }
   })
+
+  const userColumns: ResponsiveTableColumn<NonNullable<typeof users>[number]>[] = [
+    {
+      key: "user", header: "User", card: "title",
+      cell: (user) => (
+        <div className="flex items-center gap-3">
+          <Avatar className="w-8 h-8">
+            <AvatarImage src={user.avatarUrl || undefined} />
+            <AvatarFallback className="bg-primary/10 text-primary text-xs">
+              {user.name.substring(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="font-medium text-sm">{user.name}</div>
+            <div className="text-xs text-muted-foreground">{user.email}</div>
+          </div>
+        </div>
+      ),
+      // Same avatar + name + email combo as the desktop cell — the card
+      // title area already gives it room, so there's no need for a second
+      // "subtitle" column (which would also add an empty header on desktop).
+      cardCell: (user) => (
+        <div className="flex items-center gap-2">
+          <Avatar className="w-7 h-7 shrink-0">
+            <AvatarImage src={user.avatarUrl || undefined} />
+            <AvatarFallback className="bg-primary/10 text-primary text-[10px]">
+              {user.name.substring(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <div className="truncate">{user.name}</div>
+            <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "role", header: "Role",
+      cell: (user) => <Badge variant="outline" className="capitalize bg-background text-[10px]">{user.role.replace('_', ' ')}</Badge>,
+    },
+    {
+      key: "status", header: "Status", card: "badge",
+      cell: (user) => <Badge variant={user.status === 'active' ? 'success' : 'secondary'} className="capitalize text-[10px]">{user.status}</Badge>,
+    },
+  ]
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
@@ -94,63 +140,18 @@ export default function Settings() {
               <CardDescription>Manage platform access and roles</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    Array.from({ length: 4 }).map((_, i) => (
-                      <TableRow key={i}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Skeleton className="h-8 w-8 rounded-full" />
-                            <div className="space-y-2">
-                              <Skeleton className="h-4 w-32" />
-                              <Skeleton className="h-3 w-24" />
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                        <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    users?.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar className="w-8 h-8">
-                              <AvatarImage src={user.avatarUrl || undefined} />
-                              <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                                {user.name.substring(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <div className="font-medium text-sm">{user.name}</div>
-                              <div className="text-xs text-muted-foreground">{user.email}</div>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize bg-background text-[10px]">
-                            {user.role.replace('_', ' ')}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={user.status === 'active' ? 'success' : 'secondary'} className="capitalize text-[10px]">
-                            {user.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+              <QueryState
+                isLoading={isLoading}
+                isError={isError}
+                isEmpty={(users?.length ?? 0) === 0}
+                onRetry={refetch}
+                errorMessage="Could not load users."
+                emptyMessage="No users yet"
+                emptyIcon={Users}
+                loading={<ResponsiveTable columns={userColumns} data={[]} rowKey={(u) => u.id} isLoading skeletonCount={4} />}
+              >
+                <ResponsiveTable columns={userColumns} data={users ?? []} rowKey={(u) => u.id} />
+              </QueryState>
             </CardContent>
           </Card>
         </div>

@@ -11,6 +11,7 @@ import { EmptyState, NoData } from "@/components/empty-state"
 import { ArrowLeft, FileText, Brain, Sparkles, TrendingUp, TrendingDown, Activity, RefreshCw } from "lucide-react"
 import { LazyImage } from "@/components/lazy-image"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 
 interface AiValuation {
   id: number; companyId: number; provider: string
@@ -25,6 +26,7 @@ export default function CompanyDetail() {
   const params = useParams()
   const companyId = params.id ? parseInt(params.id) : 0
   const qc = useQueryClient()
+  const { toast } = useToast()
 
   const { data: company, isLoading: loadingCompany } = useGetCompany(companyId, {
     query: { enabled: !!companyId, queryKey: getGetCompanyQueryKey(companyId) }
@@ -44,6 +46,7 @@ export default function CompanyDetail() {
   const runVal = useMutation({
     mutationFn: () => adminApi.post(`/ai/valuation/${companyId}`, {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: valKey }),
+    onError: (e: Error) => toast({ title: "Couldn't run valuation", description: e.message, variant: "destructive" }),
   })
 
   const val = runVal.data ?? valuation

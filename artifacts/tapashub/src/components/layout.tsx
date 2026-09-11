@@ -636,6 +636,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               className="hidden md:flex w-8 h-8 text-muted-foreground"
               onClick={() => setSidebarOpen(!sidebarOpen)}
               title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               <Menu className="w-4 h-4" />
             </Button>
@@ -644,6 +645,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               variant="ghost" size="icon"
               className="md:hidden w-8 h-8 text-muted-foreground"
               onClick={() => setMobileOpen(true)}
+              aria-label="Open menu"
             >
               <Menu className="w-4 h-4" />
             </Button>

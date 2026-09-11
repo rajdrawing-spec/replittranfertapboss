@@ -1015,6 +1015,7 @@ function ReportsTab({ companies }: { companies: { id: number; name: string }[] }
                         variant="ghost" size="icon"
                         onClick={() => { if (confirm("Delete this schedule?")) deleteSchedule.mutate(s.id) }}
                         className="w-9 h-9 md:w-7 md:h-7 text-red-700 dark:text-red-400 hover:text-red-300"
+                        aria-label="Delete schedule"
                       >
                         ✕
                       </Button>

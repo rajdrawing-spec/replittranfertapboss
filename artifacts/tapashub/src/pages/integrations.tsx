@@ -318,7 +318,7 @@ function ApiPlatformPanel({
               <p className="text-xs text-muted-foreground">{platform.description}</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500" onClick={onClose} aria-label="Close">
             <XIcon className="w-4 h-4" />
           </Button>
         </div>

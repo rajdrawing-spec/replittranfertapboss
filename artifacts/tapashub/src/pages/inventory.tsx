@@ -692,7 +692,7 @@ export default function Inventory() {
               <Label>SKU</Label>
               <div className="flex gap-2">
                 <Input value={form.sku} onChange={e => f("sku", e.target.value)} placeholder="Auto-generated if empty" />
-                <Button variant="outline" size="icon" onClick={generateSku} disabled={generatingSku} title="Generate SKU"><ScanBarcode className="w-4 h-4" /></Button>
+                <Button variant="outline" size="icon" onClick={generateSku} disabled={generatingSku} title="Generate SKU" aria-label="Generate SKU"><ScanBarcode className="w-4 h-4" /></Button>
               </div>
             </div>
             <div className="space-y-1.5"><Label>Brand</Label><Input value={form.brand} onChange={e => f("brand", e.target.value)} placeholder="Brand" /></div>

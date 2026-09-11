@@ -79,10 +79,10 @@ function FullScreenCallUI({
           </Badge>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={onMinimize} title="Minimize">
+          <Button variant="ghost" size="icon" onClick={onMinimize} title="Minimize" aria-label="Minimize">
             <Minimize2 className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={toggleFullscreen} title="Fullscreen">
+          <Button variant="ghost" size="icon" onClick={toggleFullscreen} title="Fullscreen" aria-label="Fullscreen">
             <Maximize2 className="h-4 w-4" />
           </Button>
           <Button variant="destructive" size="icon" onClick={() => setLeaveOpen(true)} title="Leave" aria-label="Leave">
@@ -140,7 +140,7 @@ function MiniPlayerUI({
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <span className="text-xs text-muted-foreground tabular-nums">{timer}</span>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onExpand} title="Expand">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onExpand} title="Expand" aria-label="Expand">
             <Maximize2 className="h-3 w-3" />
           </Button>
           <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={onLeave} title="Leave" aria-label="Leave">
